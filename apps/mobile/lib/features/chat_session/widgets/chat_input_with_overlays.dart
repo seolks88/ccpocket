@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
@@ -561,21 +563,12 @@ class ChatInputWithOverlays extends HookWidget {
       for (final item in event.session.items) {
         final reader = item.dataReader;
         if (reader == null) continue;
-        for (final format in [Formats.png, Formats.jpeg]) {
-          if (reader.canProvide(format)) {
-            reader.getFile(format, (file) async {
-              try {
-                final bytes = await file.readAll();
-                final mimeType = format == Formats.png
-                    ? 'image/png'
-                    : 'image/jpeg';
-                addImageBytes(bytes, mimeType);
-              } catch (e) {
-                debugPrint('[drop] Failed to read dropped image: $e');
-              }
-            });
-            break; // Only read one format per item
-          }
+        final image = await _readFirstImageFromReader(reader);
+        if (image != null) {
+          addImageBytes(image.bytes, image.mimeType);
+          continue;
+        } else if (_readerHasImageFormat(reader)) {
+          debugPrint('[drop] Failed to read dropped image');
         }
       }
     }
@@ -743,6 +736,14 @@ class ChatInputWithOverlays extends HookWidget {
         return;
       }
 
+      if (isMobilePlatform) {
+        final nativeImage = await _readNativeClipboardImage();
+        if (nativeImage != null) {
+          addImageBytes(nativeImage.bytes, nativeImage.mimeType);
+          return;
+        }
+      }
+
       final clipboard = SystemClipboard.instance;
       if (clipboard == null) {
         if (context.mounted) {
@@ -757,48 +758,12 @@ class ChatInputWithOverlays extends HookWidget {
 
       try {
         final reader = await clipboard.read();
-
-        // Try PNG first, then JPEG
-        for (final format in [Formats.png, Formats.jpeg]) {
-          if (reader.canProvide(format)) {
-            reader.getFile(format, (file) async {
-              try {
-                final bytes = await file.readAll();
-                if (context.mounted) {
-                  final mimeType = format == Formats.png
-                      ? 'image/png'
-                      : 'image/jpeg';
-
-                  // Add to list (append, not replace)
-                  final updated = [
-                    ...attachedImages.value,
-                    (bytes: bytes, mimeType: mimeType),
-                  ];
-                  attachedImages.value = updated;
-
-                  // Persist image draft
-                  context.read<DraftService>().saveImageDraft(
-                    sessionId,
-                    updated,
-                  );
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        AppLocalizations.of(context).failedToLoadImage,
-                      ),
-                    ),
-                  );
-                }
-              }
-            });
-            return;
-          }
+        final image = await _readFirstImageFromReader(reader);
+        if (image != null) {
+          addImageBytes(image.bytes, image.mimeType);
+          return;
         }
 
-        // No image found in clipboard
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -807,6 +772,7 @@ class ChatInputWithOverlays extends HookWidget {
           );
         }
       } catch (e) {
+        debugPrint('[paste] Failed to read clipboard: $e');
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -823,27 +789,21 @@ class ChatInputWithOverlays extends HookWidget {
     Future<bool> tryPasteImage() async {
       const maxImages = 5;
       if (attachedImages.value.length >= maxImages) return false;
+      if (isMobilePlatform) {
+        final nativeImage = await _readNativeClipboardImage();
+        if (nativeImage != null) {
+          addImageBytes(nativeImage.bytes, nativeImage.mimeType);
+          return true;
+        }
+      }
       final clipboard = SystemClipboard.instance;
       if (clipboard == null) return false;
       try {
         final reader = await clipboard.read();
-        for (final format in [Formats.png, Formats.jpeg]) {
-          if (reader.canProvide(format)) {
-            reader.getFile(format, (file) async {
-              try {
-                final bytes = await file.readAll();
-                final mimeType = format == Formats.png
-                    ? 'image/png'
-                    : 'image/jpeg';
-                addImageBytes(bytes, mimeType);
-              } catch (e) {
-                debugPrint('[paste] Failed to read clipboard image: $e');
-              }
-            });
-            return true;
-          }
-        }
-        return false;
+        final image = await _readFirstImageFromReader(reader);
+        if (image == null) return false;
+        addImageBytes(image.bytes, image.mimeType);
+        return true;
       } catch (e) {
         debugPrint('[paste] Failed to read clipboard: $e');
         return false;
@@ -855,8 +815,7 @@ class ChatInputWithOverlays extends HookWidget {
       if (clipboard == null) return false;
       try {
         final reader = await clipboard.read();
-        return reader.canProvide(Formats.png) ||
-            reader.canProvide(Formats.jpeg);
+        return _readerHasImageFormat(reader);
       } catch (_) {
         return false;
       }
@@ -1091,6 +1050,94 @@ class ChatInputWithOverlays extends HookWidget {
 }
 
 enum _AttachAction { gallery, clipboard }
+
+const _clipboardChannel = MethodChannel('ccpocket/clipboard');
+
+const _clipboardImageFormats = <({FileFormat format, String mimeType})>[
+  (format: Formats.png, mimeType: 'image/png'),
+  (format: Formats.jpeg, mimeType: 'image/jpeg'),
+  (format: Formats.webp, mimeType: 'image/webp'),
+  (format: Formats.gif, mimeType: 'image/gif'),
+  (format: Formats.tiff, mimeType: 'image/tiff'),
+  (format: Formats.bmp, mimeType: 'image/bmp'),
+  (format: Formats.heic, mimeType: 'image/heic'),
+  (format: Formats.heif, mimeType: 'image/heif'),
+];
+
+bool _readerHasImageFormat(DataReader reader) {
+  return reader
+      .getFormats(_clipboardImageFormats.map((f) => f.format).toList())
+      .isNotEmpty;
+}
+
+Future<({Uint8List bytes, String mimeType})?> _readFirstImageFromReader(
+  DataReader reader,
+) async {
+  final formats = reader.getFormats(
+    _clipboardImageFormats.map((f) => f.format).toList(),
+  );
+  for (final format in formats) {
+    final descriptor = _clipboardImageFormats.firstWhere(
+      (entry) => entry.format == format,
+    );
+    final bytes = await _readClipboardImageFile(reader, descriptor.format);
+    if (bytes != null && bytes.isNotEmpty) {
+      return (bytes: bytes, mimeType: descriptor.mimeType);
+    }
+  }
+  return null;
+}
+
+Future<Uint8List?> _readClipboardImageFile(
+  DataReader reader,
+  FileFormat format,
+) {
+  final completer = Completer<Uint8List?>();
+  final progress = reader.getFile(
+    format,
+    (file) async {
+      try {
+        final bytes = await file.readAll();
+        if (!completer.isCompleted) completer.complete(bytes);
+      } catch (error, stackTrace) {
+        if (!completer.isCompleted) {
+          completer.completeError(error, stackTrace);
+        }
+      }
+    },
+    onError: (error) {
+      if (!completer.isCompleted) completer.completeError(error);
+    },
+  );
+  if (progress == null && !completer.isCompleted) {
+    completer.complete(null);
+  }
+  return completer.future;
+}
+
+Future<({Uint8List bytes, String mimeType})?>
+_readNativeClipboardImage() async {
+  try {
+    final result = await _clipboardChannel.invokeMapMethod<String, Object?>(
+      'readImage',
+    );
+    if (result == null) return null;
+
+    final bytes = result['bytes'];
+    final mimeType = result['mimeType'];
+    if (bytes is Uint8List &&
+        bytes.isNotEmpty &&
+        mimeType is String &&
+        mimeType.isNotEmpty) {
+      return (bytes: bytes, mimeType: mimeType);
+    }
+  } on MissingPluginException {
+    return null;
+  } catch (error) {
+    debugPrint('[paste] Failed to read native clipboard image: $error');
+  }
+  return null;
+}
 
 /// Wraps child with a [DropRegion] for accepting OS-level drag-and-drop
 /// of images on desktop platforms.

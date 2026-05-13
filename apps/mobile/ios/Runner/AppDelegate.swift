@@ -5,6 +5,7 @@ import UIKit
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
   private let appIconChannelName = "ccpocket/app_icon"
   private let platformEnvironmentChannelName = "ccpocket/platform_environment"
+  private let clipboardChannelName = "ccpocket/clipboard"
 
   override func application(
     _ application: UIApplication,
@@ -28,6 +29,13 @@ import UIKit
         binaryMessenger: registrar.messenger()
       )
       channel.setMethodCallHandler(handlePlatformEnvironmentMethodCall)
+    }
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "ClipboardChannel") {
+      let channel = FlutterMethodChannel(
+        name: clipboardChannelName,
+        binaryMessenger: registrar.messenger()
+      )
+      channel.setMethodCallHandler(handleClipboardMethodCall)
     }
   }
 
@@ -70,6 +78,42 @@ import UIKit
         result("phone")
       default:
         result("unspecified")
+      }
+    default:
+      result(FlutterMethodNotImplemented)
+    }
+  }
+
+  private func handleClipboardMethodCall(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    switch call.method {
+    case "readImage":
+      DispatchQueue.main.async {
+        guard let image = UIPasteboard.general.image else {
+          result(nil)
+          return
+        }
+
+        if let data = image.pngData() {
+          result([
+            "bytes": FlutterStandardTypedData(bytes: data),
+            "mimeType": "image/png"
+          ])
+          return
+        }
+
+        if let data = image.jpegData(compressionQuality: 0.9) {
+          result([
+            "bytes": FlutterStandardTypedData(bytes: data),
+            "mimeType": "image/jpeg"
+          ])
+          return
+        }
+
+        result(FlutterError(
+          code: "encode_failed",
+          message: "Failed to encode clipboard image",
+          details: nil
+        ))
       }
     default:
       result(FlutterMethodNotImplemented)
