@@ -1153,7 +1153,9 @@ Widget _wrapWithDropRegion({
     onDropOver: (event) {
       // Accept copy if any item has an image
       final hasImage = event.session.items.any(
-        (item) => item.canProvide(Formats.png) || item.canProvide(Formats.jpeg),
+        (item) => _clipboardImageFormats.any(
+          (format) => item.canProvide(format.format),
+        ),
       );
       return hasImage ? DropOperation.copy : DropOperation.none;
     },

@@ -93,6 +93,14 @@ import UIKit
           return
         }
 
+        if !self.imageHasAlpha(image), let data = image.jpegData(compressionQuality: 0.85) {
+          result([
+            "bytes": FlutterStandardTypedData(bytes: data),
+            "mimeType": "image/jpeg"
+          ])
+          return
+        }
+
         if let data = image.pngData() {
           result([
             "bytes": FlutterStandardTypedData(bytes: data),
@@ -101,7 +109,7 @@ import UIKit
           return
         }
 
-        if let data = image.jpegData(compressionQuality: 0.9) {
+        if let data = image.jpegData(compressionQuality: 0.85) {
           result([
             "bytes": FlutterStandardTypedData(bytes: data),
             "mimeType": "image/jpeg"
@@ -117,6 +125,18 @@ import UIKit
       }
     default:
       result(FlutterMethodNotImplemented)
+    }
+  }
+
+  private func imageHasAlpha(_ image: UIImage) -> Bool {
+    guard let alphaInfo = image.cgImage?.alphaInfo else {
+      return false
+    }
+    switch alphaInfo {
+    case .first, .last, .premultipliedFirst, .premultipliedLast:
+      return true
+    default:
+      return false
     }
   }
 
