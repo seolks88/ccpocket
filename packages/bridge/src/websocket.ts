@@ -444,6 +444,12 @@ export interface BridgeServerOptions {
   platform?: NodeJS.Platform;
 }
 
+function sameStringArray(left: readonly string[], right: readonly string[]) {
+  return (
+    left.length === right.length && left.every((item, i) => item === right[i])
+  );
+}
+
 export class BridgeWebSocketServer {
   private static readonly MAX_DEBUG_EVENTS = 800;
   private static readonly MAX_HISTORY_SUMMARY_ITEMS = 300;
@@ -475,6 +481,7 @@ export class BridgeWebSocketServer {
   private codexProfilesRequest: Promise<void> | null = null;
   private codexModels: string[] = FALLBACK_CODEX_MODELS;
   private codexModelsRequest: Promise<void> | null = null;
+  private codexMetadataRefreshTimer: NodeJS.Timeout | null = null;
   /** FCM token → push notification locale */
   private tokenLocales = new Map<string, PushLocale>();
   private tokenPrivacyMode = new Map<string, boolean>();
@@ -1334,6 +1341,10 @@ export class BridgeWebSocketServer {
 
   close(): void {
     console.log("[ws] Shutting down...");
+    if (this.codexMetadataRefreshTimer) {
+      clearTimeout(this.codexMetadataRefreshTimer);
+      this.codexMetadataRefreshTimer = null;
+    }
     this.sessionManager.destroyAll();
     this.debugEvents.clear();
     this.wss.close();
@@ -1350,12 +1361,13 @@ export class BridgeWebSocketServer {
   }
 
   private handleConnection(ws: WebSocket): void {
-    // Send session list and project history on connect
-    void this.refreshCodexProfiles();
-    void this.refreshCodexModels();
+    // Send the cached session list immediately. Codex model/profile discovery can
+    // start standalone Codex processes, so defer it slightly to avoid competing
+    // with the first recent-session request on mobile reconnect.
     this.sendSessionList(ws);
     const projects = this.projectHistory?.getProjects() ?? [];
     this.send(ws, { type: "project_history", projects });
+    this.scheduleCodexMetadataRefresh();
 
     ws.on("message", (data) => {
       const raw = data.toString();
@@ -5152,14 +5164,18 @@ export class BridgeWebSocketServer {
     if (this.codexModelsRequest) return this.codexModelsRequest;
     this.codexModelsRequest = this.loadCodexModels(projectPath)
       .then((models) => {
-        this.codexModels =
-          models.length > 0 ? models : FALLBACK_CODEX_MODELS;
-        this.broadcastSessionList();
+        const nextModels = models.length > 0 ? models : FALLBACK_CODEX_MODELS;
+        if (!sameStringArray(this.codexModels, nextModels)) {
+          this.codexModels = nextModels;
+          this.broadcastSessionList();
+        }
       })
       .catch((err) => {
         console.warn(`[ws] Failed to load Codex models: ${err}`);
-        this.codexModels = FALLBACK_CODEX_MODELS;
-        this.broadcastSessionList();
+        if (!sameStringArray(this.codexModels, FALLBACK_CODEX_MODELS)) {
+          this.codexModels = FALLBACK_CODEX_MODELS;
+          this.broadcastSessionList();
+        }
       })
       .finally(() => {
         this.codexModelsRequest = null;
@@ -5185,9 +5201,14 @@ export class BridgeWebSocketServer {
     if (this.codexProfilesRequest) return this.codexProfilesRequest;
     this.codexProfilesRequest = this.loadCodexProfiles(projectPath)
       .then(({ profiles, defaultProfile }) => {
-        this.codexProfiles = profiles;
-        this.defaultCodexProfile = defaultProfile;
-        this.broadcastSessionList();
+        if (
+          !sameStringArray(this.codexProfiles, profiles) ||
+          this.defaultCodexProfile !== defaultProfile
+        ) {
+          this.codexProfiles = profiles;
+          this.defaultCodexProfile = defaultProfile;
+          this.broadcastSessionList();
+        }
       })
       .catch((err) => {
         console.warn(`[ws] Failed to load Codex profiles: ${err}`);
@@ -5198,6 +5219,16 @@ export class BridgeWebSocketServer {
         this.codexProfilesRequest = null;
       });
     return this.codexProfilesRequest;
+  }
+
+  private scheduleCodexMetadataRefresh(projectPath?: string): void {
+    if (this.codexMetadataRefreshTimer) return;
+    this.codexMetadataRefreshTimer = setTimeout(() => {
+      this.codexMetadataRefreshTimer = null;
+      void this.refreshCodexProfiles(projectPath);
+      void this.refreshCodexModels(projectPath);
+    }, 500);
+    this.codexMetadataRefreshTimer.unref?.();
   }
 
   private async loadCodexProfiles(
