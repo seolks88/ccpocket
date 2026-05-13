@@ -241,6 +241,7 @@ class BridgeService implements BridgeServiceBase {
     yield value;
     yield* stream;
   }
+
   UsageResultMessage? get lastUsageResult => _lastUsageResult;
   List<OfflinePendingAction> get offlinePendingActions =>
       _offlinePendingActions;
@@ -323,6 +324,7 @@ class BridgeService implements BridgeServiceBase {
   static const _prefKeyOfflinePendingMessages =
       'bridge_offline_pending_messages_v1';
   static const _inFlightPendingVisibilityDelay = Duration(milliseconds: 600);
+  static const _connectReadyTimeout = Duration(seconds: 10);
 
   Future<void>? _offlineQueueRestore;
   int _offlineQueueGeneration = 0;
@@ -355,12 +357,9 @@ class BridgeService implements BridgeServiceBase {
     _setBridgeConnectionState(BridgeConnectionState.connecting);
     try {
       _channel = WebSocketChannel.connect(Uri.parse(url));
-      _setBridgeConnectionState(BridgeConnectionState.connected);
-      _reconnectAttempt = 0;
-      send(ClientMessage.clientCapabilities());
-      _flushMessageQueue();
+      final channel = _channel!;
 
-      _channelSub = _channel!.stream.listen(
+      _channelSub = channel.stream.listen(
         (data) {
           if (epoch != _connectionEpoch) return;
           try {
@@ -614,10 +613,35 @@ class BridgeService implements BridgeServiceBase {
           }
         },
       );
+      unawaited(_completeConnectionWhenReady(channel, epoch));
     } catch (e, st) {
       logger.error('WS connect failed', e, st);
       _setBridgeConnectionState(BridgeConnectionState.disconnected);
       _messageController.add(ErrorMessage(message: 'Connection failed: $e'));
+      _scheduleReconnect();
+    }
+  }
+
+  Future<void> _completeConnectionWhenReady(
+    WebSocketChannel channel,
+    int epoch,
+  ) async {
+    try {
+      await channel.ready.timeout(_connectReadyTimeout);
+      if (epoch != _connectionEpoch || !identical(channel, _channel)) return;
+      _setBridgeConnectionState(BridgeConnectionState.connected);
+      _reconnectAttempt = 0;
+      send(ClientMessage.clientCapabilities());
+      _flushMessageQueue();
+    } catch (error, stackTrace) {
+      if (epoch != _connectionEpoch || !identical(channel, _channel)) return;
+      logger.warning('WS connect readiness failed', error, stackTrace);
+      _channel = null;
+      unawaited(channel.sink.close());
+      _setBridgeConnectionState(BridgeConnectionState.disconnected);
+      _messageController.add(
+        ErrorMessage(message: 'Connection failed: $error'),
+      );
       _scheduleReconnect();
     }
   }
@@ -778,6 +802,7 @@ class BridgeService implements BridgeServiceBase {
 
   void _scheduleReconnect() {
     if (_intentionalDisconnect || _lastUrl == null) return;
+    if (_reconnectTimer?.isActive == true) return;
 
     _reconnectAttempt++;
     final delay = min(pow(2, _reconnectAttempt).toInt(), _maxReconnectDelay);
