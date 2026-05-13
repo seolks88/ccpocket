@@ -592,6 +592,9 @@ class BridgeService implements BridgeServiceBase {
         onError: (error, stackTrace) {
           if (epoch != _connectionEpoch) return;
           logger.error('WS stream error', error, stackTrace);
+          if (identical(_channel, channel)) {
+            _channel = null;
+          }
           _setBridgeConnectionState(BridgeConnectionState.disconnected);
           _requeueInFlightInputMessages();
           _requeueInFlightPendingMessages();
@@ -637,6 +640,11 @@ class BridgeService implements BridgeServiceBase {
       if (epoch != _connectionEpoch || !identical(channel, _channel)) return;
       logger.warning('WS connect readiness failed', error, stackTrace);
       _channel = null;
+      final subscription = _channelSub;
+      _channelSub = null;
+      if (subscription != null) {
+        unawaited(subscription.cancel());
+      }
       unawaited(channel.sink.close());
       _setBridgeConnectionState(BridgeConnectionState.disconnected);
       _messageController.add(
