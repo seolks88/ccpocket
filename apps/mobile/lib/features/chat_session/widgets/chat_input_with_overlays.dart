@@ -660,12 +660,25 @@ class ChatInputWithOverlays extends HookWidget {
         return;
       }
 
-      final picker = ImagePicker();
-      final List<XFile> picked = await picker.pickMultiImage(
-        maxWidth: 2048,
-        maxHeight: 2048,
-        imageQuality: 85,
-      );
+      final List<XFile> picked;
+      try {
+        final picker = ImagePicker();
+        picked = await picker.pickMultiImage(
+          maxWidth: 2048,
+          maxHeight: 2048,
+          imageQuality: 85,
+        );
+      } catch (e) {
+        debugPrint('[image-picker] Failed to pick images: $e');
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(AppLocalizations.of(context).failedToLoadImage),
+            ),
+          );
+        }
+        return;
+      }
 
       if (picked.isEmpty) return;
 
@@ -675,10 +688,22 @@ class ChatInputWithOverlays extends HookWidget {
 
       final newImages = <({Uint8List bytes, String mimeType})>[];
       for (final file in filesToAdd) {
-        final bytes = await file.readAsBytes();
-        if (!context.mounted) return;
-        final mimeType = _detectMimeType(bytes, file.path);
-        newImages.add((bytes: bytes, mimeType: mimeType));
+        try {
+          final bytes = await file.readAsBytes();
+          if (!context.mounted) return;
+          final mimeType = _detectMimeType(bytes, file.path);
+          newImages.add((bytes: bytes, mimeType: mimeType));
+        } catch (e) {
+          debugPrint('[image-picker] Failed to read picked image: $e');
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(AppLocalizations.of(context).failedToLoadImage),
+              ),
+            );
+          }
+          return;
+        }
       }
 
       final updated = [...attachedImages.value, ...newImages];
@@ -838,10 +863,16 @@ class ChatInputWithOverlays extends HookWidget {
     }
 
     Future<void> showAttachOptions() async {
-      final hasClipImage = await hasClipboardImage();
+      final hasClipImage = isDesktopPlatform
+          ? await hasClipboardImage().timeout(
+              const Duration(milliseconds: 300),
+              onTimeout: () => false,
+            )
+          : false;
       if (!context.mounted) return;
+      final canPasteFromClipboard = isMobilePlatform || hasClipImage;
 
-      showModalBottomSheet(
+      final action = await showModalBottomSheet<_AttachAction>(
         context: context,
         builder: (sheetContext) => SafeArea(
           child: Column(
@@ -852,31 +883,29 @@ class ChatInputWithOverlays extends HookWidget {
                 leading: const Icon(Icons.photo_library),
                 title: Text(AppLocalizations.of(context).selectFromGallery),
                 onTap: () {
-                  Navigator.pop(sheetContext);
-                  pickImageFromGallery();
+                  Navigator.pop(sheetContext, _AttachAction.gallery);
                 },
               ),
               ListTile(
                 key: const ValueKey('attach_from_clipboard'),
                 leading: Icon(
                   Icons.content_paste,
-                  color: hasClipImage
+                  color: canPasteFromClipboard
                       ? null
                       : Theme.of(sheetContext).colorScheme.outline,
                 ),
                 title: Text(
                   AppLocalizations.of(context).pasteFromClipboard,
-                  style: hasClipImage
+                  style: canPasteFromClipboard
                       ? null
                       : TextStyle(
                           color: Theme.of(sheetContext).colorScheme.outline,
                         ),
                 ),
-                enabled: hasClipImage,
-                onTap: hasClipImage
+                enabled: canPasteFromClipboard,
+                onTap: canPasteFromClipboard
                     ? () {
-                        Navigator.pop(sheetContext);
-                        pasteFromClipboard();
+                        Navigator.pop(sheetContext, _AttachAction.clipboard);
                       }
                     : null,
               ),
@@ -884,6 +913,14 @@ class ChatInputWithOverlays extends HookWidget {
           ),
         ),
       );
+
+      if (!context.mounted || action == null) return;
+      switch (action) {
+        case _AttachAction.gallery:
+          await pickImageFromGallery();
+        case _AttachAction.clipboard:
+          await pasteFromClipboard();
+      }
     }
 
     void clearAttachment([int? index]) {
@@ -1052,6 +1089,8 @@ class ChatInputWithOverlays extends HookWidget {
     );
   }
 }
+
+enum _AttachAction { gallery, clipboard }
 
 /// Wraps child with a [DropRegion] for accepting OS-level drag-and-drop
 /// of images on desktop platforms.

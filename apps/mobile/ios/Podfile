@@ -1,6 +1,8 @@
 # Firebase plugins require iOS 15.0+.
 platform :ios, '15.0'
 
+require 'fileutils'
+
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
 
@@ -28,7 +30,8 @@ require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelpe
 flutter_ios_podfile_setup
 
 target 'Runner' do
-  use_frameworks!
+  use_modular_headers!
+  use_frameworks! :linkage => :static
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
   target 'RunnerTests' do
@@ -42,5 +45,50 @@ post_install do |installer|
     target.build_configurations.each do |config|
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
     end
+  end
+
+  # CwlCatchExceptionSupport 2.2.1 references this header with case-sensitive
+  # path handling, but CocoaPods may omit it from Pods on this machine.
+  support_root = File.join(
+    installer.sandbox.root,
+    'CwlCatchExceptionSupport',
+    'Sources',
+    'CwlCatchExceptionSupport',
+  )
+  support_header = File.join(support_root, 'include', 'CwlCatchException.h')
+  unless File.exist?(support_header)
+    cached_header = Dir[
+      File.expand_path(
+        '~/Library/Caches/CocoaPods/Pods/Release/CwlCatchExceptionSupport/*/Sources/CwlCatchExceptionSupport/include/CwlCatchException.h',
+      ),
+    ].sort.last
+    if cached_header
+      FileUtils.mkdir_p(File.dirname(support_header))
+      FileUtils.cp(cached_header, support_header)
+    end
+  end
+
+  # super_native_extensions builds its Rust static library in a pod script phase,
+  # but CocoaPods does not propagate the required force_load flag to Runner when
+  # we use static frameworks. Add it to the aggregate xcconfigs so the final app
+  # link includes the native symbols referenced by the Obj-C plugin shim.
+  super_native_flags = ' -force_load ${PODS_CONFIGURATION_BUILD_DIR}/super_native_extensions/libsuper_native_extensions.a -framework "CoreServices"'
+  Dir[
+    File.join(
+      installer.sandbox.root,
+      'Target Support Files',
+      'Pods-Runner',
+      'Pods-Runner.*.xcconfig',
+    ),
+  ].each do |xcconfig_path|
+    contents = File.read(xcconfig_path)
+    next if contents.include?('libsuper_native_extensions.a')
+
+    if contents.match?(/^OTHER_LDFLAGS = /)
+      contents = contents.sub(/^OTHER_LDFLAGS = .*$/) { |line| line + super_native_flags }
+    else
+      contents << "\nOTHER_LDFLAGS = $(inherited)#{super_native_flags}\n"
+    end
+    File.write(xcconfig_path, contents)
   end
 end

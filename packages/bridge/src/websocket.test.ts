@@ -948,6 +948,132 @@ describe("BridgeWebSocketServer resume/get_history flow", () => {
     bridge.close();
   });
 
+  it("skips resume past_history on get_history_delta when requested", async () => {
+    getSessionHistoryMock.mockResolvedValue([
+      {
+        role: "user",
+        content: [{ type: "text", text: "previous prompt" }],
+      },
+      {
+        role: "assistant",
+        content: [{ type: "text", text: "previous answer" }],
+      },
+    ]);
+    const bridge = new BridgeWebSocketServer({ server: httpServer });
+    const ws = {
+      readyState: OPEN_STATE,
+      send: vi.fn(),
+    } as any;
+
+    await (bridge as any).handleClientMessage(
+      {
+        type: "resume_session",
+        sessionId: "claude-session-1",
+        projectPath: "/tmp/project-a",
+        provider: "claude",
+      },
+      ws,
+    );
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const created = ws.send.mock.calls
+      .map((c: unknown[]) => JSON.parse(c[0] as string))
+      .find((m: any) => m.type === "system" && m.subtype === "session_created");
+    const sessionId = created.sessionId as string;
+
+    ws.send.mockClear();
+    await (bridge as any).handleClientMessage(
+      {
+        type: "get_history_delta",
+        sessionId,
+        sinceSeq: 1,
+        includePast: false,
+      },
+      ws,
+    );
+
+    const sends = ws.send.mock.calls.map((c: unknown[]) =>
+      JSON.parse(c[0] as string),
+    );
+    expect(sends.some((m: any) => m.type === "past_history")).toBe(false);
+    expect(sends[0]).toMatchObject({
+      type: "history_delta",
+      sessionId,
+    });
+
+    bridge.close();
+  });
+
+  it("limits past_history on a user message boundary", async () => {
+    getSessionHistoryMock.mockResolvedValue([
+      {
+        role: "user",
+        content: [{ type: "text", text: "old prompt" }],
+      },
+      {
+        role: "assistant",
+        content: [{ type: "text", text: "old answer" }],
+      },
+      {
+        role: "tool_result",
+        toolUseId: "old-tool",
+        content: "old tool output",
+      },
+      {
+        role: "user",
+        content: [{ type: "text", text: "new prompt" }],
+      },
+      {
+        role: "assistant",
+        content: [{ type: "text", text: "new answer" }],
+      },
+    ]);
+    const bridge = new BridgeWebSocketServer({ server: httpServer });
+    const ws = {
+      readyState: OPEN_STATE,
+      send: vi.fn(),
+    } as any;
+
+    await (bridge as any).handleClientMessage(
+      {
+        type: "resume_session",
+        sessionId: "claude-session-1",
+        projectPath: "/tmp/project-a",
+        provider: "claude",
+      },
+      ws,
+    );
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const created = ws.send.mock.calls
+      .map((c: unknown[]) => JSON.parse(c[0] as string))
+      .find((m: any) => m.type === "system" && m.subtype === "session_created");
+    const sessionId = created.sessionId as string;
+
+    ws.send.mockClear();
+    await (bridge as any).handleClientMessage(
+      {
+        type: "get_history_delta",
+        sessionId,
+        sinceSeq: 1,
+        historyLimit: 3,
+      },
+      ws,
+    );
+
+    const past = ws.send.mock.calls
+      .map((c: unknown[]) => JSON.parse(c[0] as string))
+      .find((m: any) => m.type === "past_history");
+    expect(past.messages).toEqual([
+      { role: "user", content: [{ type: "text", text: "new prompt" }] },
+      { role: "assistant", content: [{ type: "text", text: "new answer" }] },
+    ]);
+
+    bridge.close();
+  });
+
   it("keeps restored image generation results in past history order", async () => {
     getSessionHistoryMock.mockResolvedValue([
       {
@@ -3376,6 +3502,133 @@ describe("BridgeWebSocketServer resume/get_history flow", () => {
       name: "Test failures",
       gitBranch: "fix/tests",
       projectPath: "/tmp/project-codex",
+    });
+
+    bridge.close();
+  });
+
+  it("does not drop recent session responses for a different client", async () => {
+    const bridge = new BridgeWebSocketServer({ server: httpServer });
+    const wsA = {
+      readyState: OPEN_STATE,
+      send: vi.fn(),
+    } as any;
+    const wsB = {
+      readyState: OPEN_STATE,
+      send: vi.fn(),
+    } as any;
+
+    let resolveA:
+      | ((value: { sessions: unknown[]; hasMore: boolean }) => void)
+      | undefined;
+    let resolveB:
+      | ((value: { sessions: unknown[]; hasMore: boolean }) => void)
+      | undefined;
+    getAllRecentSessionsMock.mockImplementation(
+      (options: { projectPath?: string }) => {
+        if (options.projectPath === "/tmp/project-a") {
+          return new Promise((resolve) => {
+            resolveA = resolve;
+          });
+        }
+        if (options.projectPath === "/tmp/project-b") {
+          return new Promise((resolve) => {
+            resolveB = resolve;
+          });
+        }
+        return Promise.resolve({ sessions: [], hasMore: false });
+      },
+    );
+
+    (bridge as any).handleClientMessage(
+      {
+        type: "list_recent_sessions",
+        projectPath: "/tmp/project-a",
+      },
+      wsA,
+    );
+    (bridge as any).handleClientMessage(
+      {
+        type: "list_recent_sessions",
+        projectPath: "/tmp/project-b",
+      },
+      wsB,
+    );
+    expect(resolveA).toBeDefined();
+    expect(resolveB).toBeDefined();
+
+    resolveB?.({
+      sessions: [{ sessionId: "b", projectPath: "/tmp/project-b" }],
+      hasMore: false,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    resolveA?.({
+      sessions: [{ sessionId: "a", projectPath: "/tmp/project-a" }],
+      hasMore: false,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(
+      wsA.send.mock.calls.map((call: unknown[]) => JSON.parse(call[0] as string)),
+    ).toContainEqual({
+      type: "recent_sessions",
+      sessions: [{ sessionId: "a", projectPath: "/tmp/project-a" }],
+      hasMore: false,
+    });
+    expect(
+      wsB.send.mock.calls.map((call: unknown[]) => JSON.parse(call[0] as string)),
+    ).toContainEqual({
+      type: "recent_sessions",
+      sessions: [{ sessionId: "b", projectPath: "/tmp/project-b" }],
+      hasMore: false,
+    });
+
+    bridge.close();
+  });
+
+  it("refreshes cached recent sessions after session list changes", async () => {
+    const bridge = new BridgeWebSocketServer({ server: httpServer });
+    const ws = {
+      readyState: OPEN_STATE,
+      send: vi.fn(),
+    } as any;
+
+    getAllRecentSessionsMock
+      .mockResolvedValueOnce({
+        sessions: [{ sessionId: "old", projectPath: "/tmp/project-a" }],
+        hasMore: false,
+      })
+      .mockResolvedValueOnce({
+        sessions: [{ sessionId: "new", projectPath: "/tmp/project-a" }],
+        hasMore: false,
+      });
+
+    (bridge as any).handleClientMessage(
+      {
+        type: "list_recent_sessions",
+        projectPath: "/tmp/project-a",
+      },
+      ws,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    (bridge as any).broadcastSessionList();
+    (bridge as any).handleClientMessage(
+      {
+        type: "list_recent_sessions",
+        projectPath: "/tmp/project-a",
+      },
+      ws,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(getAllRecentSessionsMock).toHaveBeenCalledTimes(2);
+    expect(
+      ws.send.mock.calls.map((call: unknown[]) => JSON.parse(call[0] as string)),
+    ).toContainEqual({
+      type: "recent_sessions",
+      sessions: [{ sessionId: "new", projectPath: "/tmp/project-a" }],
+      hasMore: false,
     });
 
     bridge.close();

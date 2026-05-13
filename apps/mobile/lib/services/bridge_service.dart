@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 import 'dart:math';
 
@@ -15,6 +16,9 @@ import 'bridge_service_base.dart';
 import 'session_runtime_store.dart';
 
 class BridgeService implements BridgeServiceBase {
+  static const int _initialPastHistoryLimit = 120;
+  static const int _pastHistoryCacheMaxSessions = 30;
+
   void Function(ClientMessage message)? onOutgoingMessage;
   FutureOr<void> Function()? onDisconnect;
 
@@ -108,6 +112,8 @@ class BridgeService implements BridgeServiceBase {
   String? _promptHistoryBridgeId;
   UsageResultMessage? _lastUsageResult;
   final SessionRuntimeStore _runtimeStore = SessionRuntimeStore();
+  final LinkedHashMap<String, PastHistoryMessage> _pastHistoryCache =
+      LinkedHashMap<String, PastHistoryMessage>();
   final Map<String, int> _pendingHistoryDeltaSinceSeq = {};
   final Map<String, ClientMessage> _inFlightPendingMessages = {};
   final Map<String, ClientMessage> _inFlightInputMessages = {};
@@ -141,18 +147,21 @@ class BridgeService implements BridgeServiceBase {
   Stream<ServerMessage> get messages => _messageController.stream;
   @override
   Stream<BridgeConnectionState> get connectionStatus =>
-      _connectionController.stream;
+      _withInitial(_connectionState, _connectionController.stream);
   @override
-  Stream<List<SessionInfo>> get sessionList => _sessionListController.stream;
+  Stream<List<SessionInfo>> get sessionList =>
+      _withInitial(_sessions, _sessionListController.stream);
   @override
   Stream<String> get stoppedSessions => _sessionStoppedController.stream;
   Stream<List<RecentSession>> get recentSessionsStream =>
-      _recentSessionsController.stream;
-  Stream<List<GalleryImage>> get galleryStream => _galleryController.stream;
+      _withInitial(_recentSessions, _recentSessionsController.stream);
+  Stream<List<GalleryImage>> get galleryStream =>
+      _withInitial(_galleryImages, _galleryController.stream);
   Stream<List<String>> get projectHistoryStream =>
-      _projectHistoryController.stream;
+      _withInitial(_projectHistory, _projectHistoryController.stream);
   @override
-  Stream<List<String>> get fileList => _fileListController.stream;
+  Stream<List<String>> get fileList =>
+      _withInitial(const <String>[], _fileListController.stream);
   Stream<FileContentMessage> get fileContent => _fileContentController.stream;
   Stream<DiffResultMessage> get diffResults => _diffResultController.stream;
   Stream<DiffImageResultMessage> get diffImageResults =>
@@ -227,6 +236,11 @@ class BridgeService implements BridgeServiceBase {
   String? get defaultCodexProfile => _defaultCodexProfile;
   String? get bridgeVersion => _bridgeVersion;
   String? get promptHistoryBridgeId => _promptHistoryBridgeId;
+
+  Stream<T> _withInitial<T>(T value, Stream<T> stream) async* {
+    yield value;
+    yield* stream;
+  }
   UsageResultMessage? get lastUsageResult => _lastUsageResult;
   List<OfflinePendingAction> get offlinePendingActions =>
       _offlinePendingActions;
@@ -402,6 +416,9 @@ class BridgeService implements BridgeServiceBase {
                 _appendMode = false;
                 _recentSessionsController.add(_recentSessions);
               case PastHistoryMessage():
+                if (sessionId != null) {
+                  _rememberPastHistory(sessionId, msg);
+                }
                 _taggedMessageController.add((msg, sessionId));
                 _messageController.add(msg);
               case GalleryListMessage(:final images):
@@ -637,6 +654,7 @@ class BridgeService implements BridgeServiceBase {
     _promptHistoryBridgeId = null;
     _lastUsageResult = null;
     _pendingHistoryDeltaSinceSeq.clear();
+    _pastHistoryCache.clear();
     _deliveryPendingInputs.clear();
     for (final timer in _deliveryPendingVisibilityTimers.values) {
       timer.cancel();
@@ -701,10 +719,11 @@ class BridgeService implements BridgeServiceBase {
         ((previousCachedSeq == 0 && msg.fromSeq <= 1) ||
             (msg.fromSeq <= previousCachedSeq + 1 &&
                 msg.fromSeq <= previousLatestSeq));
+    final shouldEmitSnapshot = shouldReplace || !hadCachedTimeline;
     _pendingHistoryDeltaSinceSeq.remove(sessionId);
     _runtimeStore.applyServerMessage(sessionId, msg);
 
-    if (shouldReplace) {
+    if (shouldEmitSnapshot) {
       final history = HistoryMessage(
         messages: _runtimeStore.messages(sessionId),
       );
@@ -806,14 +825,104 @@ class BridgeService implements BridgeServiceBase {
 
   bool _addQueuedMessageIfAbsent(ClientMessage message) {
     final dedupeKey = _offlineMessageDedupeKey(message);
-    final shouldSkip =
-        dedupeKey != null &&
-        _messageQueue.any((queued) {
-          return _offlineMessageDedupeKey(queued) == dedupeKey;
-        });
-    if (shouldSkip) return false;
+    if (dedupeKey != null) {
+      final existingIndex = _messageQueue.indexWhere((queued) {
+        return _offlineMessageDedupeKey(queued) == dedupeKey;
+      });
+      if (existingIndex != -1) {
+        _messageQueue[existingIndex] = _mergeQueuedMessage(
+          _messageQueue[existingIndex],
+          message,
+        );
+        return false;
+      }
+    }
     _messageQueue.add(message);
     return true;
+  }
+
+  ClientMessage _mergeQueuedMessage(ClientMessage queued, ClientMessage next) {
+    if (queued.type == 'get_history_delta' &&
+        next.type == 'get_history_delta') {
+      return _mergeQueuedHistoryDelta(queued, next);
+    }
+    if (queued.type == 'get_history' && next.type == 'get_history') {
+      return _mergeQueuedHistoryRequest(queued, next);
+    }
+    return queued;
+  }
+
+  ClientMessage _mergeQueuedHistoryRequest(
+    ClientMessage queued,
+    ClientMessage next,
+  ) {
+    final queuedJson = _clientMessageJson(queued);
+    final nextJson = _clientMessageJson(next);
+    final merged = Map<String, dynamic>.from(queuedJson);
+    _mergeLargestOptionalInt(
+      merged,
+      'historyLimit',
+      queuedJson['historyLimit'],
+      nextJson['historyLimit'],
+    );
+    return ClientMessage.raw(merged);
+  }
+
+  ClientMessage _mergeQueuedHistoryDelta(
+    ClientMessage queued,
+    ClientMessage next,
+  ) {
+    final queuedJson = _clientMessageJson(queued);
+    final nextJson = _clientMessageJson(next);
+    final queuedSeq = _readHistorySeq(queuedJson['sinceSeq']);
+    final nextSeq = _readHistorySeq(nextJson['sinceSeq']);
+    final merged = Map<String, dynamic>.from(queuedJson);
+    if (queuedSeq != null && nextSeq != null) {
+      merged['sinceSeq'] = min(queuedSeq, nextSeq);
+    } else if (queuedSeq == null && nextSeq != null) {
+      merged['sinceSeq'] = nextSeq;
+    }
+
+    if (queuedJson['includePast'] == false &&
+        nextJson['includePast'] == false) {
+      merged['includePast'] = false;
+    } else {
+      merged.remove('includePast');
+    }
+    _mergeLargestOptionalInt(
+      merged,
+      'historyLimit',
+      queuedJson['historyLimit'],
+      nextJson['historyLimit'],
+    );
+    return ClientMessage.raw(merged);
+  }
+
+  Map<String, dynamic> _clientMessageJson(ClientMessage message) {
+    return jsonDecode(message.toJson()) as Map<String, dynamic>;
+  }
+
+  void _mergeLargestOptionalInt(
+    Map<String, dynamic> merged,
+    String key,
+    Object? queuedValue,
+    Object? nextValue,
+  ) {
+    final queuedInt = _readHistorySeq(queuedValue);
+    final nextInt = _readHistorySeq(nextValue);
+    if (queuedInt == null && nextInt == null) {
+      merged.remove(key);
+      return;
+    }
+    if (queuedInt == null) {
+      merged[key] = nextInt;
+      return;
+    }
+    if (nextInt == null) {
+      merged[key] = queuedInt;
+      return;
+    }
+    merged[key] = max(queuedInt, nextInt);
   }
 
   bool _trackInFlightPendingMessage(ClientMessage message) {
@@ -1016,6 +1125,10 @@ class BridgeService implements BridgeServiceBase {
       'resume_session' =>
         'resume:${json['provider'] ?? 'claude'}:${json['sessionId']}',
       'start' => 'start:${_canonicalJson(json)}',
+      'get_history' when json['sessionId'] is String =>
+        'history:get:${json['sessionId']}',
+      'get_history_delta' when json['sessionId'] is String =>
+        'history:delta:${json['sessionId']}',
       _ => null,
     };
   }
@@ -1423,17 +1536,52 @@ class BridgeService implements BridgeServiceBase {
   @override
   void requestSessionHistory(String sessionId) {
     final snapshot = _runtimeStore.snapshot(sessionId);
+    final hasCachedPastHistory = _pastHistoryCache.containsKey(sessionId);
     if (snapshot.messages.isNotEmpty) {
       _pendingHistoryDeltaSinceSeq[sessionId] = snapshot.cachedHistorySeq;
       send(
         ClientMessage.getHistoryDelta(
           sessionId,
           sinceSeq: snapshot.cachedHistorySeq,
+          includePast: hasCachedPastHistory ? false : null,
         ),
       );
       return;
     }
-    send(ClientMessage.getHistory(sessionId));
+    if (hasCachedPastHistory) {
+      _pendingHistoryDeltaSinceSeq[sessionId] = snapshot.cachedHistorySeq;
+      send(
+        ClientMessage.getHistoryDelta(
+          sessionId,
+          sinceSeq: snapshot.cachedHistorySeq,
+          includePast: false,
+        ),
+      );
+      return;
+    }
+    send(
+      ClientMessage.getHistory(
+        sessionId,
+        historyLimit: _initialPastHistoryLimit,
+      ),
+    );
+  }
+
+  @override
+  PastHistoryMessage? cachedPastHistory(String sessionId) {
+    final history = _pastHistoryCache.remove(sessionId);
+    if (history != null) {
+      _pastHistoryCache[sessionId] = history;
+    }
+    return history;
+  }
+
+  void _rememberPastHistory(String sessionId, PastHistoryMessage history) {
+    _pastHistoryCache.remove(sessionId);
+    _pastHistoryCache[sessionId] = history;
+    while (_pastHistoryCache.length > _pastHistoryCacheMaxSessions) {
+      _pastHistoryCache.remove(_pastHistoryCache.keys.first);
+    }
   }
 
   void refreshBranch(String sessionId) {
@@ -1613,6 +1761,7 @@ class BridgeService implements BridgeServiceBase {
 
   void clearExplorerHistory(String sessionId) {
     _runtimeStore.clearSession(sessionId);
+    _pastHistoryCache.remove(sessionId);
   }
 
   /// Rename a session. For running sessions, [sessionId] is the bridge id.

@@ -342,6 +342,17 @@ describe("parseClientMessage", () => {
     expect(parseClientMessage('{"type":"get_history"}')).toBeNull();
   });
 
+  it("parses get_history with historyLimit", () => {
+    const msg = parseClientMessage(
+      '{"type":"get_history","sessionId":"s2","historyLimit":120}',
+    );
+    expect(msg).toEqual({
+      type: "get_history",
+      sessionId: "s2",
+      historyLimit: 120,
+    });
+  });
+
   it("parses get_history_delta message", () => {
     const msg = parseClientMessage(
       '{"type":"get_history_delta","sessionId":"s2","sinceSeq":12}',
@@ -360,6 +371,11 @@ describe("parseClientMessage", () => {
     expect(
       parseClientMessage(
         '{"type":"get_history_delta","sessionId":"s2","sinceSeq":-1}',
+      ),
+    ).toBeNull();
+    expect(
+      parseClientMessage(
+        '{"type":"get_history_delta","sessionId":"s2","sinceSeq":0,"historyLimit":0}',
       ),
     ).toBeNull();
   });

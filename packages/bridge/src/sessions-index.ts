@@ -1124,6 +1124,15 @@ interface CodexSessionParseResult {
   threadId: string;
 }
 
+interface CodexSessionParseCacheEntry {
+  size: number;
+  mtimeMs: number;
+  parsed: CodexSessionParseResult | null;
+}
+
+const CODEX_SESSION_PARSE_CACHE_MAX_FILES = 1000;
+const codexSessionParseCache = new Map<string, CodexSessionParseCacheEntry>();
+
 async function listCodexSessionFiles(): Promise<string[]> {
   const root = join(homedir(), ".codex", "sessions");
   const files: string[] = [];
@@ -1148,6 +1157,72 @@ async function listCodexSessionFiles(): Promise<string[]> {
   }
 
   return files;
+}
+
+function cloneCodexSessionParseResult(
+  parsed: CodexSessionParseResult | null,
+): CodexSessionParseResult | null {
+  if (!parsed) return null;
+  return {
+    threadId: parsed.threadId,
+    entry: {
+      ...parsed.entry,
+      codexSettings: parsed.entry.codexSettings
+        ? { ...parsed.entry.codexSettings }
+        : undefined,
+    },
+  };
+}
+
+function rememberCodexSessionParse(
+  filePath: string,
+  entry: CodexSessionParseCacheEntry,
+): void {
+  codexSessionParseCache.delete(filePath);
+  codexSessionParseCache.set(filePath, entry);
+  while (codexSessionParseCache.size > CODEX_SESSION_PARSE_CACHE_MAX_FILES) {
+    const oldest = codexSessionParseCache.keys().next().value;
+    if (!oldest) return;
+    codexSessionParseCache.delete(oldest);
+  }
+}
+
+async function parseCodexSessionFileCached(
+  filePath: string,
+): Promise<CodexSessionParseResult | null> {
+  let fileStat;
+  try {
+    fileStat = await stat(filePath);
+  } catch {
+    return null;
+  }
+
+  const cached = codexSessionParseCache.get(filePath);
+  if (
+    cached &&
+    cached.size === fileStat.size &&
+    cached.mtimeMs === fileStat.mtimeMs
+  ) {
+    codexSessionParseCache.delete(filePath);
+    codexSessionParseCache.set(filePath, cached);
+    return cloneCodexSessionParseResult(cached.parsed);
+  }
+
+  let raw: string;
+  try {
+    raw = await readFile(filePath, "utf-8");
+  } catch {
+    return null;
+  }
+
+  const fallbackSessionId = basename(filePath, ".jsonl");
+  const parsed = parseCodexSessionJsonl(raw, fallbackSessionId);
+  rememberCodexSessionParse(filePath, {
+    size: fileStat.size,
+    mtimeMs: fileStat.mtimeMs,
+    parsed,
+  });
+  return cloneCodexSessionParseResult(parsed);
 }
 
 function parseCodexSessionJsonl(raw: string, fallbackSessionId: string): CodexSessionParseResult | null {
@@ -1643,43 +1718,51 @@ async function getAllRecentCodexSessions(options: CodexRecentOptions = {}): Prom
   const threadAdditionalWritableRoots =
     await loadCodexSessionAdditionalWritableRoots();
 
-  for (const filePath of files) {
-    let raw: string;
-    try {
-      raw = await readFile(filePath, "utf-8");
-    } catch {
-      continue;
-    }
-    options.perfStats && (options.perfStats.filesRead += 1);
-    const fallbackSessionId = basename(filePath, ".jsonl");
-    const parsed = parseCodexSessionJsonl(raw, fallbackSessionId);
-    if (!parsed) continue;
-    if (normalizedProjectPath && parsed.entry.projectPath !== normalizedProjectPath) {
-      continue;
-    }
-    // Attach thread name if available
-    const threadName = threadNames.get(parsed.threadId);
-    if (threadName) {
-      parsed.entry.name = threadName;
-    }
-    const threadProfile = threadProfiles.get(parsed.threadId);
-    if (threadProfile) {
-      parsed.entry.codexSettings = {
-        ...(parsed.entry.codexSettings ?? {}),
-        profile: threadProfile,
-      };
-    }
-    const additionalWritableRoots = threadAdditionalWritableRoots.get(
-      parsed.threadId,
-    );
-    if (additionalWritableRoots) {
-      parsed.entry.codexSettings = {
-        ...(parsed.entry.codexSettings ?? {}),
-        additionalWritableRoots,
-      };
-    }
-    entries.push(parsed.entry);
-    options.perfStats && (options.perfStats.entriesReturned += 1);
+  const parsedEntries = await parallelMap(
+    files,
+    PARALLEL_FILE_READ_LIMIT,
+    async (filePath): Promise<SessionIndexEntry | null> => {
+      const cachedBeforeRead = codexSessionParseCache.get(filePath);
+      const parsed = await parseCodexSessionFileCached(filePath);
+      if (cachedBeforeRead !== codexSessionParseCache.get(filePath)) {
+        options.perfStats && (options.perfStats.filesRead += 1);
+      }
+      if (!parsed) return null;
+      if (
+        normalizedProjectPath &&
+        parsed.entry.projectPath !== normalizedProjectPath
+      ) {
+        return null;
+      }
+
+      // Attach user-maintained Codex metadata after parsing the JSONL session.
+      const threadName = threadNames.get(parsed.threadId);
+      if (threadName) {
+        parsed.entry.name = threadName;
+      }
+      const threadProfile = threadProfiles.get(parsed.threadId);
+      if (threadProfile) {
+        parsed.entry.codexSettings = {
+          ...(parsed.entry.codexSettings ?? {}),
+          profile: threadProfile,
+        };
+      }
+      const additionalWritableRoots = threadAdditionalWritableRoots.get(
+        parsed.threadId,
+      );
+      if (additionalWritableRoots) {
+        parsed.entry.codexSettings = {
+          ...(parsed.entry.codexSettings ?? {}),
+          additionalWritableRoots,
+        };
+      }
+      options.perfStats && (options.perfStats.entriesReturned += 1);
+      return parsed.entry;
+    },
+  );
+
+  for (const entry of parsedEntries) {
+    if (entry) entries.push(entry);
   }
 
   return entries;

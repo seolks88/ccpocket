@@ -173,6 +173,21 @@ void main() {
       },
     );
 
+    test('requestSessionHistory limits initial past history request', () {
+      final outgoing = <ClientMessage>[];
+      final bridge = BridgeService()..onOutgoingMessage = outgoing.add;
+
+      bridge.requestSessionHistory('s1');
+
+      expect(jsonDecode(outgoing.single.toJson()), {
+        'type': 'get_history',
+        'sessionId': 's1',
+        'historyLimit': 120,
+      });
+
+      bridge.dispose();
+    });
+
     test(
       'requestSessionHistory uses delta when cached sequence exists',
       () async {
@@ -214,6 +229,189 @@ void main() {
           'sinceSeq': 1,
         });
 
+        bridge.disconnect();
+        await socket.close();
+        await server.close(force: true);
+        bridge.dispose();
+      },
+    );
+
+    test(
+      'requestSessionHistory skips past history when runtime and past caches exist',
+      () async {
+        final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+        final socketReady = Completer<WebSocket>();
+
+        server.transform(WebSocketTransformer()).listen((socket) {
+          socketReady.complete(socket);
+        });
+
+        final outgoing = <ClientMessage>[];
+        final bridge = BridgeService()..onOutgoingMessage = outgoing.add;
+        bridge.connect('ws://127.0.0.1:${server.port}');
+
+        final socket = await socketReady.future;
+        socket.add(
+          jsonEncode({
+            'type': 'past_history',
+            'sessionId': 's1',
+            'claudeSessionId': 's1',
+            'messages': [
+              {
+                'role': 'user',
+                'content': [
+                  {'type': 'text', 'text': 'previous prompt'},
+                ],
+              },
+            ],
+          }),
+        );
+        socket.add(
+          jsonEncode({
+            'type': 'history_delta',
+            'sessionId': 's1',
+            'fromSeq': 1,
+            'toSeq': 1,
+            'messages': [
+              {
+                'seq': 1,
+                'message': {'type': 'status', 'status': 'running'},
+              },
+            ],
+          }),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+
+        bridge.requestSessionHistory('s1');
+
+        final request =
+            jsonDecode(outgoing.last.toJson()) as Map<String, dynamic>;
+        expect(request, {
+          'type': 'get_history_delta',
+          'sessionId': 's1',
+          'sinceSeq': 1,
+          'includePast': false,
+        });
+
+        bridge.disconnect();
+        await socket.close();
+        await server.close(force: true);
+        bridge.dispose();
+      },
+    );
+
+    test('past history cache evicts least recently used sessions', () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      final socketReady = Completer<WebSocket>();
+
+      server.transform(WebSocketTransformer()).listen((socket) {
+        socketReady.complete(socket);
+      });
+
+      final bridge = BridgeService();
+      bridge.connect('ws://127.0.0.1:${server.port}');
+
+      final socket = await socketReady.future;
+      for (var i = 0; i < 31; i++) {
+        socket.add(
+          jsonEncode({
+            'type': 'past_history',
+            'sessionId': 's$i',
+            'claudeSessionId': 's$i',
+            'messages': [
+              {
+                'role': 'user',
+                'content': [
+                  {'type': 'text', 'text': 'prompt $i'},
+                ],
+              },
+            ],
+          }),
+        );
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(bridge.cachedPastHistory('s0'), isNull);
+      expect(bridge.cachedPastHistory('s1'), isNotNull);
+      expect(bridge.cachedPastHistory('s30'), isNotNull);
+
+      bridge.disconnect();
+      await socket.close();
+      await server.close(force: true);
+      bridge.dispose();
+    });
+
+    test(
+      'history delta fills empty runtime cache with one history update',
+      () async {
+        final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+        final socketReady = Completer<WebSocket>();
+
+        server.transform(WebSocketTransformer()).listen((socket) {
+          socketReady.complete(socket);
+        });
+
+        final bridge = BridgeService();
+        final received = <ServerMessage>[];
+        final sub = bridge.messagesForSession('s1').listen(received.add);
+        bridge.connect('ws://127.0.0.1:${server.port}');
+
+        final socket = await socketReady.future;
+        socket.add(
+          jsonEncode({
+            'type': 'past_history',
+            'sessionId': 's1',
+            'claudeSessionId': 's1',
+            'messages': [
+              {
+                'role': 'user',
+                'content': [
+                  {'type': 'text', 'text': 'previous prompt'},
+                ],
+              },
+            ],
+          }),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        received.clear();
+
+        socket.add(
+          jsonEncode({
+            'type': 'history_delta',
+            'sessionId': 's1',
+            'fromSeq': 1,
+            'toSeq': 2,
+            'messages': [
+              {
+                'seq': 1,
+                'message': {'type': 'user_input', 'text': 'fresh prompt'},
+              },
+              {
+                'seq': 2,
+                'message': {
+                  'type': 'assistant',
+                  'message': {
+                    'id': 'a1',
+                    'role': 'assistant',
+                    'content': [
+                      {'type': 'text', 'text': 'fresh reply'},
+                    ],
+                    'model': 'claude',
+                  },
+                },
+              },
+            ],
+          }),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+
+        final histories = received.whereType<HistoryMessage>().toList();
+        expect(histories, hasLength(1));
+        expect(histories.single.messages, hasLength(2));
+        expect(received.whereType<UserInputMessage>(), isEmpty);
+        expect(received.whereType<AssistantServerMessage>(), isEmpty);
+
+        await sub.cancel();
         bridge.disconnect();
         await socket.close();
         await server.close(force: true);
@@ -786,6 +984,49 @@ void main() {
           'baseSeq': 4,
         });
 
+        bridge.dispose();
+      },
+    );
+
+    test(
+      'dedupes queued history deltas while preserving the earliest sequence',
+      () async {
+        final bridge = BridgeService();
+
+        bridge.send(
+          ClientMessage.getHistoryDelta('s1', sinceSeq: 7, includePast: false),
+        );
+        bridge.send(ClientMessage.getHistoryDelta('s1', sinceSeq: 3));
+
+        final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+        final received = <Map<String, dynamic>>[];
+        final sawDelta = Completer<void>();
+
+        server.transform(WebSocketTransformer()).listen((socket) {
+          socket.listen((data) {
+            final json = jsonDecode(data as String) as Map<String, dynamic>;
+            received.add(json);
+            if (json['type'] == 'get_history_delta' && !sawDelta.isCompleted) {
+              sawDelta.complete();
+            }
+          });
+        });
+
+        bridge.connect('ws://127.0.0.1:${server.port}');
+
+        await sawDelta.future.timeout(const Duration(seconds: 2));
+        final deltas = received
+            .where((message) => message['type'] == 'get_history_delta')
+            .toList();
+        expect(deltas, hasLength(1));
+        expect(deltas.single, {
+          'type': 'get_history_delta',
+          'sessionId': 's1',
+          'sinceSeq': 3,
+        });
+
+        bridge.disconnect();
+        await server.close(force: true);
         bridge.dispose();
       },
     );

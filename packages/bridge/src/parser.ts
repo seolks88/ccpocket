@@ -171,8 +171,14 @@ export type ClientMessage =
       providerSessionId?: string;
       projectPath?: string;
     }
-  | { type: "get_history"; sessionId: string }
-  | { type: "get_history_delta"; sessionId: string; sinceSeq: number }
+  | { type: "get_history"; sessionId: string; historyLimit?: number }
+  | {
+      type: "get_history_delta";
+      sessionId: string;
+      sinceSeq: number;
+      includePast?: boolean;
+      historyLimit?: number;
+    }
   | {
       type: "list_recent_sessions";
       limit?: number;
@@ -1070,6 +1076,14 @@ export function parseClientMessage(data: string): ClientMessage | null {
         break;
       case "get_history":
         if (typeof msg.sessionId !== "string") return null;
+        if (
+          msg.historyLimit !== undefined &&
+          (typeof msg.historyLimit !== "number" ||
+            !Number.isInteger(msg.historyLimit) ||
+            msg.historyLimit <= 0 ||
+            msg.historyLimit > 1000)
+        )
+          return null;
         break;
       case "get_history_delta":
         if (typeof msg.sessionId !== "string") return null;
@@ -1077,6 +1091,19 @@ export function parseClientMessage(data: string): ClientMessage | null {
           typeof msg.sinceSeq !== "number" ||
           !Number.isInteger(msg.sinceSeq) ||
           msg.sinceSeq < 0
+        )
+          return null;
+        if (
+          msg.includePast !== undefined &&
+          typeof msg.includePast !== "boolean"
+        )
+          return null;
+        if (
+          msg.historyLimit !== undefined &&
+          (typeof msg.historyLimit !== "number" ||
+            !Number.isInteger(msg.historyLimit) ||
+            msg.historyLimit <= 0 ||
+            msg.historyLimit > 1000)
         )
           return null;
         break;

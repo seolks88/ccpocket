@@ -96,6 +96,13 @@ type ClaudePermissionMode =
   | "bypassPermissions"
   | "plan";
 
+interface RecentSessionsCacheEntry {
+  sessions: unknown[];
+  hasMore: boolean;
+  updatedAt: number;
+  refresh?: Promise<{ sessions: unknown[]; hasMore: boolean }>;
+}
+
 // ---- Available model lists (delivered to clients via session_list) ----
 
 const CLAUDE_MODELS: string[] = [
@@ -440,6 +447,9 @@ export interface BridgeServerOptions {
 export class BridgeWebSocketServer {
   private static readonly MAX_DEBUG_EVENTS = 800;
   private static readonly MAX_HISTORY_SUMMARY_ITEMS = 300;
+  private static readonly RECENT_SESSIONS_CACHE_TTL_MS = 15_000;
+  private static readonly RECENT_SESSIONS_CACHE_MAX_KEYS = 32;
+  private static readonly RECENT_SESSIONS_PREWARM_DELAY_MS = 100;
 
   private wss: WebSocketServer;
   private sessionManager: SessionManager;
@@ -455,7 +465,8 @@ export class BridgeWebSocketServer {
   private promptHistoryBackup: PromptHistoryBackupStore | null;
   private promptHistoryStore: PromptHistoryStore | null;
 
-  private recentSessionsRequestId = 0;
+  private recentSessionsRequestIds = new WeakMap<WebSocket, number>();
+  private recentSessionsCache = new Map<string, RecentSessionsCacheEntry>();
   private debugEvents = new Map<string, DebugTraceEvent[]>();
   private notifiedPermissionToolUses = new Map<string, Set<string>>();
   private archiveStore: ArchiveStore;
@@ -511,9 +522,13 @@ export class BridgeWebSocketServer {
         console.error("[ws] Failed to initialize recording store:", err);
       });
     }
-    void this.archiveStore.init().catch((err) => {
-      console.error("[ws] Failed to initialize archive store:", err);
-    });
+    void this.archiveStore.init()
+      .then(() => {
+        this.scheduleRecentSessionsPrewarm();
+      })
+      .catch((err) => {
+        console.error("[ws] Failed to initialize archive store:", err);
+      });
     if (!this.pushRelay.isConfigured) {
       console.log("[ws] Push relay disabled (Firebase auth not available)");
     } else {
@@ -560,6 +575,20 @@ export class BridgeWebSocketServer {
     });
 
     console.log(`[ws] WebSocket server attached to HTTP server`);
+  }
+
+  private scheduleRecentSessionsPrewarm(): void {
+    if (process.env.VITEST) return;
+    const timer = setTimeout(() => {
+      void this.refreshRecentSessions({
+        type: "list_recent_sessions",
+        limit: 20,
+        offset: 0,
+      }).catch((err) => {
+        console.warn(`[ws] Failed to prewarm recent sessions: ${err}`);
+      });
+    }, BridgeWebSocketServer.RECENT_SESSIONS_PREWARM_DELAY_MS);
+    timer.unref?.();
   }
 
   /**
@@ -1037,8 +1066,10 @@ export class BridgeWebSocketServer {
 
   private async splitPastHistoryMessages(
     session: SessionInfo,
+    options: { limit?: number } = {},
   ): Promise<{ pastMessages: unknown[]; historyMessages: ServerMessage[] }> {
-    const messages = session.pastMessages ?? [];
+    const allMessages = session.pastMessages ?? [];
+    const messages = this.selectPastHistoryWindow(allMessages, options.limit);
     const pastMessages: unknown[] = [];
     const historyMessages: ServerMessage[] = [];
 
@@ -1121,6 +1152,18 @@ export class BridgeWebSocketServer {
     return { pastMessages, historyMessages };
   }
 
+  private selectPastHistoryWindow(
+    messages: unknown[],
+    limit?: number,
+  ): unknown[] {
+    if (typeof limit !== "number" || limit <= 0) return messages;
+    const window = messages.slice(-limit);
+    const firstUserIndex = window.findIndex(
+      (raw) => (raw as Record<string, unknown>).role === "user",
+    );
+    return firstUserIndex > 0 ? window.slice(firstUserIndex) : window;
+  }
+
   private async registerPastUserMessageImages(
     session: SessionInfo,
     msg: Record<string, unknown>,
@@ -1151,6 +1194,9 @@ export class BridgeWebSocketServer {
 
     const messageUuid = typeof msg.uuid === "string" ? msg.uuid : undefined;
     const providerSessionId = session.claudeSessionId;
+    if (session.provider === "codex") {
+      return refs;
+    }
     if (
       refs.length === existingImages.length &&
       messageUuid &&
@@ -2845,7 +2891,9 @@ export class BridgeWebSocketServer {
         if (session) {
           const splitPastHistory =
             session.pastMessages && session.pastMessages.length > 0
-              ? await this.splitPastHistoryMessages(session)
+              ? await this.splitPastHistoryMessages(session, {
+                  limit: msg.historyLimit,
+                })
               : { pastMessages: [], historyMessages: [] };
           // Send past conversation from disk (resume) before in-memory history
           if (splitPastHistory.pastMessages.length > 0) {
@@ -2938,9 +2986,15 @@ export class BridgeWebSocketServer {
           msg.sinceSeq,
         );
         if (session && result) {
-          if (session.pastMessages && session.pastMessages.length > 0) {
+          if (
+            msg.includePast !== false &&
+            session.pastMessages &&
+            session.pastMessages.length > 0
+          ) {
             const splitPastHistory =
-              await this.splitPastHistoryMessages(session);
+              await this.splitPastHistoryMessages(session, {
+                limit: msg.historyLimit,
+              });
             if (splitPastHistory.pastMessages.length > 0) {
               this.send(ws, {
                 type: "past_history",
@@ -3112,11 +3166,28 @@ export class BridgeWebSocketServer {
       }
 
       case "list_recent_sessions": {
-        const requestId = ++this.recentSessionsRequestId;
-        this.listRecentSessions(msg)
+        const requestId =
+          (this.recentSessionsRequestIds.get(ws) ?? 0) + 1;
+        this.recentSessionsRequestIds.set(ws, requestId);
+        const cached = this.getCachedRecentSessions(msg);
+        if (cached) {
+          this.send(ws, {
+            type: "recent_sessions",
+            sessions: cached.sessions,
+            hasMore: cached.hasMore,
+          } as Record<string, unknown>);
+        }
+
+        const shouldRefresh =
+          !cached ||
+          Date.now() - cached.updatedAt >
+            BridgeWebSocketServer.RECENT_SESSIONS_CACHE_TTL_MS;
+        if (!shouldRefresh) break;
+
+        this.refreshRecentSessions(msg)
           .then(({ sessions, hasMore }) => {
             // Drop stale responses when rapid filter switches cause out-of-order completion
-            if (requestId !== this.recentSessionsRequestId) return;
+            if (requestId !== this.recentSessionsRequestIds.get(ws)) return;
             this.send(ws, {
               type: "recent_sessions",
               sessions,
@@ -3124,7 +3195,7 @@ export class BridgeWebSocketServer {
             } as Record<string, unknown>);
           })
           .catch((err) => {
-            if (requestId !== this.recentSessionsRequestId) return;
+            if (requestId !== this.recentSessionsRequestIds.get(ws)) return;
             this.send(ws, {
               type: "error",
               message: `Failed to list recent sessions: ${err}`,
@@ -4985,6 +5056,7 @@ export class BridgeWebSocketServer {
 
   /** Broadcast session list to all connected clients. */
   private broadcastSessionList(): void {
+    this.invalidateRecentSessionsCache();
     this.pruneDebugEvents();
     const sessions = this.sessionManager.list();
     this.broadcast({
@@ -5242,6 +5314,81 @@ export class BridgeWebSocketServer {
         process.stop();
       }
     }
+  }
+
+  private recentSessionsCacheKey(
+    msg: Extract<ClientMessage, { type: "list_recent_sessions" }>,
+  ): string {
+    return JSON.stringify({
+      limit: msg.limit ?? 20,
+      offset: msg.offset ?? 0,
+      projectPath: msg.projectPath ?? "",
+      provider: msg.provider ?? "",
+      namedOnly: msg.namedOnly === true,
+      searchQuery: msg.searchQuery ?? "",
+    });
+  }
+
+  private getCachedRecentSessions(
+    msg: Extract<ClientMessage, { type: "list_recent_sessions" }>,
+  ): RecentSessionsCacheEntry | undefined {
+    const key = this.recentSessionsCacheKey(msg);
+    const cached = this.recentSessionsCache.get(key);
+    if (!cached) return undefined;
+    if (cached.updatedAt <= 0) return undefined;
+
+    // Touch the key so the Map doubles as a tiny LRU.
+    this.recentSessionsCache.delete(key);
+    this.recentSessionsCache.set(key, cached);
+    return cached;
+  }
+
+  private async refreshRecentSessions(
+    msg: Extract<ClientMessage, { type: "list_recent_sessions" }>,
+  ): Promise<{ sessions: unknown[]; hasMore: boolean }> {
+    const key = this.recentSessionsCacheKey(msg);
+    const cached = this.recentSessionsCache.get(key);
+    if (cached?.refresh) return cached.refresh;
+
+    const refresh = this.listRecentSessions(msg)
+      .then((result) => {
+        this.recentSessionsCache.set(key, {
+          ...result,
+          updatedAt: Date.now(),
+        });
+        this.trimRecentSessionsCache();
+        return result;
+      })
+      .finally(() => {
+        const current = this.recentSessionsCache.get(key);
+        if (current?.refresh === refresh) {
+          delete current.refresh;
+        }
+      });
+
+    this.recentSessionsCache.set(key, {
+      sessions: cached?.sessions ?? [],
+      hasMore: cached?.hasMore ?? false,
+      updatedAt: cached?.updatedAt ?? 0,
+      refresh,
+    });
+    this.trimRecentSessionsCache();
+    return refresh;
+  }
+
+  private trimRecentSessionsCache(): void {
+    while (
+      this.recentSessionsCache.size >
+      BridgeWebSocketServer.RECENT_SESSIONS_CACHE_MAX_KEYS
+    ) {
+      const oldest = this.recentSessionsCache.keys().next().value;
+      if (!oldest) return;
+      this.recentSessionsCache.delete(oldest);
+    }
+  }
+
+  private invalidateRecentSessionsCache(): void {
+    this.recentSessionsCache.clear();
   }
 
   private async createStandaloneCodexProcess(

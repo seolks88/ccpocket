@@ -408,6 +408,9 @@ class MockBridgeService extends BridgeService {
   }
 
   @override
+  PastHistoryMessage? cachedPastHistory(String sessionId) => null;
+
+  @override
   Stream<ServerMessage> messagesForSession(String sessionId) => messages;
 
   @override

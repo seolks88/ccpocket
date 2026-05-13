@@ -746,8 +746,9 @@ class _CodexChatBody extends HookWidget {
     // inactive (e.g. Android notification shade).
     useAppResumeCallback(lifecycleState, () {
       final bridge = context.read<BridgeService>();
+      final wasConnected = bridge.isConnected;
       bridge.ensureConnected();
-      if (bridge.isConnected) {
+      if (wasConnected && bridge.isConnected) {
         context.read<ChatSessionCubit>().refreshHistory();
       }
     });

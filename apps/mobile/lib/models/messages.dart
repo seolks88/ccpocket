@@ -3599,16 +3599,24 @@ class ClientMessage {
     });
   }
 
-  factory ClientMessage.getHistory(String sessionId) =>
-      ClientMessage._({'type': 'get_history', 'sessionId': sessionId});
+  factory ClientMessage.getHistory(String sessionId, {int? historyLimit}) =>
+      ClientMessage._({
+        'type': 'get_history',
+        'sessionId': sessionId,
+        'historyLimit': ?historyLimit,
+      });
 
   factory ClientMessage.getHistoryDelta(
     String sessionId, {
     required int sinceSeq,
+    bool? includePast,
+    int? historyLimit,
   }) => ClientMessage._({
     'type': 'get_history_delta',
     'sessionId': sessionId,
     'sinceSeq': sinceSeq,
+    'includePast': ?includePast,
+    'historyLimit': ?historyLimit,
   });
 
   factory ClientMessage.refreshBranch(String sessionId) =>

@@ -17,6 +17,7 @@ class MockBridgeService extends BridgeService {
   final updatedOfflineInputs = <Map<String, dynamic>>[];
   final canceledOfflineInputs = <Map<String, dynamic>>[];
   final cachedMessagesBySession = <String, List<ServerMessage>>{};
+  final cachedPastHistoryBySession = <String, PastHistoryMessage>{};
   final historySeqBySession = <String, int>{};
   bool connected = true;
 
@@ -105,6 +106,11 @@ class MockBridgeService extends BridgeService {
   @override
   List<ServerMessage> cachedSessionMessages(String sessionId) {
     return cachedMessagesBySession[sessionId] ?? const [];
+  }
+
+  @override
+  PastHistoryMessage? cachedPastHistory(String sessionId) {
+    return cachedPastHistoryBySession[sessionId];
   }
 
   @override
@@ -1174,6 +1180,54 @@ void main() {
         'Cached response',
       );
     });
+
+    test(
+      'refreshHistory preserves cached past entries across history snapshots',
+      () async {
+        mockBridge.cachedPastHistoryBySession['s1'] = const PastHistoryMessage(
+          claudeSessionId: 'old',
+          messages: [
+            PastMessage(
+              role: 'user',
+              content: [TextContent(text: 'Cached past')],
+            ),
+          ],
+        );
+
+        final cubit = createCubit('s1');
+        addTearDown(cubit.close);
+        await Future.microtask(() {});
+
+        cubit.refreshHistory();
+
+        mockBridge.emitMessage(
+          HistoryMessage(
+            messages: [
+              const StatusMessage(status: ProcessStatus.idle),
+              AssistantServerMessage(
+                message: const AssistantMessage(
+                  id: 'a1',
+                  role: 'assistant',
+                  content: [TextContent(text: 'Fresh reply')],
+                  model: 'claude',
+                ),
+              ),
+            ],
+          ),
+          sessionId: 's1',
+        );
+        await Future.microtask(() {});
+
+        expect(cubit.state.entries, hasLength(2));
+        expect(cubit.state.entries.first, isA<UserChatEntry>());
+        expect(
+          (cubit.state.entries.first as UserChatEntry).text,
+          'Cached past',
+        );
+        expect(cubit.state.entries.last, isA<ServerChatEntry>());
+        expect(cubit.state.status, ProcessStatus.idle);
+      },
+    );
 
     test('restores cached queue state without visible ack entries', () {
       mockBridge.cachedMessagesBySession['s1'] = [

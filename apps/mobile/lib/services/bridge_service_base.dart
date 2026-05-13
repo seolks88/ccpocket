@@ -10,6 +10,7 @@ abstract class BridgeServiceBase {
   Stream<String> get stoppedSessions;
   void send(ClientMessage message);
   void requestSessionHistory(String sessionId);
+  PastHistoryMessage? cachedPastHistory(String sessionId);
   int cachedSessionHistorySeq(String sessionId);
   void stopSession(String sessionId);
   void requestFileList(String projectPath);

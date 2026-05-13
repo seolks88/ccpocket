@@ -169,9 +169,12 @@ class _ChatMessageListState extends State<ChatMessageList> {
 
   @override
   Widget build(BuildContext context) {
-    final chatState = context.watch<ChatSessionCubit>().state;
-    final hiddenToolUseIds = chatState.hiddenToolUseIds;
-    final allEntries = chatState.entries;
+    final hiddenToolUseIds = context.select<ChatSessionCubit, Set<String>>(
+      (cubit) => cubit.state.hiddenToolUseIds,
+    );
+    final allEntries = context.select<ChatSessionCubit, List<ChatEntry>>(
+      (cubit) => cubit.state.entries,
+    );
 
     // Watch only the isStreaming flag (not the full streaming text) so the
     // list rebuilds when streaming starts/stops (to adjust itemCount) but NOT

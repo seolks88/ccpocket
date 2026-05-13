@@ -56,6 +56,8 @@
 	<string>Voice input requires microphone access to transcribe speech to text</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Speech recognition is used to convert voice input to text messages</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Photo library access is used to attach images to chat messages</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

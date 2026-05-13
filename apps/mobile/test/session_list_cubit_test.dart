@@ -11,10 +11,15 @@ class MockBridgeService extends BridgeService {
   final _recentSessionsController =
       StreamController<List<RecentSession>>.broadcast();
   final _projectHistoryController = StreamController<List<String>>.broadcast();
+  final _connectionController =
+      StreamController<BridgeConnectionState>.broadcast();
   final sentMessages = <ClientMessage>[];
 
   bool _hasMore = false;
   String? _projectFilter;
+  BridgeConnectionState _connectionState = BridgeConnectionState.disconnected;
+  List<RecentSession> _recentSessions = const [];
+  List<String> _projectHistory = const [];
 
   @override
   Stream<List<RecentSession>> get recentSessionsStream =>
@@ -25,6 +30,19 @@ class MockBridgeService extends BridgeService {
       _projectHistoryController.stream;
 
   @override
+  Stream<BridgeConnectionState> get connectionStatus =>
+      _connectionController.stream;
+
+  @override
+  bool get isConnected => _connectionState == BridgeConnectionState.connected;
+
+  @override
+  List<RecentSession> get recentSessions => _recentSessions;
+
+  @override
+  List<String> get projectHistory => _projectHistory;
+
+  @override
   bool get recentSessionsHasMore => _hasMore;
   set recentSessionsHasMore(bool v) => _hasMore = v;
 
@@ -33,11 +51,18 @@ class MockBridgeService extends BridgeService {
 
   void emitSessions(List<RecentSession> sessions, {bool hasMore = false}) {
     _hasMore = hasMore;
+    _recentSessions = sessions;
     _recentSessionsController.add(sessions);
   }
 
   void emitProjectHistory(List<String> paths) {
+    _projectHistory = paths;
     _projectHistoryController.add(paths);
+  }
+
+  void emitConnection(BridgeConnectionState state) {
+    _connectionState = state;
+    _connectionController.add(state);
   }
 
   @override
@@ -46,7 +71,9 @@ class MockBridgeService extends BridgeService {
   }
 
   @override
-  void requestSessionList() {}
+  void requestSessionList() {
+    sentMessages.add(ClientMessage.listSessions());
+  }
 
   @override
   void requestRecentSessions({int? limit, int? offset, String? projectPath}) {
@@ -60,7 +87,9 @@ class MockBridgeService extends BridgeService {
   }
 
   @override
-  void requestProjectHistory() {}
+  void requestProjectHistory() {
+    sentMessages.add(ClientMessage.listProjectHistory());
+  }
 
   @override
   void loadMoreRecentSessions({int pageSize = 20}) {
@@ -99,6 +128,7 @@ class MockBridgeService extends BridgeService {
   void dispose() {
     _recentSessionsController.close();
     _projectHistoryController.close();
+    _connectionController.close();
   }
 }
 
@@ -178,6 +208,59 @@ void main() {
       await Future.microtask(() {});
 
       expect(cubit.state.accumulatedProjectPaths, {'/a/proj1', '/c/proj3'});
+    });
+
+    test('seeds missed broadcast sessions from bridge cache', () async {
+      await cubit.close();
+      mockBridge.dispose();
+
+      mockBridge = MockBridgeService()
+        ..emitSessions([_session(id: 'cached')])
+        ..emitProjectHistory(['/cached/project']);
+      cubit = SessionListCubit(bridge: mockBridge);
+      await pumpEventQueue();
+
+      expect(cubit.state.sessions.single.sessionId, 'cached');
+      expect(cubit.state.accumulatedProjectPaths, {
+        '/home/user/project-a',
+        '/cached/project',
+      });
+      expect(cubit.state.isInitialLoading, isFalse);
+    });
+
+    test('refreshes recent sessions when bridge reconnects', () async {
+      await pumpEventQueue();
+      mockBridge.sentMessages.clear();
+
+      mockBridge.emitConnection(BridgeConnectionState.connected);
+      await pumpEventQueue();
+
+      final messageTypes = mockBridge.sentMessages
+          .map((message) => message.type)
+          .toList();
+      expect(messageTypes, contains('list_sessions'));
+      expect(messageTypes, contains('list_recent_sessions'));
+      expect(messageTypes, contains('list_project_history'));
+    });
+
+    test('retries empty first recent-session response while connected', () async {
+      mockBridge.emitConnection(BridgeConnectionState.connected);
+      await pumpEventQueue();
+      mockBridge.sentMessages.clear();
+
+      mockBridge.emitSessions([]);
+      await pumpEventQueue();
+
+      expect(cubit.state.isInitialLoading, isTrue);
+
+      await Future.delayed(const Duration(milliseconds: 750));
+
+      final messageTypes = mockBridge.sentMessages
+          .map((message) => message.type)
+          .toList();
+      expect(messageTypes, contains('list_sessions'));
+      expect(messageTypes, contains('list_recent_sessions'));
+      expect(messageTypes, contains('list_project_history'));
     });
 
     test('selectProject triggers server re-fetch with isInitialLoading', () {

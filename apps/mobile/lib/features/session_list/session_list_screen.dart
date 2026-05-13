@@ -389,17 +389,17 @@ class _SessionListScreenState extends State<SessionListScreen>
         final uri = Uri.tryParse(url);
         if (uri != null) {
           final cubit = context.read<MachineManagerCubit?>();
+          if (cubit != null) {
+            await _waitForMachineManager(cubit);
+          }
+          if (!mounted) return;
           final machine = cubit?.findByHostPort(
             uri.host,
             uri.hasPort ? uri.port : 8765,
           );
           if (machine != null) {
-            apiKey = await cubit?.getApiKey(machine.id);
-            if (machine.sshJumpHost?.trim().isNotEmpty == true) {
-              if (!mounted) return;
-              await _connectToMachineConfig(machine);
-              return;
-            }
+            await _connectToMachineConfig(machine);
+            return;
           }
         }
       } catch (_) {
@@ -412,6 +412,17 @@ class _SessionListScreenState extends State<SessionListScreen>
       if (!attempted) {
         setState(() => _isAutoConnecting = false);
       }
+    }
+  }
+
+  Future<void> _waitForMachineManager(MachineManagerCubit cubit) async {
+    if (!cubit.state.isLoading) return;
+    try {
+      await cubit.stream
+          .firstWhere((state) => !state.isLoading)
+          .timeout(const Duration(seconds: 2));
+    } catch (_) {
+      // Fall back to legacy autoConnect if machine loading stalls.
     }
   }
 
@@ -1720,9 +1731,6 @@ class _SessionListScreenState extends State<SessionListScreen>
                 // Clear auto-connecting spinner once we get any connection state update
                 if (_isAutoConnecting) {
                   setState(() => _isAutoConnecting = false);
-                }
-                if (nextState == BridgeConnectionState.connected) {
-                  context.read<SessionListCubit>().refresh();
                 }
               },
               child: CallbackShortcuts(

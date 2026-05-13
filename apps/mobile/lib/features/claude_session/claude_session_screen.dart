@@ -720,8 +720,9 @@ class _ChatScreenBody extends HookWidget {
     // fires → refreshHistory is called there.
     useAppResumeCallback(lifecycleState, () {
       final bridge = context.read<BridgeService>();
+      final wasConnected = bridge.isConnected;
       bridge.ensureConnected();
-      if (bridge.isConnected) {
+      if (wasConnected && bridge.isConnected) {
         context.read<ChatSessionCubit>().refreshHistory();
       }
     });

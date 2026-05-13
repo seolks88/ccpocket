@@ -132,6 +132,7 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
     // Subscribe to messages for this session
     _subscription = _bridge.messagesForSession(sessionId).listen(_onMessage);
 
+    _restoreCachedPastHistory();
     _restoreCachedRuntimeMessages();
     _restoreDeliveryPendingInput();
 
@@ -171,6 +172,26 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
     } catch (e, st) {
       logger.error(
         '[session:$sessionId] Failed to restore cached runtime messages',
+        e,
+        st,
+      );
+    }
+  }
+
+  void _restoreCachedPastHistory() {
+    final cachedPastHistory = _bridge.cachedPastHistory(sessionId);
+    if (cachedPastHistory == null) return;
+    try {
+      _pastHistoryLoaded = true;
+      final update = _handler.handle(
+        cachedPastHistory,
+        isBackground: true,
+        isCodex: isCodex,
+      );
+      _applyUpdate(update, cachedPastHistory);
+    } catch (e, st) {
+      logger.error(
+        '[session:$sessionId] Failed to restore cached past history',
         e,
         st,
       );
@@ -1593,11 +1614,15 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
 
   /// Re-fetch session history from the bridge server.
   ///
-  /// Resets [_pastHistoryLoaded] so the next [PastHistoryMessage] is processed,
-  /// restoring approval state that may have arrived while disconnected.
+  /// When past history is not cached, resets [_pastHistoryLoaded] so the next
+  /// [PastHistoryMessage] is processed. If it is cached, keep the current past
+  /// entry boundary so history snapshots can still preserve already-rendered
+  /// past messages while the bridge fetches only live deltas.
   void refreshHistory() {
-    _pastHistoryLoaded = false;
-    _pastEntryCount = 0;
+    if (_bridge.cachedPastHistory(sessionId) == null) {
+      _pastHistoryLoaded = false;
+      _pastEntryCount = 0;
+    }
     _bridge.requestSessionHistory(sessionId);
   }
 

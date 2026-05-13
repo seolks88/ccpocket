@@ -17,7 +17,12 @@ class SessionListCubit extends Cubit<SessionListState> {
   final BridgeService _bridge;
   StreamSubscription<List<RecentSession>>? _recentSub;
   StreamSubscription<List<String>>? _projectHistorySub;
+  StreamSubscription<BridgeConnectionState>? _connectionSub;
   Timer? _searchDebounce;
+  Timer? _emptyInitialRetryTimer;
+  bool _preferencesLoaded = false;
+  int _emptyInitialRetryCount = 0;
+  static const int _maxEmptyInitialRetries = 2;
 
   SessionListCubit({required BridgeService bridge})
     : _bridge = bridge,
@@ -26,6 +31,8 @@ class SessionListCubit extends Cubit<SessionListState> {
     _projectHistorySub = _bridge.projectHistoryStream.listen(
       _onProjectHistoryUpdate,
     );
+    _connectionSub = _bridge.connectionStatus.listen(_onConnectionUpdate);
+    _seedFromBridgeCache();
     _loadPreferences();
   }
 
@@ -44,9 +51,50 @@ class SessionListCubit extends Cubit<SessionListState> {
     emit(
       state.copyWith(providerFilter: provider, namedOnly: namedOnly ?? false),
     );
+    _preferencesLoaded = true;
+    _refreshWhenConnected();
+  }
+
+  void _onConnectionUpdate(BridgeConnectionState connectionState) {
+    if (connectionState != BridgeConnectionState.connected) return;
+    _seedFromBridgeCache();
+    _refreshWhenConnected();
+  }
+
+  void _seedFromBridgeCache() {
+    final cachedSessions = _bridge.recentSessions;
+    if (cachedSessions.isNotEmpty) {
+      _onSessionsUpdate(cachedSessions);
+    }
+
+    final cachedProjects = _bridge.projectHistory;
+    if (cachedProjects.isNotEmpty) {
+      _onProjectHistoryUpdate(cachedProjects);
+    }
+  }
+
+  void _refreshWhenConnected() {
+    if (!_preferencesLoaded || !_bridge.isConnected) return;
+    refresh();
   }
 
   void _onSessionsUpdate(List<RecentSession> sessions) {
+    if (_shouldRetryEmptyInitialSessions(sessions)) {
+      _scheduleEmptyInitialRetry();
+      emit(
+        state.copyWith(
+          hasMore: _bridge.recentSessionsHasMore,
+          isLoadingMore: false,
+          isInitialLoading: true,
+        ),
+      );
+      return;
+    }
+
+    _emptyInitialRetryTimer?.cancel();
+    _emptyInitialRetryTimer = null;
+    _emptyInitialRetryCount = 0;
+
     final newPaths = sessions
         .map((s) => s.projectPath)
         .where((p) => p.isNotEmpty)
@@ -135,6 +183,10 @@ class SessionListCubit extends Cubit<SessionListState> {
 
   /// Request fresh data from the server.
   void refresh() {
+    _emptyInitialRetryTimer?.cancel();
+    _emptyInitialRetryTimer = null;
+    _emptyInitialRetryCount = 0;
+    emit(state.copyWith(isInitialLoading: true, isLoadingMore: false));
     _bridge.requestSessionList();
     _requestWithCurrentFilters();
     _bridge.requestProjectHistory();
@@ -188,11 +240,36 @@ class SessionListCubit extends Cubit<SessionListState> {
     ProviderFilter.codex => 'codex',
   };
 
+  bool _shouldRetryEmptyInitialSessions(List<RecentSession> sessions) {
+    if (sessions.isNotEmpty) return false;
+    if (!state.isInitialLoading) return false;
+    if (!_bridge.isConnected) return false;
+    if (_emptyInitialRetryCount >= _maxEmptyInitialRetries) return false;
+    return _bridge.currentProjectFilter == null &&
+        state.providerFilter == ProviderFilter.all &&
+        !state.namedOnly &&
+        state.searchQuery.isEmpty;
+  }
+
+  void _scheduleEmptyInitialRetry() {
+    if (_emptyInitialRetryTimer?.isActive == true) return;
+    _emptyInitialRetryCount += 1;
+    final delay = Duration(milliseconds: 700 * _emptyInitialRetryCount);
+    _emptyInitialRetryTimer = Timer(delay, () {
+      if (isClosed || !_bridge.isConnected) return;
+      _bridge.requestSessionList();
+      _requestWithCurrentFilters();
+      _bridge.requestProjectHistory();
+    });
+  }
+
   @override
   Future<void> close() {
     _searchDebounce?.cancel();
+    _emptyInitialRetryTimer?.cancel();
     _recentSub?.cancel();
     _projectHistorySub?.cancel();
+    _connectionSub?.cancel();
     return super.close();
   }
 }

@@ -375,7 +375,7 @@ function isGitFileListingUnavailable(err: unknown): boolean {
   const error = err as NodeJS.ErrnoException;
   if (error.code === "ENOENT") return true;
   const message = err instanceof Error ? err.message : String(err);
-  return /not a git repository/i.test(message);
+  return /not a git repository|깃 저장소가 아닙니다/i.test(message);
 }
 
 function toExcludedDirSet(
