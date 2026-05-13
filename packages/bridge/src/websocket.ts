@@ -18,6 +18,7 @@ import {
   type CodexStartOptions,
   type CodexThreadSummary,
 } from "./codex-process.js";
+import { stopManagedCodexAppServers } from "./codex-transport.js";
 import {
   parseClientMessage,
   type ClientMessage,
@@ -1346,6 +1347,7 @@ export class BridgeWebSocketServer {
       this.codexMetadataRefreshTimer = null;
     }
     this.sessionManager.destroyAll();
+    stopManagedCodexAppServers();
     this.debugEvents.clear();
     this.wss.close();
   }

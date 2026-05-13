@@ -378,6 +378,11 @@ export interface DebugTraceEvent {
   detail?: string;
 }
 
+export interface CodexCliJoinTarget {
+  url: string;
+  command: string;
+}
+
 export type ServerMessage =
   | {
       type: "system";
@@ -441,6 +446,7 @@ export type ServerMessage =
       clearContext?: boolean;
       sourceSessionId?: string;
       tipCode?: string;
+      codexCliJoin?: CodexCliJoinTarget;
     }
   | { type: "assistant"; message: AssistantMessage; messageUuid?: string }
   | {
