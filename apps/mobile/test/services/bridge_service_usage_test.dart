@@ -221,6 +221,43 @@ void main() {
       },
     );
 
+    test('auth close reports error without reconnect loop', () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      var connectionCount = 0;
+      final socketReady = Completer<void>();
+
+      server.transform(WebSocketTransformer()).listen((socket) {
+        connectionCount += 1;
+        if (!socketReady.isCompleted) socketReady.complete();
+        unawaited(socket.close(4001, 'Unauthorized'));
+      });
+
+      final errors = <ErrorMessage>[];
+      final states = <BridgeConnectionState>[];
+      final bridge = BridgeService();
+      final messageSub = bridge.messages.listen((message) {
+        if (message is ErrorMessage) errors.add(message);
+      });
+      final stateSub = bridge.connectionStatus.listen(states.add);
+
+      bridge.connect('ws://127.0.0.1:${server.port}?token=stale');
+
+      await socketReady.future;
+      await Future<void>.delayed(const Duration(milliseconds: 2500));
+
+      expect(connectionCount, 1);
+      expect(states, contains(BridgeConnectionState.disconnected));
+      expect(
+        errors.map((error) => error.errorCode),
+        contains('bridge_auth_failed'),
+      );
+
+      await messageSub.cancel();
+      await stateSub.cancel();
+      bridge.dispose();
+      await server.close(force: true);
+    });
+
     test('requestSessionHistory uses last complete cached sequence', () async {
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       final socketReady = Completer<WebSocket>();

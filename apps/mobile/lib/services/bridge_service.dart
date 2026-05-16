@@ -309,6 +309,8 @@ class BridgeService implements BridgeServiceBase {
   static const _prefKeyOfflinePendingMessages =
       'bridge_offline_pending_messages_v1';
   static const _inFlightPendingVisibilityDelay = Duration(milliseconds: 600);
+  static const _connectReadyTimeout = Duration(seconds: 10);
+  static const _authFailureCloseCode = 4001;
 
   Future<void>? _offlineQueueRestore;
   int _offlineQueueGeneration = 0;
@@ -341,12 +343,9 @@ class BridgeService implements BridgeServiceBase {
     _setBridgeConnectionState(BridgeConnectionState.connecting);
     try {
       _channel = WebSocketChannel.connect(Uri.parse(url));
-      _setBridgeConnectionState(BridgeConnectionState.connected);
-      _reconnectAttempt = 0;
-      send(ClientMessage.clientCapabilities());
-      _flushMessageQueue();
+      final channel = _channel!;
 
-      _channelSub = _channel!.stream.listen(
+      _channelSub = channel.stream.listen(
         (data) {
           if (epoch != _connectionEpoch) return;
           try {
@@ -577,6 +576,9 @@ class BridgeService implements BridgeServiceBase {
         onError: (error, stackTrace) {
           if (epoch != _connectionEpoch) return;
           logger.error('WS stream error', error, stackTrace);
+          if (identical(_channel, channel)) {
+            _channel = null;
+          }
           _setBridgeConnectionState(BridgeConnectionState.disconnected);
           _requeueInFlightInputMessages();
           _requeueInFlightPendingMessages();
@@ -587,8 +589,16 @@ class BridgeService implements BridgeServiceBase {
         },
         onDone: () {
           if (epoch != _connectionEpoch) return;
-          _channel = null;
+          final closeCode = channel.closeCode;
+          final closeReason = channel.closeReason;
+          if (identical(_channel, channel)) {
+            _channel = null;
+          }
           if (!_intentionalDisconnect) {
+            if (_isBridgeAuthFailure(closeCode, closeReason)) {
+              _handleBridgeAuthFailure();
+              return;
+            }
             _setBridgeConnectionState(BridgeConnectionState.disconnected);
             _requeueInFlightInputMessages();
             _requeueInFlightPendingMessages();
@@ -598,12 +608,70 @@ class BridgeService implements BridgeServiceBase {
           }
         },
       );
+      unawaited(_completeConnectionWhenReady(channel, epoch));
     } catch (e, st) {
       logger.error('WS connect failed', e, st);
       _setBridgeConnectionState(BridgeConnectionState.disconnected);
       _messageController.add(ErrorMessage(message: 'Connection failed: $e'));
       _scheduleReconnect();
     }
+  }
+
+  Future<void> _completeConnectionWhenReady(
+    WebSocketChannel channel,
+    int epoch,
+  ) async {
+    try {
+      await channel.ready.timeout(_connectReadyTimeout);
+      if (epoch != _connectionEpoch || !identical(channel, _channel)) return;
+      _setBridgeConnectionState(BridgeConnectionState.connected);
+      _reconnectAttempt = 0;
+      send(ClientMessage.clientCapabilities());
+      _flushMessageQueue();
+    } catch (error, stackTrace) {
+      if (epoch != _connectionEpoch || !identical(channel, _channel)) return;
+      logger.warning('WS connect readiness failed', error, stackTrace);
+      if (_isBridgeAuthFailure(channel.closeCode, channel.closeReason)) {
+        _channel = null;
+        final subscription = _channelSub;
+        _channelSub = null;
+        if (subscription != null) {
+          unawaited(subscription.cancel());
+        }
+        _handleBridgeAuthFailure();
+        return;
+      }
+      _channel = null;
+      final subscription = _channelSub;
+      _channelSub = null;
+      if (subscription != null) {
+        unawaited(subscription.cancel());
+      }
+      unawaited(channel.sink.close());
+      _setBridgeConnectionState(BridgeConnectionState.disconnected);
+      _messageController.add(
+        ErrorMessage(message: 'Connection failed: $error'),
+      );
+      _scheduleReconnect();
+    }
+  }
+
+  bool _isBridgeAuthFailure(int? closeCode, String? closeReason) {
+    return closeCode == _authFailureCloseCode ||
+        closeReason?.toLowerCase() == 'unauthorized';
+  }
+
+  void _handleBridgeAuthFailure() {
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+    _setBridgeConnectionState(BridgeConnectionState.disconnected);
+    _messageController.add(
+      const ErrorMessage(
+        message:
+            'Bridge authentication failed. Reconnect with the current QR code or connection link from the bridge machine.',
+        errorCode: 'bridge_auth_failed',
+      ),
+    );
   }
 
   bool _sameBridgeTarget(String left, String right) {
@@ -760,6 +828,7 @@ class BridgeService implements BridgeServiceBase {
 
   void _scheduleReconnect() {
     if (_intentionalDisconnect || _lastUrl == null) return;
+    if (_reconnectTimer?.isActive == true) return;
 
     _reconnectAttempt++;
     final delay = min(pow(2, _reconnectAttempt).toInt(), _maxReconnectDelay);
