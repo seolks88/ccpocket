@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -1608,18 +1607,12 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
   /// Change Codex reasoning effort for the next user turn.
   void setModelReasoningEffort(ReasoningEffort effort) {
     if (!isCodex || modelReasoningEffortNotifier.value == effort) return;
-    logger.info(
-      '[session:$sessionId] setModelReasoningEffort=${effort.value}',
-    );
-    _pendingModelReasoningEffortRollback =
-        modelReasoningEffortNotifier.value;
+    logger.info('[session:$sessionId] setModelReasoningEffort=${effort.value}');
+    _pendingModelReasoningEffortRollback = modelReasoningEffortNotifier.value;
     modelReasoningEffortNotifier.value = effort;
     _bridge.patchSessionModelReasoningEffort(sessionId, effort.value);
     _bridge.send(
-      ClientMessage.setModelReasoningEffort(
-        effort.value,
-        sessionId: sessionId,
-      ),
+      ClientMessage.setModelReasoningEffort(effort.value, sessionId: sessionId),
     );
   }
 

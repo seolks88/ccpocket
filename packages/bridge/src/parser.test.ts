@@ -66,6 +66,19 @@ describe("parseClientMessage", () => {
     ).toBeNull();
   });
 
+  it("parses health check probes", () => {
+    expect(
+      parseClientMessage('{"type":"health_check","requestId":"probe-1"}'),
+    ).toEqual({
+      type: "health_check",
+      requestId: "probe-1",
+    });
+
+    expect(
+      parseClientMessage('{"type":"health_check","requestId":123}'),
+    ).toBeNull();
+  });
+
   it("parses prompt history sync messages", () => {
     const msg = parseClientMessage(
       JSON.stringify({

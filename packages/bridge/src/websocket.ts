@@ -563,6 +563,7 @@ export class BridgeWebSocketServer {
   private static readonly RECENT_SESSIONS_CACHE_TTL_MS = 15_000;
   private static readonly RECENT_SESSIONS_CACHE_MAX_KEYS = 32;
   private static readonly RECENT_SESSIONS_PREWARM_DELAY_MS = 100;
+  private static readonly WS_HEARTBEAT_INTERVAL_MS = 25_000;
 
   private wss: WebSocketServer;
   private sessionManager: SessionManager;
@@ -610,6 +611,8 @@ export class BridgeWebSocketServer {
   private failSetSandboxMode = envFlagEnabled("BRIDGE_FAIL_SET_SANDBOX_MODE");
   private platform: NodeJS.Platform;
   private clientSupportedServerMessages = new WeakMap<WebSocket, Set<string>>();
+  private clientHeartbeatAlive = new WeakMap<WebSocket, boolean>();
+  private heartbeatTimer: NodeJS.Timeout | null = null;
 
   constructor(options: BridgeServerOptions) {
     const {
@@ -700,6 +703,7 @@ export class BridgeWebSocketServer {
       console.error("[ws] Server error:", err.message);
     });
 
+    this.startClientHeartbeat();
     console.log(`[ws] WebSocket server attached to HTTP server`);
   }
 
@@ -1483,6 +1487,10 @@ export class BridgeWebSocketServer {
       clearTimeout(this.codexMetadataRefreshTimer);
       this.codexMetadataRefreshTimer = null;
     }
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
     this.sessionManager.destroyAll();
     stopManagedCodexAppServers();
     this.debugEvents.clear();
@@ -1500,6 +1508,7 @@ export class BridgeWebSocketServer {
   }
 
   private handleConnection(ws: WebSocket): void {
+    this.clientHeartbeatAlive.set(ws, true);
     // Send the cached session list immediately. Codex model/profile discovery can
     // start standalone Codex processes, so defer it slightly to avoid competing
     // with the first recent-session request on mobile reconnect.
@@ -1510,6 +1519,7 @@ export class BridgeWebSocketServer {
     this.scheduleCodexMetadataRefresh();
 
     ws.on("message", (data) => {
+      this.clientHeartbeatAlive.set(ws, true);
       const raw = data.toString();
       const msg = parseClientMessage(raw);
 
@@ -1540,12 +1550,44 @@ export class BridgeWebSocketServer {
     });
 
     ws.on("close", () => {
+      this.clientSupportedServerMessages.delete(ws);
+      this.clientHeartbeatAlive.delete(ws);
       console.log("[ws] Client disconnected");
     });
 
     ws.on("error", (err) => {
       console.error("[ws] Client error:", err.message);
     });
+
+    ws.on("pong", () => {
+      this.clientHeartbeatAlive.set(ws, true);
+    });
+  }
+
+  private startClientHeartbeat(): void {
+    if (this.heartbeatTimer) return;
+    this.heartbeatTimer = setInterval(() => {
+      for (const ws of this.wss.clients) {
+        if (ws.readyState !== WebSocket.OPEN) continue;
+        if (this.clientHeartbeatAlive.get(ws) === false) {
+          console.warn("[ws] Client heartbeat missed; terminating stale client");
+          ws.terminate();
+          continue;
+        }
+        this.clientHeartbeatAlive.set(ws, false);
+        try {
+          ws.ping();
+        } catch (err) {
+          console.warn(
+            `[ws] Failed to ping client; terminating: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          );
+          ws.terminate();
+        }
+      }
+    }, BridgeWebSocketServer.WS_HEARTBEAT_INTERVAL_MS);
+    this.heartbeatTimer.unref?.();
   }
 
   private async handleClientMessage(
@@ -1558,6 +1600,15 @@ export class BridgeWebSocketServer {
         new Set(msg.supportedServerMessages ?? []),
       );
       this.sendPromptHistoryStatus(ws);
+      return;
+    }
+
+    if (msg.type === "health_check") {
+      this.send(ws, {
+        type: "system",
+        subtype: "health_check",
+        ...(msg.requestId ? { requestId: msg.requestId } : {}),
+      } as ServerMessage & { requestId?: string });
       return;
     }
 

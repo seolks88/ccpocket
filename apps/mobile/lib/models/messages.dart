@@ -3503,6 +3503,10 @@ class ClientMessage {
     });
   }
 
+  factory ClientMessage.healthCheck({String? requestId}) => ClientMessage._(
+    <String, dynamic>{'type': 'health_check', 'requestId': ?requestId},
+  );
+
   factory ClientMessage.start(
     String projectPath, {
     String? sessionId,

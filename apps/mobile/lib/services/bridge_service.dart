@@ -144,6 +144,9 @@ class BridgeService implements BridgeServiceBase {
   int _reconnectAttempt = 0;
   static const _maxReconnectDelay = 30;
   bool _intentionalDisconnect = false;
+  Timer? _healthCheckTimer;
+  int _healthCheckSeq = 0;
+  static const _healthCheckTimeout = Duration(seconds: 3);
 
   @override
   Stream<ServerMessage> get messages => _messageController.stream;
@@ -348,6 +351,7 @@ class BridgeService implements BridgeServiceBase {
     _intentionalDisconnect = false;
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
+    _cancelHealthCheckTimer();
     _channelSub?.cancel();
     _channelSub = null;
     _channel?.sink.close();
@@ -367,6 +371,7 @@ class BridgeService implements BridgeServiceBase {
       _channelSub = channel.stream.listen(
         (data) {
           if (epoch != _connectionEpoch) return;
+          _markSocketResponsive();
           try {
             final json = jsonDecode(data as String) as Map<String, dynamic>;
             final sessionId = json['sessionId'] as String?;
@@ -602,6 +607,7 @@ class BridgeService implements BridgeServiceBase {
         onError: (error, stackTrace) {
           if (epoch != _connectionEpoch) return;
           logger.error('WS stream error', error, stackTrace);
+          _cancelHealthCheckTimer();
           if (identical(_channel, channel)) {
             _channel = null;
           }
@@ -615,6 +621,7 @@ class BridgeService implements BridgeServiceBase {
         },
         onDone: () {
           if (epoch != _connectionEpoch) return;
+          _cancelHealthCheckTimer();
           _channel = null;
           if (!_intentionalDisconnect) {
             _setBridgeConnectionState(BridgeConnectionState.disconnected);
@@ -629,6 +636,7 @@ class BridgeService implements BridgeServiceBase {
       unawaited(_completeConnectionWhenReady(channel, epoch));
     } catch (e, st) {
       logger.error('WS connect failed', e, st);
+      _cancelHealthCheckTimer();
       _setBridgeConnectionState(BridgeConnectionState.disconnected);
       _messageController.add(ErrorMessage(message: 'Connection failed: $e'));
       _scheduleReconnect();
@@ -649,6 +657,7 @@ class BridgeService implements BridgeServiceBase {
     } catch (error, stackTrace) {
       if (epoch != _connectionEpoch || !identical(channel, _channel)) return;
       logger.warning('WS connect readiness failed', error, stackTrace);
+      _cancelHealthCheckTimer();
       _channel = null;
       final subscription = _channelSub;
       _channelSub = null;
@@ -832,6 +841,76 @@ class BridgeService implements BridgeServiceBase {
         connect(_lastUrl!);
       }
     });
+  }
+
+  void _cancelHealthCheckTimer() {
+    _healthCheckTimer?.cancel();
+    _healthCheckTimer = null;
+  }
+
+  void _markSocketResponsive() {
+    _cancelHealthCheckTimer();
+  }
+
+  void _reconnectImmediately() {
+    if (_intentionalDisconnect || _lastUrl == null) return;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+    connect(_lastUrl!);
+  }
+
+  void _probeConnectionHealth() {
+    final channel = _channel;
+    if (channel == null ||
+        _connectionState != BridgeConnectionState.connected) {
+      return;
+    }
+
+    final epoch = _connectionEpoch;
+    final requestId = 'health-${++_healthCheckSeq}';
+    _cancelHealthCheckTimer();
+    _healthCheckTimer = Timer(_healthCheckTimeout, () {
+      if (epoch != _connectionEpoch ||
+          _connectionState != BridgeConnectionState.connected) {
+        return;
+      }
+      logger.warning('WS health check timed out; reconnecting');
+      final subscription = _channelSub;
+      _channelSub = null;
+      if (subscription != null) {
+        unawaited(subscription.cancel());
+      }
+      unawaited(channel.sink.close());
+      if (identical(_channel, channel)) {
+        _channel = null;
+      }
+      _setBridgeConnectionState(BridgeConnectionState.disconnected);
+      _reconnectImmediately();
+    });
+
+    try {
+      channel.sink.add(
+        ClientMessage.healthCheck(requestId: requestId).toJson(),
+      );
+    } catch (error, stackTrace) {
+      logger.warning(
+        'WS health check send failed; reconnecting',
+        error,
+        stackTrace,
+      );
+      _cancelHealthCheckTimer();
+      final subscription = _channelSub;
+      _channelSub = null;
+      if (subscription != null) {
+        unawaited(subscription.cancel());
+      }
+      unawaited(channel.sink.close());
+      if (identical(_channel, channel)) {
+        _channel = null;
+      }
+      _setBridgeConnectionState(BridgeConnectionState.disconnected);
+      _reconnectImmediately();
+    }
   }
 
   @override
@@ -2346,7 +2425,9 @@ class BridgeService implements BridgeServiceBase {
       // The channel may appear "connected" but the underlying socket is dead.
       // A non-null closeCode means the socket has already been closed.
       if (_channel?.closeCode != null) {
-        _scheduleReconnect();
+        _reconnectImmediately();
+      } else {
+        _probeConnectionHealth();
       }
     } else if (_connectionState == BridgeConnectionState.disconnected) {
       connect(_lastUrl!);
@@ -2359,6 +2440,7 @@ class BridgeService implements BridgeServiceBase {
     _intentionalDisconnect = true;
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
+    _cancelHealthCheckTimer();
     _channelSub?.cancel();
     _channelSub = null;
     _channel?.sink.close();
@@ -2397,6 +2479,7 @@ class BridgeService implements BridgeServiceBase {
   void dispose() {
     _intentionalDisconnect = true;
     _reconnectTimer?.cancel();
+    _cancelHealthCheckTimer();
     for (final timer in _inFlightPendingVisibilityTimers.values) {
       timer.cancel();
     }

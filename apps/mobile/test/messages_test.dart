@@ -137,28 +137,40 @@ void main() {
       });
     });
 
-    test('ClientMessage history requests serialize optional history controls', () {
-      final history = ClientMessage.getHistory('s1', historyLimit: 120);
-      expect(jsonDecode(history.toJson()), {
-        'type': 'get_history',
-        'sessionId': 's1',
-        'historyLimit': 120,
-      });
+    test('ClientMessage.healthCheck serializes request id', () {
+      final msg = ClientMessage.healthCheck(requestId: 'probe-1');
 
-      final delta = ClientMessage.getHistoryDelta(
-        's1',
-        sinceSeq: 42,
-        includePast: false,
-        historyLimit: 120,
-      );
-      expect(jsonDecode(delta.toJson()), {
-        'type': 'get_history_delta',
-        'sessionId': 's1',
-        'sinceSeq': 42,
-        'includePast': false,
-        'historyLimit': 120,
+      expect(jsonDecode(msg.toJson()), {
+        'type': 'health_check',
+        'requestId': 'probe-1',
       });
     });
+
+    test(
+      'ClientMessage history requests serialize optional history controls',
+      () {
+        final history = ClientMessage.getHistory('s1', historyLimit: 120);
+        expect(jsonDecode(history.toJson()), {
+          'type': 'get_history',
+          'sessionId': 's1',
+          'historyLimit': 120,
+        });
+
+        final delta = ClientMessage.getHistoryDelta(
+          's1',
+          sinceSeq: 42,
+          includePast: false,
+          historyLimit: 120,
+        );
+        expect(jsonDecode(delta.toJson()), {
+          'type': 'get_history_delta',
+          'sessionId': 's1',
+          'sinceSeq': 42,
+          'includePast': false,
+          'historyLimit': 120,
+        });
+      },
+    );
 
     test('ClientMessage.input serializes strict ack metadata', () {
       final msg = ClientMessage.input(

@@ -94,6 +94,7 @@ export type ClientMessage =
       protocolVersion?: number;
       supportedServerMessages?: string[];
     }
+  | { type: "health_check"; requestId?: string }
   | {
       type: "start";
       projectPath: string;
@@ -843,6 +844,10 @@ export function parseClientMessage(data: string): ClientMessage | null {
           )
             return null;
         }
+        break;
+      case "health_check":
+        if (msg.requestId !== undefined && typeof msg.requestId !== "string")
+          return null;
         break;
       case "start":
         if (typeof msg.projectPath !== "string") return null;

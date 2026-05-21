@@ -583,6 +583,29 @@ describe("BridgeWebSocketServer resume/get_history flow", () => {
     bridge.close();
   });
 
+  it("responds to health check probes", async () => {
+    const bridge = new BridgeWebSocketServer({ server: httpServer });
+    const ws = {
+      readyState: OPEN_STATE,
+      send: vi.fn(),
+    } as any;
+
+    await (bridge as any).handleClientMessage(
+      { type: "health_check", requestId: "probe-1" },
+      ws,
+    );
+
+    expect(ws.send).toHaveBeenCalledWith(
+      JSON.stringify({
+        type: "system",
+        subtype: "health_check",
+        requestId: "probe-1",
+      }),
+    );
+
+    bridge.close();
+  });
+
   it("rejects start when selected codex profile does not exist", async () => {
     const bridge = new BridgeWebSocketServer({ server: httpServer });
     const ws = {
