@@ -829,7 +829,13 @@ class AppLocalizationsKo extends AppLocalizations {
   String get claudeEffortHighDesc => '더 철저한 분석';
 
   @override
+  String get claudeEffortXHighDesc => '복잡한 작업을 위한 확장 추론';
+
+  @override
   String get claudeEffortMaxDesc => '가장 철저하지만 가장 느림';
+
+  @override
+  String get reasoningEffortNoneDesc => '추론 없음';
 
   @override
   String get reasoningEffortMinimalDesc => '가장 빠름, 분석 최소';

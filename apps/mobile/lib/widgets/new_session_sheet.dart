@@ -21,6 +21,7 @@ class NewSessionParams {
   final Provider provider;
   final PermissionMode? claudePermissionMode;
   final ExecutionMode executionMode;
+  final CodexPermissionsMode codexPermissionsMode;
   final CodexApprovalPolicy codexApprovalPolicy;
   final bool codexAutoReviewEnabled;
   final String? codexProfile;
@@ -54,6 +55,7 @@ class NewSessionParams {
     this.provider = Provider.codex,
     PermissionMode? claudePermissionMode,
     ExecutionMode? executionMode,
+    CodexPermissionsMode? codexPermissionsMode,
     CodexApprovalPolicy? codexApprovalPolicy,
     this.codexAutoReviewEnabled = false,
     this.codexProfile,
@@ -91,6 +93,17 @@ class NewSessionParams {
              provider: provider.value,
              permissionMode: permissionMode?.value,
            ),
+       codexPermissionsMode =
+           codexPermissionsMode ??
+           (codexApprovalPolicy != null || sandboxMode != null
+               ? codexPermissionsModeFromSettings(
+                   approvalPolicy: codexApprovalPolicy?.value,
+                   approvalsReviewer: codexAutoReviewEnabled
+                       ? 'auto_review'
+                       : 'user',
+                   sandboxMode: sandboxMode?.value,
+                 )
+               : CodexPermissionsMode.defaultPermissions),
        codexApprovalPolicy =
            codexApprovalPolicy ??
            (provider == Provider.codex
@@ -120,6 +133,7 @@ class NewSessionParams {
     Provider? provider,
     PermissionMode? claudePermissionMode,
     ExecutionMode? executionMode,
+    CodexPermissionsMode? codexPermissionsMode,
     CodexApprovalPolicy? codexApprovalPolicy,
     bool? codexAutoReviewEnabled,
     String? codexProfile,
@@ -153,6 +167,7 @@ class NewSessionParams {
       provider: provider ?? this.provider,
       claudePermissionMode: claudePermissionMode ?? this.claudePermissionMode,
       executionMode: executionMode ?? this.executionMode,
+      codexPermissionsMode: codexPermissionsMode ?? this.codexPermissionsMode,
       codexApprovalPolicy: codexApprovalPolicy ?? this.codexApprovalPolicy,
       codexAutoReviewEnabled:
           codexAutoReviewEnabled ?? this.codexAutoReviewEnabled,
@@ -213,6 +228,45 @@ SandboxMode? sandboxModeFromRaw(String? raw) {
 ReasoningEffort? reasoningEffortFromRaw(String? raw) =>
     enumByValue(ReasoningEffort.values, raw, (v) => v.value);
 
+const _fallbackCodexReasoningEfforts = <ReasoningEffort>[
+  ReasoningEffort.low,
+  ReasoningEffort.medium,
+  ReasoningEffort.high,
+  ReasoningEffort.xhigh,
+];
+
+const _ccPocketCodexReasoningOverrides = <ReasoningEffort>[
+  ReasoningEffort.none,
+];
+
+Map<String, List<ReasoningEffort>> _normalizeCodexModelReasoningEfforts(
+  Map<String, List<String>> raw,
+) {
+  return raw.map((model, values) {
+    final efforts = <ReasoningEffort>[..._ccPocketCodexReasoningOverrides];
+    for (final effort
+        in values.map(reasoningEffortFromRaw).whereType<ReasoningEffort>()) {
+      if (!efforts.contains(effort)) {
+        efforts.add(effort);
+      }
+    }
+    return MapEntry(model, efforts.toList(growable: false));
+  });
+}
+
+List<ReasoningEffort> _codexReasoningEffortsForModel(
+  String? model,
+  Map<String, List<ReasoningEffort>> modelEfforts,
+) {
+  if (model != null && modelEfforts.containsKey(model)) {
+    return modelEfforts[model] ?? const [];
+  }
+  return const [
+    ..._ccPocketCodexReasoningOverrides,
+    ..._fallbackCodexReasoningEfforts,
+  ];
+}
+
 WebSearchMode? webSearchModeFromRaw(String? raw) =>
     enumByValue(WebSearchMode.values, raw, (v) => v.value);
 
@@ -237,6 +291,35 @@ ExecutionMode _executionModeFromRawWithDefault(
 ClaudeEffort? claudeEffortFromRaw(String? raw) =>
     enumByValue(ClaudeEffort.values, raw, (v) => v.value);
 
+const _legacyClaudeEfforts = <ClaudeEffort>[
+  ClaudeEffort.low,
+  ClaudeEffort.medium,
+  ClaudeEffort.high,
+  ClaudeEffort.max,
+];
+
+Map<String, List<ClaudeEffort>> _normalizeClaudeModelEfforts(
+  Map<String, List<String>> raw,
+) {
+  return raw.map((model, values) {
+    final efforts = values
+        .map(claudeEffortFromRaw)
+        .whereType<ClaudeEffort>()
+        .toList(growable: false);
+    return MapEntry(model, efforts);
+  });
+}
+
+List<ClaudeEffort> _claudeEffortsForModel(
+  String? model,
+  Map<String, List<ClaudeEffort>> modelEfforts,
+) {
+  if (model != null && modelEfforts.containsKey(model)) {
+    return modelEfforts[model] ?? const [];
+  }
+  return modelEfforts.isEmpty ? _legacyClaudeEfforts : ClaudeEffort.values;
+}
+
 /// Serialize [NewSessionParams] to JSON for SharedPreferences.
 ///
 /// Session-specific values (worktree branch/path, useWorktree,
@@ -247,6 +330,7 @@ Map<String, dynamic> sessionStartDefaultsToJson(NewSessionParams params) {
     'projectPath': params.projectPath,
     'provider': params.provider.value,
     'executionMode': params.executionMode.value,
+    'codexPermissionsMode': params.codexPermissionsMode.value,
     'codexApprovalPolicy': params.codexApprovalPolicy.value,
     'codexAutoReviewEnabled': params.codexAutoReviewEnabled,
     'planMode': params.planMode,
@@ -286,6 +370,9 @@ NewSessionParams? sessionStartDefaultsFromJson(Map<String, dynamic> json) {
       json['executionMode'] as String?,
       provider: json['provider'] as String?,
       permissionMode: json['permissionMode'] as String?,
+    ),
+    codexPermissionsMode: codexPermissionsModeFromRaw(
+      json['codexPermissionsMode'] as String?,
     ),
     codexApprovalPolicy:
         codexApprovalPolicyFromRaw(json['codexApprovalPolicy'] as String?) ??
@@ -395,37 +482,6 @@ enum _WorktreeMode {
   useExisting,
 }
 
-enum _CodexApprovalChoice {
-  untrusted,
-  onRequest,
-  autoReview,
-  never;
-
-  static _CodexApprovalChoice from({
-    required CodexApprovalPolicy policy,
-    required bool autoReviewEnabled,
-  }) {
-    if (policy == CodexApprovalPolicy.onRequest && autoReviewEnabled) {
-      return _CodexApprovalChoice.autoReview;
-    }
-    return switch (policy) {
-      CodexApprovalPolicy.untrusted => _CodexApprovalChoice.untrusted,
-      CodexApprovalPolicy.onRequest ||
-      CodexApprovalPolicy.onFailure => _CodexApprovalChoice.onRequest,
-      CodexApprovalPolicy.never => _CodexApprovalChoice.never,
-    };
-  }
-
-  CodexApprovalPolicy get policy => switch (this) {
-    _CodexApprovalChoice.untrusted => CodexApprovalPolicy.untrusted,
-    _CodexApprovalChoice.onRequest ||
-    _CodexApprovalChoice.autoReview => CodexApprovalPolicy.onRequest,
-    _CodexApprovalChoice.never => CodexApprovalPolicy.never,
-  };
-
-  bool get autoReviewEnabled => this == _CodexApprovalChoice.autoReview;
-}
-
 /// Fallback Codex models when Bridge hasn't delivered a list yet.
 const _defaultCodexModels = defaultCodexModels;
 
@@ -450,6 +506,7 @@ class _NewSessionSheetContentState extends State<_NewSessionSheetContent> {
   var _provider = Provider.codex;
   var _claudePermissionMode = PermissionMode.defaultMode;
   var _executionMode = ExecutionMode.defaultMode;
+  var _codexPermissionsMode = CodexPermissionsMode.defaultPermissions;
   var _codexApprovalPolicy = CodexApprovalPolicy.onRequest;
   var _codexAutoReviewEnabled = false;
   var _planMode = false;
@@ -476,7 +533,9 @@ class _NewSessionSheetContentState extends State<_NewSessionSheetContent> {
 
   // Model lists from Bridge (with fallbacks)
   late final List<String> _claudeModelList;
+  late final Map<String, List<ClaudeEffort>> _claudeModelEfforts;
   late final List<String> _codexModelList;
+  late final Map<String, List<ReasoningEffort>> _codexModelReasoningEfforts;
   late final List<String> _codexProfiles;
 
   // Codex-specific options
@@ -513,6 +572,23 @@ class _NewSessionSheetContentState extends State<_NewSessionSheetContent> {
     } else {
       _codexSandboxMode = v;
     }
+  }
+
+  void _applyCodexPermissionsMode(CodexPermissionsMode mode) {
+    _codexPermissionsMode = mode;
+    final approvalPolicy = approvalPolicyForCodexPermissionsMode(mode);
+    final sandboxMode = sandboxModeForCodexPermissionsMode(mode);
+    _codexApprovalPolicy = approvalPolicy ?? CodexApprovalPolicy.onRequest;
+    _codexAutoReviewEnabled = mode == CodexPermissionsMode.autoReview;
+    _executionMode = mode == CodexPermissionsMode.fullAccess
+        ? ExecutionMode.fullAccess
+        : ExecutionMode.defaultMode;
+    if (sandboxMode != null) {
+      _codexSandboxMode = sandboxMode;
+    }
+    _codexApprovalPolicyTouched = true;
+    _codexAutoReviewTouched = true;
+    _codexSandboxModeTouched = true;
   }
 
   bool get _hasPath => _pathController.text.trim().isNotEmpty;
@@ -587,10 +663,16 @@ class _NewSessionSheetContentState extends State<_NewSessionSheetContent> {
     _claudeModelList = bridgeClaudeModels.isNotEmpty
         ? bridgeClaudeModels
         : _defaultClaudeModels;
+    _claudeModelEfforts = _normalizeClaudeModelEfforts(
+      widget.bridge?.claudeModelEfforts ?? const {},
+    );
     final bridgeCodexModels = widget.bridge?.codexModels ?? const [];
     _codexModelList = bridgeCodexModels.isNotEmpty
         ? bridgeCodexModels
         : _defaultCodexModels;
+    _codexModelReasoningEfforts = _normalizeCodexModelReasoningEfforts(
+      widget.bridge?.codexModelReasoningEfforts ?? const {},
+    );
     _codexProfiles = widget.bridge?.codexProfiles ?? const [];
     final defaultCodexProfile = widget.bridge?.defaultCodexProfile;
     if (_codexProfiles.contains(defaultCodexProfile)) {
@@ -658,6 +740,30 @@ class _NewSessionSheetContentState extends State<_NewSessionSheetContent> {
     });
   }
 
+  void _normalizeSelectedClaudeEffort() {
+    final efforts = _claudeEffortsForModel(
+      _selectedClaudeModel ?? _claudeModelList.firstOrNull,
+      _claudeModelEfforts,
+    );
+    if (efforts.isNotEmpty && !efforts.contains(_claudeEffort)) {
+      _claudeEffort = efforts.contains(ClaudeEffort.high)
+          ? ClaudeEffort.high
+          : efforts.first;
+    }
+  }
+
+  void _normalizeSelectedCodexReasoningEffort() {
+    final efforts = _codexReasoningEffortsForModel(
+      _selectedModel ?? _codexModelList.firstOrNull,
+      _codexModelReasoningEfforts,
+    );
+    if (efforts.isNotEmpty && !efforts.contains(_modelReasoningEffort)) {
+      _modelReasoningEffort = efforts.contains(ReasoningEffort.high)
+          ? ReasoningEffort.high
+          : efforts.first;
+    }
+  }
+
   void _applyInitialParams() {
     final p = widget.initialParams;
     if (p == null) return;
@@ -669,6 +775,7 @@ class _NewSessionSheetContentState extends State<_NewSessionSheetContent> {
     );
     _provider = isVisible ? p.provider : widget.visibleTabs.first.toProvider();
     _executionMode = p.executionMode;
+    _codexPermissionsMode = p.codexPermissionsMode;
     _claudePermissionMode = p.provider == Provider.claude
         ? p.permissionMode
         : PermissionMode.defaultMode;
@@ -697,7 +804,14 @@ class _NewSessionSheetContentState extends State<_NewSessionSheetContent> {
     } else {
       _codexSandboxMode = p.sandboxMode ?? SandboxMode.on;
     }
+    if (p.provider == Provider.codex) {
+      _applyCodexPermissionsMode(p.codexPermissionsMode);
+      _codexApprovalPolicyTouched = p.codexApprovalPolicyOverridden;
+      _codexAutoReviewTouched = p.codexAutoReviewOverridden;
+      _codexSandboxModeTouched = p.codexSandboxModeOverridden;
+    }
     _modelReasoningEffort = p.modelReasoningEffort ?? _modelReasoningEffort;
+    _normalizeSelectedCodexReasoningEffort();
     _networkAccessEnabled = p.networkAccessEnabled ?? _networkAccessEnabled;
     _webSearchMode = p.webSearchMode;
     _additionalWritableRoots = [...p.additionalWritableRoots];
@@ -705,6 +819,7 @@ class _NewSessionSheetContentState extends State<_NewSessionSheetContent> {
         ? p.claudeModel
         : null;
     _claudeEffort = p.claudeEffort ?? _claudeEffort;
+    _normalizeSelectedClaudeEffort();
     _claudeMaxTurnsController.text = p.claudeMaxTurns?.toString() ?? "";
     _claudeMaxBudgetController.text = p.claudeMaxBudgetUsd?.toString() ?? "";
     _selectedClaudeFallbackModel =
@@ -954,6 +1069,7 @@ class _NewSessionSheetContentState extends State<_NewSessionSheetContent> {
       provider: _provider,
       claudePermissionMode: !isCodex ? _claudePermissionMode : null,
       executionMode: _executionMode,
+      codexPermissionsMode: _codexPermissionsMode,
       codexApprovalPolicy: _codexApprovalPolicy,
       codexAutoReviewEnabled:
           isCodex &&
@@ -975,7 +1091,7 @@ class _NewSessionSheetContentState extends State<_NewSessionSheetContent> {
       existingWorktreePath: useExisting
           ? _selectedWorktree?.worktreePath
           : null,
-      model: isCodex ? _selectedModel : null,
+      model: isCodex ? (_selectedModel ?? _codexModelList.firstOrNull) : null,
       sandboxMode: _sandboxMode,
       modelReasoningEffort: isCodex ? _modelReasoningEffort : null,
       networkAccessEnabled: isCodex ? _networkAccessEnabled : null,
@@ -1101,15 +1217,9 @@ class _NewSessionSheetContentState extends State<_NewSessionSheetContent> {
             onExecutionModeChanged: (value) {
               setState(() => _executionMode = value);
             },
-            codexApprovalPolicy: _codexApprovalPolicy,
-            codexAutoReviewEnabled: _codexAutoReviewEnabled,
-            onCodexApprovalChoiceChanged: (value) {
-              setState(() {
-                _codexApprovalPolicy = value.policy;
-                _codexAutoReviewEnabled = value.autoReviewEnabled;
-                _codexApprovalPolicyTouched = true;
-                _codexAutoReviewTouched = true;
-              });
+            codexPermissionsMode: _codexPermissionsMode,
+            onCodexPermissionsModeChanged: (value) {
+              setState(() => _applyCodexPermissionsMode(value));
             },
             codexProfiles: _codexProfiles,
             selectedCodexProfile: _selectedCodexProfile,
@@ -1142,9 +1252,13 @@ class _NewSessionSheetContentState extends State<_NewSessionSheetContent> {
             buildInputDecoration: _buildInputDecoration,
             // Claude advanced
             claudeModels: _claudeModelList,
+            claudeModelEfforts: _claudeModelEfforts,
             selectedClaudeModel: _selectedClaudeModel,
             onClaudeModelChanged: (value) {
-              setState(() => _selectedClaudeModel = value);
+              setState(() {
+                _selectedClaudeModel = value;
+                _normalizeSelectedClaudeEffort();
+              });
             },
             claudeEffort: _claudeEffort,
             onClaudeEffortChanged: (value) {
@@ -1175,10 +1289,15 @@ class _NewSessionSheetContentState extends State<_NewSessionSheetContent> {
             // Codex advanced
             codexModels: _codexModelList,
             selectedModel: _selectedModel,
+            codexReasoningEfforts: _codexReasoningEffortsForModel(
+              _selectedModel ?? _codexModelList.firstOrNull,
+              _codexModelReasoningEfforts,
+            ),
             onSelectedModelChanged: (value) {
               setState(() {
                 _selectedModel = value;
                 _codexModelTouched = true;
+                _normalizeSelectedCodexReasoningEffort();
               });
             },
             sandboxMode: _sandboxMode,
@@ -1971,9 +2090,8 @@ class _OptionsSection extends StatelessWidget {
   final ValueChanged<PermissionMode> onClaudePermissionModeChanged;
   final ExecutionMode executionMode;
   final ValueChanged<ExecutionMode> onExecutionModeChanged;
-  final CodexApprovalPolicy codexApprovalPolicy;
-  final bool codexAutoReviewEnabled;
-  final ValueChanged<_CodexApprovalChoice> onCodexApprovalChoiceChanged;
+  final CodexPermissionsMode codexPermissionsMode;
+  final ValueChanged<CodexPermissionsMode> onCodexPermissionsModeChanged;
   final List<String> codexProfiles;
   final String? selectedCodexProfile;
   final ValueChanged<String?> onCodexProfileChanged;
@@ -1997,6 +2115,7 @@ class _OptionsSection extends StatelessWidget {
 
   // Claude advanced
   final List<String> claudeModels;
+  final Map<String, List<ClaudeEffort>> claudeModelEfforts;
   final String? selectedClaudeModel;
   final ValueChanged<String?> onClaudeModelChanged;
   final ClaudeEffort claudeEffort;
@@ -2017,6 +2136,7 @@ class _OptionsSection extends StatelessWidget {
   // Codex advanced
   final List<String> codexModels;
   final String? selectedModel;
+  final List<ReasoningEffort> codexReasoningEfforts;
   final ValueChanged<String?> onSelectedModelChanged;
   final SandboxMode sandboxMode;
   final ValueChanged<SandboxMode> onSandboxModeChanged;
@@ -2034,9 +2154,8 @@ class _OptionsSection extends StatelessWidget {
     required this.onClaudePermissionModeChanged,
     required this.executionMode,
     required this.onExecutionModeChanged,
-    required this.codexApprovalPolicy,
-    required this.codexAutoReviewEnabled,
-    required this.onCodexApprovalChoiceChanged,
+    required this.codexPermissionsMode,
+    required this.onCodexPermissionsModeChanged,
     required this.codexProfiles,
     required this.selectedCodexProfile,
     required this.onCodexProfileChanged,
@@ -2052,6 +2171,7 @@ class _OptionsSection extends StatelessWidget {
     required this.branchController,
     required this.buildInputDecoration,
     required this.claudeModels,
+    required this.claudeModelEfforts,
     required this.selectedClaudeModel,
     required this.onClaudeModelChanged,
     required this.claudeEffort,
@@ -2070,6 +2190,7 @@ class _OptionsSection extends StatelessWidget {
     required this.onClaudePersistSessionChanged,
     required this.codexModels,
     required this.selectedModel,
+    required this.codexReasoningEfforts,
     required this.onSelectedModelChanged,
     required this.sandboxMode,
     required this.onSandboxModeChanged,
@@ -2095,6 +2216,10 @@ class _OptionsSection extends StatelessWidget {
     final autoModeColor = isDark
         ? appColors.warningText
         : appColors.warningBubbleBorder;
+    final selectedClaudeEfforts = _claudeEffortsForModel(
+      selectedClaudeModel ?? claudeModels.firstOrNull,
+      claudeModelEfforts,
+    );
 
     // -- Description helpers --
 
@@ -2122,33 +2247,24 @@ class _OptionsSection extends StatelessWidget {
 
     // -- Icon helpers --
 
-    final codexApprovalChoice = _CodexApprovalChoice.from(
-      policy: codexApprovalPolicy,
-      autoReviewEnabled: codexAutoReviewEnabled,
-    );
-
-    IconData codexApprovalIcon(_CodexApprovalChoice choice) => switch (choice) {
-      _CodexApprovalChoice.untrusted => Icons.verified_user_outlined,
-      _CodexApprovalChoice.onRequest => Icons.tune,
-      _CodexApprovalChoice.autoReview => Icons.auto_mode_outlined,
-      _CodexApprovalChoice.never => Icons.flash_on,
+    IconData codexPermissionsIcon(CodexPermissionsMode mode) => switch (mode) {
+      CodexPermissionsMode.defaultPermissions => Icons.back_hand_outlined,
+      CodexPermissionsMode.autoReview => Icons.shield_outlined,
+      CodexPermissionsMode.fullAccess => Icons.warning_amber_outlined,
+      CodexPermissionsMode.custom => Icons.settings_outlined,
     };
 
-    String codexApprovalLabel(_CodexApprovalChoice choice) => switch (choice) {
-      _CodexApprovalChoice.untrusted => 'Untrusted',
-      _CodexApprovalChoice.onRequest => 'On Request',
-      _CodexApprovalChoice.autoReview => 'Auto Review',
-      _CodexApprovalChoice.never => 'Never Ask',
-    };
-
-    String codexApprovalDescription(_CodexApprovalChoice choice) {
-      return switch (choice) {
-        _CodexApprovalChoice.untrusted => l.codexApprovalUntrustedDescription,
-        _CodexApprovalChoice.onRequest => l.codexApprovalOnRequestDescription,
-        _CodexApprovalChoice.autoReview => l.codexAutoReviewDescription,
-        _CodexApprovalChoice.never => l.codexApprovalNeverDescription,
-      };
-    }
+    String codexPermissionsDescription(CodexPermissionsMode mode) =>
+        switch (mode) {
+          CodexPermissionsMode.defaultPermissions =>
+            l.sandboxRestrictedDescription,
+          CodexPermissionsMode.autoReview => l.codexAutoReviewDescription,
+          CodexPermissionsMode.fullAccess => l.sandboxNativeCautionDescription,
+          CodexPermissionsMode.custom =>
+            selectedCodexProfile == null
+                ? 'Codex uses permissions from config.toml'
+                : 'Codex uses permissions from the selected profile',
+        };
 
     IconData permissionIcon(PermissionMode mode) => switch (mode) {
       PermissionMode.defaultMode => Icons.tune,
@@ -2379,28 +2495,27 @@ class _OptionsSection extends StatelessWidget {
           ],
           provider == Provider.codex
               ? modeSelectorField(
-                  key: const ValueKey('dialog_codex_approval_policy'),
-                  label: l.approval,
-                  icon: codexApprovalIcon(codexApprovalChoice),
-                  title: codexApprovalLabel(codexApprovalChoice),
-                  subtitle: codexApprovalDescription(codexApprovalChoice),
-                  onTap: () => showModeSheet<_CodexApprovalChoice>(
-                    title: l.approval,
+                  key: const ValueKey('dialog_codex_permissions_mode'),
+                  label: 'Permissions',
+                  icon: codexPermissionsIcon(codexPermissionsMode),
+                  title: codexPermissionsMode.label,
+                  subtitle: codexPermissionsDescription(codexPermissionsMode),
+                  accentColor:
+                      codexPermissionsMode == CodexPermissionsMode.fullAccess
+                      ? Theme.of(context).colorScheme.error
+                      : null,
+                  onTap: () => showModeSheet<CodexPermissionsMode>(
+                    title: 'Permissions',
                     subtitle: l.sheetSubtitleApproval,
-                    modes: const [
-                      _CodexApprovalChoice.untrusted,
-                      _CodexApprovalChoice.onRequest,
-                      _CodexApprovalChoice.autoReview,
-                      _CodexApprovalChoice.never,
-                    ],
-                    currentMode: codexApprovalChoice,
-                    iconFor: codexApprovalIcon,
-                    labelFor: codexApprovalLabel,
-                    descriptionFor: codexApprovalDescription,
-                    onSelected: onCodexApprovalChoiceChanged,
+                    modes: CodexPermissionsMode.values,
+                    currentMode: codexPermissionsMode,
+                    iconFor: codexPermissionsIcon,
+                    labelFor: (mode) => mode.label,
+                    descriptionFor: codexPermissionsDescription,
+                    onSelected: onCodexPermissionsModeChanged,
                     colorFor: (mode, cs) => switch (mode) {
-                      _CodexApprovalChoice.never => cs.error,
-                      _CodexApprovalChoice.autoReview => cs.primary,
+                      CodexPermissionsMode.fullAccess => cs.error,
+                      CodexPermissionsMode.autoReview => cs.primary,
                       _ => cs.primary,
                     },
                   ),
@@ -2453,32 +2568,27 @@ class _OptionsSection extends StatelessWidget {
                     },
                   ),
                 ),
-          const SizedBox(height: 8),
-          modeSelectorField(
-            key: const ValueKey('dialog_sandbox'),
-            label: l.sandbox,
-            icon: sandboxIcon(sandboxMode),
-            title: sandboxLabel(sandboxMode),
-            subtitle: sandboxDescription(sandboxMode),
-            onTap: () => showModeSheet<SandboxMode>(
-              title: l.sandbox,
-              subtitle: isClaude
-                  ? l.sheetSubtitleSandboxClaude
-                  : l.sheetSubtitleSandboxCodex,
-              modes: isClaude
-                  ? SandboxMode.values.reversed.toList()
-                  : SandboxMode.values,
-              currentMode: sandboxMode,
-              iconFor: sandboxIcon,
-              labelFor: sandboxLabel,
-              descriptionFor: sandboxDescription,
-              onSelected: onSandboxModeChanged,
-              colorFor: (mode, cs) {
-                if (!isClaude && mode == SandboxMode.off) return cs.error;
-                return cs.primary;
-              },
+          if (isClaude) ...[
+            const SizedBox(height: 8),
+            modeSelectorField(
+              key: const ValueKey('dialog_sandbox'),
+              label: l.sandbox,
+              icon: sandboxIcon(sandboxMode),
+              title: sandboxLabel(sandboxMode),
+              subtitle: sandboxDescription(sandboxMode),
+              onTap: () => showModeSheet<SandboxMode>(
+                title: l.sandbox,
+                subtitle: l.sheetSubtitleSandboxClaude,
+                modes: SandboxMode.values.reversed.toList(),
+                currentMode: sandboxMode,
+                iconFor: sandboxIcon,
+                labelFor: sandboxLabel,
+                descriptionFor: sandboxDescription,
+                onSelected: onSandboxModeChanged,
+                colorFor: (mode, cs) => cs.primary,
+              ),
             ),
-          ),
+          ],
           const SizedBox(height: 8),
           // -- Model selector --
           modeSelectorField(
@@ -2517,9 +2627,7 @@ class _OptionsSection extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           // -- Effort / Reasoning selector --
-          // Claude Effort is only meaningful for Opus models.
-          if (provider == Provider.claude &&
-              _isOpusModel(selectedClaudeModel ?? claudeModels.firstOrNull))
+          if (provider == Provider.claude && selectedClaudeEfforts.isNotEmpty)
             modeSelectorField(
               key: const ValueKey('dialog_claude_effort'),
               label: l.effort,
@@ -2529,7 +2637,7 @@ class _OptionsSection extends StatelessWidget {
               onTap: () => showModeSheet<ClaudeEffort>(
                 title: l.effort,
                 subtitle: l.sheetSubtitleEffort,
-                modes: ClaudeEffort.values,
+                modes: selectedClaudeEfforts,
                 currentMode: claudeEffort,
                 iconFor: (_) => Icons.speed,
                 labelFor: (e) => e.label,
@@ -2537,18 +2645,30 @@ class _OptionsSection extends StatelessWidget {
                 onSelected: onClaudeEffortChanged,
               ),
             ),
-          if (provider == Provider.codex)
+          if (provider == Provider.codex && codexReasoningEfforts.isNotEmpty)
             modeSelectorField(
               key: const ValueKey('dialog_codex_reasoning_effort'),
               label: l.reasoning,
               icon: Icons.psychology,
-              title: modelReasoningEffort.label,
-              subtitle: _reasoningEffortDescription(modelReasoningEffort, l),
+              title:
+                  (codexReasoningEfforts.contains(modelReasoningEffort)
+                          ? modelReasoningEffort
+                          : codexReasoningEfforts.first)
+                      .label,
+              subtitle: _reasoningEffortDescription(
+                codexReasoningEfforts.contains(modelReasoningEffort)
+                    ? modelReasoningEffort
+                    : codexReasoningEfforts.first,
+                l,
+              ),
               onTap: () => showModeSheet<ReasoningEffort>(
                 title: l.reasoning,
                 subtitle: l.sheetSubtitleEffort,
-                modes: ReasoningEffort.values,
-                currentMode: modelReasoningEffort,
+                modes: codexReasoningEfforts,
+                currentMode:
+                    codexReasoningEfforts.contains(modelReasoningEffort)
+                    ? modelReasoningEffort
+                    : codexReasoningEfforts.first,
                 iconFor: (_) => Icons.psychology,
                 labelFor: (e) => e.label,
                 descriptionFor: (e) => _reasoningEffortDescription(e, l),
@@ -2684,22 +2804,19 @@ class _WorktreeToggleTile extends StatelessWidget {
   }
 }
 
-bool _isOpusModel(String? model) {
-  if (model == null) return true; // default model may be opus
-  return model.toLowerCase().contains('opus');
-}
-
 String _claudeEffortDescription(ClaudeEffort effort, AppLocalizations l) {
   return switch (effort) {
     ClaudeEffort.low => l.claudeEffortLowDesc,
     ClaudeEffort.medium => l.claudeEffortMediumDesc,
     ClaudeEffort.high => l.claudeEffortHighDesc,
+    ClaudeEffort.xhigh => l.claudeEffortXHighDesc,
     ClaudeEffort.max => l.claudeEffortMaxDesc,
   };
 }
 
 String _reasoningEffortDescription(ReasoningEffort effort, AppLocalizations l) {
   return switch (effort) {
+    ReasoningEffort.none => l.reasoningEffortNoneDesc,
     ReasoningEffort.minimal => l.reasoningEffortMinimalDesc,
     ReasoningEffort.low => l.reasoningEffortLowDesc,
     ReasoningEffort.medium => l.reasoningEffortMediumDesc,

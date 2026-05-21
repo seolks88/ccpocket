@@ -32,6 +32,8 @@ class ChatStateUpdate {
   final ExecutionMode? executionMode;
   final CodexApprovalPolicy? codexApprovalPolicy;
   final String? codexApprovalsReviewer;
+  final CodexPermissionsMode? codexPermissionsMode;
+  final ReasoningEffort? modelReasoningEffort;
   final bool? planMode;
   final List<ChatEntry> entriesToAdd;
   final List<ChatEntry> entriesToPrepend;
@@ -71,7 +73,15 @@ class ChatStateUpdate {
   /// UUID update for an existing user entry. When the SDK echoes back a
   /// user_input with a UUID, we update the locally-added UserChatEntry rather
   /// than creating a duplicate.
-  final ({String text, String uuid, String? clientMessageId})? userUuidUpdate;
+  final ({
+    String text,
+    String uuid,
+    String? clientMessageId,
+    int imageCount,
+    List<String> imageUrls,
+    String? timestamp,
+  })?
+  userUuidUpdate;
 
   const ChatStateUpdate({
     this.status,
@@ -79,6 +89,8 @@ class ChatStateUpdate {
     this.executionMode,
     this.codexApprovalPolicy,
     this.codexApprovalsReviewer,
+    this.codexPermissionsMode,
+    this.modelReasoningEffort,
     this.planMode,
     this.entriesToAdd = const [],
     this.entriesToPrepend = const [],
@@ -128,6 +140,7 @@ const _unsupportedActions = <String, UnsupportedAction>{
   'archive_session': UnsupportedAction.showUpdateHint,
   'read_file': UnsupportedAction.showUpdateHint,
   'steer_queued_input': UnsupportedAction.showUpdateHint,
+  'set_model_reasoning_effort': UnsupportedAction.showUpdateHint,
   'mutate_prompt_history': UnsupportedAction.showUpdateHint,
   'import_prompt_history_v1': UnsupportedAction.showUpdateHint,
   // Git Operations (Phase 1-3)
@@ -141,6 +154,14 @@ const _unsupportedActions = <String, UnsupportedAction>{
   'git_checkout_branch': UnsupportedAction.showUpdateHint,
   'git_revert_hunks': UnsupportedAction.showUpdateHint,
 };
+
+ReasoningEffort? _reasoningEffortFromRaw(String? raw) {
+  if (raw == null || raw.isEmpty) return null;
+  for (final value in ReasoningEffort.values) {
+    if (value.value == raw) return value;
+  }
+  return null;
+}
 
 /// Processes [ServerMessage]s into [ChatStateUpdate]s.
 ///
@@ -249,6 +270,9 @@ class ChatMessageHandler {
         :final userMessageUuid,
         :final isSynthetic,
         :final isMeta,
+        :final imageCount,
+        :final imageUrls,
+        :final timestamp,
       ):
         // Skip synthetic and meta messages (e.g. plan approval, Task agent
         // prompts, skill loading prompts).
@@ -261,6 +285,9 @@ class ChatMessageHandler {
               text: text,
               uuid: userMessageUuid,
               clientMessageId: clientMessageId,
+              imageCount: imageCount,
+              imageUrls: imageUrls,
+              timestamp: timestamp,
             ),
           );
         }
@@ -533,6 +560,7 @@ class ChatMessageHandler {
     String? claudeSessionId;
     String? projectPath;
     QueuedInputItem? queuedInput;
+    ReasoningEffort? modelReasoningEffort;
     var clearQueuedInput = false;
 
     // Track last known timestamp from user messages so server entries
@@ -617,6 +645,11 @@ class ChatMessageHandler {
         if (m is SystemMessage && m.projectPath?.trim().isNotEmpty == true) {
           projectPath = m.projectPath;
         }
+        if (m is SystemMessage && m.modelReasoningEffort != null) {
+          modelReasoningEffort = _reasoningEffortFromRaw(
+            m.modelReasoningEffort,
+          );
+        }
         // Track pending permission request
         if (m is PermissionRequestMessage) {
           if (m.usesAskUserUi) {
@@ -680,6 +713,7 @@ class ChatMessageHandler {
       claudeSessionId: claudeSessionId,
       projectPath: projectPath,
       queuedInput: queuedInput,
+      modelReasoningEffort: modelReasoningEffort,
       clearQueuedInput: clearQueuedInput,
     );
   }
@@ -701,6 +735,8 @@ class ChatMessageHandler {
     ExecutionMode? executionMode;
     CodexApprovalPolicy? codexApprovalPolicy;
     String? codexApprovalsReviewer;
+    CodexPermissionsMode? codexPermissionsMode;
+    ReasoningEffort? modelReasoningEffort;
     bool? inPlanMode;
     bool? planMode;
     bool hasExecutionSignals(SystemMessage message) =>
@@ -727,8 +763,16 @@ class ChatMessageHandler {
         includeDollarEntities: isCodex,
       );
     }
+    if (msg is SystemMessage && msg.modelReasoningEffort != null) {
+      modelReasoningEffort = _reasoningEffortFromRaw(
+        msg.modelReasoningEffort,
+      );
+    }
     if (msg is SystemMessage && msg.permissionMode != null) {
       codexApprovalsReviewer = msg.approvalsReviewer;
+      codexPermissionsMode = codexPermissionsModeFromRaw(
+        msg.codexPermissionsMode,
+      );
       permissionMode = PermissionMode.values.cast<PermissionMode?>().firstWhere(
         (mode) => mode?.value == msg.permissionMode,
         orElse: () => null,
@@ -760,6 +804,9 @@ class ChatMessageHandler {
       }
     } else if (msg is SystemMessage) {
       codexApprovalsReviewer = msg.approvalsReviewer;
+      codexPermissionsMode = codexPermissionsModeFromRaw(
+        msg.codexPermissionsMode,
+      );
       if (hasExecutionSignals(msg)) {
         executionMode = deriveExecutionMode(
           provider: msg.provider,
@@ -799,6 +846,8 @@ class ChatMessageHandler {
       executionMode: executionMode,
       codexApprovalPolicy: codexApprovalPolicy,
       codexApprovalsReviewer: codexApprovalsReviewer,
+      codexPermissionsMode: codexPermissionsMode,
+      modelReasoningEffort: modelReasoningEffort,
       planMode: planMode,
       inPlanMode: inPlanMode,
       slashCommands: commands,

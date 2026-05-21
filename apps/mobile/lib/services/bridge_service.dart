@@ -105,7 +105,9 @@ class BridgeService implements BridgeServiceBase {
   List<String> _projectHistory = [];
   List<String> _allowedDirs = [];
   List<String> _claudeModels = [];
+  Map<String, List<String>> _claudeModelEfforts = {};
   List<String> _codexModels = [];
+  Map<String, List<String>> _codexModelReasoningEfforts = {};
   List<String> _codexProfiles = [];
   String? _defaultCodexProfile;
   String? _bridgeVersion;
@@ -231,7 +233,10 @@ class BridgeService implements BridgeServiceBase {
   List<String> get projectHistory => _projectHistory;
   List<String> get allowedDirs => _allowedDirs;
   List<String> get claudeModels => _claudeModels;
+  Map<String, List<String>> get claudeModelEfforts => _claudeModelEfforts;
   List<String> get codexModels => _codexModels;
+  Map<String, List<String>> get codexModelReasoningEfforts =>
+      _codexModelReasoningEfforts;
   List<String> get codexProfiles => _codexProfiles;
   String? get defaultCodexProfile => _defaultCodexProfile;
   String? get bridgeVersion => _bridgeVersion;
@@ -391,7 +396,9 @@ class BridgeService implements BridgeServiceBase {
                 :final sessions,
                 :final allowedDirs,
                 :final claudeModels,
+                :final claudeModelEfforts,
                 :final codexModels,
+                :final codexModelReasoningEfforts,
                 :final codexProfiles,
                 :final defaultCodexProfile,
                 :final bridgeVersion,
@@ -401,7 +408,9 @@ class BridgeService implements BridgeServiceBase {
                 _sessionListController.add(_sessions);
                 _allowedDirs = allowedDirs;
                 _claudeModels = claudeModels;
+                _claudeModelEfforts = claudeModelEfforts;
                 _codexModels = codexModels;
+                _codexModelReasoningEfforts = codexModelReasoningEfforts;
                 _codexProfiles = codexProfiles;
                 _defaultCodexProfile = defaultCodexProfile;
                 _bridgeVersion = bridgeVersion;
@@ -543,6 +552,7 @@ class BridgeService implements BridgeServiceBase {
                     planMode: msg.planMode,
                     approvalPolicy: msg.approvalPolicy,
                     approvalsReviewer: msg.approvalsReviewer,
+                    codexPermissionsMode: msg.codexPermissionsMode,
                   );
                 }
                 if (sessionId != null) {
@@ -679,7 +689,9 @@ class BridgeService implements BridgeServiceBase {
     _projectHistory = const [];
     _allowedDirs = const [];
     _claudeModels = const [];
+    _claudeModelEfforts = const {};
     _codexModels = const [];
+    _codexModelReasoningEfforts = const {};
     _codexProfiles = const [];
     _defaultCodexProfile = null;
     _bridgeVersion = null;
@@ -1640,6 +1652,7 @@ class BridgeService implements BridgeServiceBase {
     String? executionMode,
     String? approvalPolicy,
     String? approvalsReviewer,
+    String? codexPermissionsMode,
     bool? planMode,
     String? effort,
     int? maxTurns,
@@ -1664,6 +1677,7 @@ class BridgeService implements BridgeServiceBase {
         executionMode: executionMode,
         approvalPolicy: approvalPolicy,
         approvalsReviewer: approvalsReviewer,
+        codexPermissionsMode: codexPermissionsMode,
         planMode: planMode,
         effort: effort,
         maxTurns: maxTurns,
@@ -1983,6 +1997,7 @@ class BridgeService implements BridgeServiceBase {
     bool? planMode,
     String? approvalPolicy,
     String? approvalsReviewer,
+    String? codexPermissionsMode,
   }) {
     final idx = _sessions.indexWhere((s) => s.id == sessionId);
     if (idx < 0) return;
@@ -2003,6 +2018,7 @@ class BridgeService implements BridgeServiceBase {
           derivePlanMode(planMode: planMode, permissionMode: permissionMode),
       approvalPolicy: approvalPolicy,
       approvalsReviewer: approvalsReviewer,
+      codexPermissionsMode: codexPermissionsMode,
     );
   }
 
@@ -2013,6 +2029,7 @@ class BridgeService implements BridgeServiceBase {
     required bool planMode,
     String? approvalPolicy,
     String? approvalsReviewer,
+    String? codexPermissionsMode,
   }) {
     _patchSessionModes(
       sessionId,
@@ -2021,6 +2038,7 @@ class BridgeService implements BridgeServiceBase {
       planMode: planMode,
       approvalPolicy: approvalPolicy,
       approvalsReviewer: approvalsReviewer,
+      codexPermissionsMode: codexPermissionsMode,
     );
   }
 
@@ -2031,6 +2049,7 @@ class BridgeService implements BridgeServiceBase {
     required bool planMode,
     String? approvalPolicy,
     String? approvalsReviewer,
+    String? codexPermissionsMode,
   }) {
     final idx = _sessions.indexWhere((s) => s.id == sessionId);
     if (idx < 0) return;
@@ -2038,6 +2057,8 @@ class BridgeService implements BridgeServiceBase {
     if (current.permissionMode == permissionMode &&
         current.executionMode == executionMode &&
         current.planMode == planMode &&
+        (codexPermissionsMode == null ||
+            current.codexPermissionsMode == codexPermissionsMode) &&
         (approvalsReviewer == null ||
             current.codexApprovalsReviewer == approvalsReviewer)) {
       return;
@@ -2050,6 +2071,8 @@ class BridgeService implements BridgeServiceBase {
         codexApprovalPolicy: approvalPolicy ?? current.codexApprovalPolicy,
         codexApprovalsReviewer:
             approvalsReviewer ?? current.codexApprovalsReviewer,
+        codexPermissionsMode:
+            codexPermissionsMode ?? current.codexPermissionsMode,
       );
     _sessionListController.add(_sessions);
   }
@@ -2071,6 +2094,8 @@ class BridgeService implements BridgeServiceBase {
         ),
         codexApprovalsReviewer:
             message.approvalsReviewer ?? current.codexApprovalsReviewer,
+        codexPermissionsMode:
+            message.codexPermissionsMode ?? current.codexPermissionsMode,
         codexSandboxMode: message.provider == Provider.codex.value
             ? (message.sandboxMode ?? current.codexSandboxMode)
             : current.codexSandboxMode,
@@ -2166,6 +2191,16 @@ class BridgeService implements BridgeServiceBase {
     if (current.codexSandboxMode == sandboxMode) return;
     _sessions = List.of(_sessions)
       ..[idx] = current.copyWith(codexSandboxMode: sandboxMode);
+    _sessionListController.add(_sessions);
+  }
+
+  void patchSessionModelReasoningEffort(String sessionId, String effort) {
+    final idx = _sessions.indexWhere((s) => s.id == sessionId);
+    if (idx < 0) return;
+    final current = _sessions[idx];
+    if (current.codexModelReasoningEffort == effort) return;
+    _sessions = List.of(_sessions)
+      ..[idx] = current.copyWith(codexModelReasoningEffort: effort);
     _sessionListController.add(_sessions);
   }
 

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
@@ -49,11 +50,21 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
   ExecutionMode? _pendingExecutionRollback;
   CodexApprovalPolicy? _pendingCodexApprovalRollback;
   String? _pendingCodexApprovalsReviewerRollback;
+  CodexPermissionsMode? _pendingCodexPermissionsModeRollback;
   bool? _pendingPlanRollback;
   SandboxMode? _pendingSandboxRollback;
+  ReasoningEffort? _pendingModelReasoningEffortRollback;
+
+  final ValueNotifier<ReasoningEffort> modelReasoningEffortNotifier;
 
   /// Whether this session is a Codex session.
   bool get isCodex => provider == Provider.codex;
+
+  ValueListenable<ReasoningEffort> get modelReasoningEffortListenable =>
+      modelReasoningEffortNotifier;
+
+  ReasoningEffort get modelReasoningEffort =>
+      modelReasoningEffortNotifier.value;
 
   String _nextOptimisticCodexUserTurnUuid() {
     final userTurnCount = state.entries.whereType<UserChatEntry>().length;
@@ -87,9 +98,14 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
     SandboxMode? initialSandboxMode,
     CodexApprovalPolicy? initialCodexApprovalPolicy,
     String? initialCodexApprovalsReviewer,
+    CodexPermissionsMode? initialCodexPermissionsMode,
+    ReasoningEffort? initialModelReasoningEffort,
     String? initialProjectPath,
   }) : _bridge = bridge,
        _streamingCubit = streamingCubit,
+       modelReasoningEffortNotifier = ValueNotifier(
+         initialModelReasoningEffort ?? ReasoningEffort.high,
+       ),
        super(
          ChatSessionState(
            permissionMode: initialPermissionMode ?? PermissionMode.defaultMode,
@@ -115,6 +131,18 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
                    )
                ? 'auto_review'
                : 'user',
+           codexPermissionsMode: provider == Provider.codex
+               ? (initialCodexPermissionsMode ??
+                     (initialCodexApprovalPolicy != null ||
+                             initialSandboxMode != null ||
+                             initialCodexApprovalsReviewer != null
+                         ? codexPermissionsModeFromSettings(
+                             approvalPolicy: initialCodexApprovalPolicy?.value,
+                             approvalsReviewer: initialCodexApprovalsReviewer,
+                             sandboxMode: initialSandboxMode?.value,
+                           )
+                         : CodexPermissionsMode.defaultPermissions))
+               : CodexPermissionsMode.defaultPermissions,
            planMode: initialPermissionMode == PermissionMode.plan,
            sandboxMode:
                initialSandboxMode ??
@@ -362,21 +390,49 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
 
     // Apply UUID update from SDK echo (makes the user entry rewindable)
     if (update.userUuidUpdate != null) {
-      final (:text, :uuid, :clientMessageId) = update.userUuidUpdate!;
+      final (
+        :text,
+        :uuid,
+        :clientMessageId,
+        :imageCount,
+        :imageUrls,
+        :timestamp,
+      ) = update.userUuidUpdate!;
+      var matchedUserEntry = false;
       for (int i = entries.length - 1; i >= 0; i--) {
         final e = entries[i];
         if (e is UserChatEntry &&
-            ((clientMessageId != null &&
+            ((e.messageUuid == uuid) ||
+                (clientMessageId != null &&
                     e.clientMessageId == clientMessageId) ||
                 (e.messageUuid == null &&
                     clientMessageId == null &&
                     e.text == text))) {
+          matchedUserEntry = true;
           if (e.messageUuid != uuid) {
             e.messageUuid = uuid;
             didModifyEntries = true;
           }
           break;
         }
+      }
+      if (!matchedUserEntry) {
+        entries = [
+          ...entries,
+          UserChatEntry(
+            text,
+            sessionId: sessionId,
+            clientMessageId: clientMessageId,
+            imageCount: imageCount,
+            imageUrls: imageUrls,
+            status: MessageStatus.sent,
+            messageUuid: uuid,
+            timestamp: timestamp == null
+                ? null
+                : DateTime.tryParse(timestamp)?.toLocal(),
+          ),
+        ];
+        didModifyEntries = true;
       }
     }
 
@@ -591,6 +647,10 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
         beforeTrailingAssistant: originalMsg is AssistantServerMessage,
       );
     }
+    if (update.modelReasoningEffort != null &&
+        modelReasoningEffortNotifier.value != update.modelReasoningEffort) {
+      modelReasoningEffortNotifier.value = update.modelReasoningEffort!;
+    }
     if (isDeliveryPendingQueuedInput(current.queuedInput) &&
         current.queuedInput?.itemId != nextQueuedInput?.itemId) {
       _bridge.clearDeliveryPendingInput(
@@ -614,6 +674,8 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
             update.codexApprovalPolicy ?? current.codexApprovalPolicy,
         codexApprovalsReviewer:
             update.codexApprovalsReviewer ?? current.codexApprovalsReviewer,
+        codexPermissionsMode:
+            update.codexPermissionsMode ?? current.codexPermissionsMode,
         planMode: update.planMode ?? current.planMode,
         slashCommands: update.slashCommands ?? current.slashCommands,
         queuedInput: nextQueuedInput,
@@ -832,6 +894,7 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
         :final executionMode,
         :final approvalPolicy,
         :final approvalsReviewer,
+        :final codexPermissionsMode,
         :final sandboxMode,
         :final sourceSessionId,
         :final tipCode,
@@ -847,6 +910,7 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
           executionMode,
           approvalPolicy,
           approvalsReviewer,
+          codexPermissionsMode,
           sandboxMode,
           sourceSessionId,
           tipCode,
@@ -1476,6 +1540,89 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
     );
   }
 
+  void setCodexPermissionsMode(CodexPermissionsMode mode) {
+    final policy =
+        approvalPolicyForCodexPermissionsMode(mode) ??
+        state.codexApprovalPolicy;
+    final approvalsReviewer =
+        approvalsReviewerForCodexPermissionsMode(mode) ??
+        state.codexApprovalsReviewer;
+    final sandboxMode = sandboxModeForCodexPermissionsMode(mode);
+    final derivedExecution = mode == CodexPermissionsMode.fullAccess
+        ? ExecutionMode.fullAccess
+        : ExecutionMode.defaultMode;
+    const legacyMode = PermissionMode.acceptEdits;
+
+    logger.info('[session:$sessionId] setCodexPermissionsMode=${mode.value}');
+    _pendingPermissionRollback = state.permissionMode;
+    _pendingExecutionRollback = state.executionMode;
+    _pendingCodexApprovalRollback = state.codexApprovalPolicy;
+    _pendingCodexApprovalsReviewerRollback = state.codexApprovalsReviewer;
+    _pendingCodexPermissionsModeRollback = state.codexPermissionsMode;
+    _pendingSandboxRollback = state.sandboxMode;
+    _pendingPlanRollback = state.planMode;
+
+    emit(
+      state.copyWith(
+        permissionMode: legacyMode,
+        executionMode: derivedExecution,
+        codexApprovalPolicy: policy,
+        codexApprovalsReviewer: approvalsReviewer,
+        codexPermissionsMode: mode,
+        sandboxMode: sandboxMode ?? state.sandboxMode,
+        planMode: false,
+        inPlanMode: false,
+      ),
+    );
+    _bridge.patchSessionModes(
+      sessionId,
+      permissionMode: legacyMode.value,
+      executionMode: derivedExecution.value,
+      planMode: false,
+      approvalPolicy: mode == CodexPermissionsMode.custom ? null : policy.value,
+      approvalsReviewer: mode == CodexPermissionsMode.custom
+          ? null
+          : approvalsReviewer,
+      codexPermissionsMode: mode.value,
+    );
+    if (sandboxMode != null) {
+      _bridge.patchSessionSandboxMode(sessionId, sandboxMode.value);
+    }
+    _bridge.send(
+      ClientMessage.setSessionMode(
+        legacyMode: legacyMode.value,
+        executionMode: derivedExecution.value,
+        approvalPolicy: mode == CodexPermissionsMode.custom
+            ? null
+            : policy.value,
+        approvalsReviewer: mode == CodexPermissionsMode.custom
+            ? null
+            : approvalsReviewer,
+        codexPermissionsMode: mode.value,
+        planMode: false,
+        sessionId: sessionId,
+      ),
+    );
+  }
+
+  /// Change Codex reasoning effort for the next user turn.
+  void setModelReasoningEffort(ReasoningEffort effort) {
+    if (!isCodex || modelReasoningEffortNotifier.value == effort) return;
+    logger.info(
+      '[session:$sessionId] setModelReasoningEffort=${effort.value}',
+    );
+    _pendingModelReasoningEffortRollback =
+        modelReasoningEffortNotifier.value;
+    modelReasoningEffortNotifier.value = effort;
+    _bridge.patchSessionModelReasoningEffort(sessionId, effort.value);
+    _bridge.send(
+      ClientMessage.setModelReasoningEffort(
+        effort.value,
+        sessionId: sessionId,
+      ),
+    );
+  }
+
   /// Change sandbox mode (Claude & Codex).
   /// Bridge destroys and resumes the session with new sandbox settings.
   void setSandboxMode(SandboxMode mode) {
@@ -1508,6 +1655,10 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
             codexApprovalsReviewer:
                 _pendingCodexApprovalsReviewerRollback ??
                 state.codexApprovalsReviewer,
+            codexPermissionsMode:
+                _pendingCodexPermissionsModeRollback ??
+                state.codexPermissionsMode,
+            sandboxMode: _pendingSandboxRollback ?? state.sandboxMode,
             planMode: _pendingPlanRollback ?? (previous == PermissionMode.plan),
             inPlanMode:
                 _pendingPlanRollback ?? (previous == PermissionMode.plan),
@@ -1525,6 +1676,10 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
           approvalsReviewer:
               _pendingCodexApprovalsReviewerRollback ??
               state.codexApprovalsReviewer,
+          codexPermissionsMode:
+              (_pendingCodexPermissionsModeRollback ??
+                      state.codexPermissionsMode)
+                  .value,
         );
         final claudeSid = state.claudeSessionId;
         if (claudeSid != null && claudeSid.isNotEmpty) {
@@ -1559,6 +1714,15 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
         }
       }
     }
+
+    if (_isModelReasoningEffortFailure(msg)) {
+      final previous = _pendingModelReasoningEffortRollback;
+      _pendingModelReasoningEffortRollback = null;
+      if (previous != null) {
+        modelReasoningEffortNotifier.value = previous;
+        _bridge.patchSessionModelReasoningEffort(sessionId, previous.value);
+      }
+    }
   }
 
   bool _isPermissionModeFailure(ErrorMessage msg) {
@@ -1576,6 +1740,13 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
         msg.message.startsWith(
           'Failed to restart session for sandbox mode change:',
         );
+  }
+
+  bool _isModelReasoningEffortFailure(ErrorMessage msg) {
+    return msg.errorCode == 'set_model_reasoning_effort_rejected' ||
+        (msg.errorCode == 'unsupported_message' &&
+            msg.message == 'set_model_reasoning_effort') ||
+        msg.message.startsWith('Failed to set reasoning effort:');
   }
 
   /// Stop the session.
@@ -1776,6 +1947,7 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
     _deliveryPendingTimers.clear();
     _deliveryPendingInputs.clear();
     _subscription?.cancel();
+    modelReasoningEffortNotifier.dispose();
     _sideEffectsController.close();
     return super.close();
   }

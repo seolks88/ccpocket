@@ -106,6 +106,32 @@ describe("CodexProcess (app-server)", () => {
     proc.stop();
   });
 
+  it("returns a clear error when Codex CLI is not installed", () => {
+    const proc = new CodexProcess("linux");
+    const messages: unknown[] = [];
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    proc.on("message", (msg) => messages.push(msg));
+
+    try {
+      proc.start("/tmp/project-missing-codex");
+
+      const err = new Error("spawn codex ENOENT") as NodeJS.ErrnoException;
+      err.code = "ENOENT";
+      fakeChildren[0].emit("error", err);
+
+      expect(messages).toContainEqual({
+        type: "error",
+        message:
+          "Codex CLI is not installed or not available on PATH on the Bridge machine. Install it with `npm install -g @openai/codex` or `brew install --cask codex`, then restart Bridge.",
+        errorCode: "codex_cli_not_found",
+      });
+    } finally {
+      errorSpy.mockRestore();
+    }
+
+    proc.stop();
+  });
+
   it("starts codex app-server and sends initialize + thread/start", async () => {
     const proc = new CodexProcess("linux");
     const messages: unknown[] = [];
@@ -180,6 +206,68 @@ describe("CodexProcess (app-server)", () => {
         networkAccessEnabled: false,
       }),
     );
+
+    proc.stop();
+  });
+
+  it("leaves approval, reviewer, and sandbox unset for custom permissions", async () => {
+    const proc = new CodexProcess("linux");
+    const messages: unknown[] = [];
+    proc.on("message", (msg) => messages.push(msg));
+
+    proc.start("/tmp/project-custom-permissions", {
+      codexPermissionsMode: "custom",
+    });
+
+    const child = fakeChildren[0];
+    await tick();
+
+    const initReq = nextOutgoingRequest(child);
+    child.stdout.emit(
+      "data",
+      `${JSON.stringify({ id: initReq.id, result: {} })}\n`,
+    );
+
+    await tick();
+    nextOutgoingNotification(child);
+
+    const startReq = nextOutgoingRequest(child);
+    expect(startReq.method).toBe("thread/start");
+    expect(startReq.params).toMatchObject({
+      cwd: "/tmp/project-custom-permissions",
+    });
+    expect(startReq.params).not.toHaveProperty("approvalPolicy");
+    expect(startReq.params).not.toHaveProperty("approvalsReviewer");
+    expect(startReq.params).not.toHaveProperty("sandbox");
+
+    child.stdout.emit(
+      "data",
+      `${JSON.stringify({
+        id: startReq.id,
+        result: { thread: { id: "thr_custom" } },
+      })}\n`,
+    );
+    await tick();
+
+    expect(messages).toContainEqual(
+      expect.objectContaining({
+        type: "system",
+        subtype: "init",
+        provider: "codex",
+        sessionId: "thr_custom",
+        codexPermissionsMode: "custom",
+      }),
+    );
+    const initMessage = messages.find(
+      (msg) =>
+        typeof msg === "object" &&
+        msg !== null &&
+        (msg as { type?: string; subtype?: string }).type === "system" &&
+        (msg as { type?: string; subtype?: string }).subtype === "init",
+    ) as Record<string, unknown>;
+    expect(initMessage).not.toHaveProperty("approvalPolicy");
+    expect(initMessage).not.toHaveProperty("approvalsReviewer");
+    expect(initMessage).not.toHaveProperty("sandboxMode");
 
     proc.stop();
   });
@@ -792,7 +880,7 @@ describe("CodexProcess (app-server)", () => {
     await initializePromise;
     nextOutgoingNotification(child);
 
-    const modelsPromise = proc.listAvailableModels();
+    const modelsPromise = proc.listAvailableModelMetadata();
     await tick();
 
     const firstReq = nextOutgoingRequest(child);
@@ -808,7 +896,13 @@ describe("CodexProcess (app-server)", () => {
         id: firstReq.id,
         result: {
           data: [
-            { model: "gpt-5.5", id: "ignored", hidden: false },
+            {
+              model: "gpt-5.5",
+              id: "ignored",
+              hidden: false,
+              supportedReasoningEfforts: ["low", "medium", "high", "xhigh"],
+              defaultReasoningEffort: "medium",
+            },
             { model: "gpt-hidden", hidden: true },
             { model: "gpt-5.5", hidden: false },
           ],
@@ -830,13 +924,31 @@ describe("CodexProcess (app-server)", () => {
       `${JSON.stringify({
         id: secondReq.id,
         result: {
-          data: [{ id: "gpt-5.4-mini", hidden: false }],
+          data: [
+            {
+              id: "gpt-5.4-mini",
+              hidden: false,
+              supported_reasoning_levels: ["low", "medium"],
+              default_reasoning_effort: "low",
+            },
+          ],
           nextCursor: null,
         },
       })}\n`,
     );
 
-    await expect(modelsPromise).resolves.toEqual(["gpt-5.5", "gpt-5.4-mini"]);
+    await expect(modelsPromise).resolves.toEqual([
+      {
+        model: "gpt-5.5",
+        supportedReasoningEfforts: ["low", "medium", "high", "xhigh"],
+        defaultReasoningEffort: "medium",
+      },
+      {
+        model: "gpt-5.4-mini",
+        supportedReasoningEfforts: ["low", "medium"],
+        defaultReasoningEffort: "low",
+      },
+    ]);
     proc.stop();
   });
 
@@ -891,6 +1003,65 @@ describe("CodexProcess (app-server)", () => {
         settings: {
           model: "gpt-5.5",
           reasoning_effort: "high",
+        },
+      },
+    });
+
+    proc.stop();
+  });
+
+  it("uses updated reasoning effort on the next turn/start", async () => {
+    const proc = new CodexProcess("linux");
+
+    proc.start("/tmp/project-updated-effort", {
+      sandboxMode: "workspace-write",
+      approvalPolicy: "on-request",
+      modelReasoningEffort: "high",
+    });
+
+    const child = fakeChildren[0];
+    await tick();
+
+    const initReq = nextOutgoingRequest(child);
+    child.stdout.emit(
+      "data",
+      `${JSON.stringify({ id: initReq.id, result: {} })}\n`,
+    );
+    await tick();
+    nextOutgoingNotification(child); // initialized
+
+    const startReq = nextOutgoingRequest(child);
+    expect(startReq.params).toMatchObject({
+      config: {
+        model_reasoning_effort: "high",
+      },
+    });
+    child.stdout.emit(
+      "data",
+      `${JSON.stringify({
+        id: startReq.id,
+        result: {
+          thread: { id: "thr_updated_effort" },
+          reasoningEffort: "high",
+        },
+      })}\n`,
+    );
+
+    await tick();
+    drainSkillsList(child);
+
+    proc.setModelReasoningEffort("low");
+    proc.sendInput("continue");
+    await tick();
+    const turnReq = nextOutgoingRequest(child);
+    expect(turnReq.method).toBe("turn/start");
+    expect(turnReq.params).toMatchObject({
+      effort: "low",
+      collaborationMode: {
+        mode: "default",
+        settings: {
+          model: "gpt-5.5",
+          reasoning_effort: "low",
         },
       },
     });

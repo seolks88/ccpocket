@@ -16,6 +16,8 @@ export { buildCodexSpawnSpec };
 
 const DEFAULT_CODEX_MODEL = "gpt-5.5";
 const COMPLETION_FETCH_COOLDOWN_MS = 1000;
+const CODEX_CLI_NOT_FOUND_MESSAGE =
+  "Codex CLI is not installed or not available on PATH on the Bridge machine. Install it with `npm install -g @openai/codex` or `brew install --cask codex`, then restart Bridge.";
 
 export interface CodexStartOptions {
   threadId?: string;
@@ -23,9 +25,16 @@ export interface CodexStartOptions {
   additionalWritableRoots?: string[];
   approvalPolicy?: "never" | "on-request" | "on-failure" | "untrusted";
   approvalsReviewer?: "user" | "auto_review" | "guardian_subagent";
+  codexPermissionsMode?: "default" | "autoReview" | "fullAccess" | "custom";
   sandboxMode?: "read-only" | "workspace-write" | "danger-full-access";
   model?: string;
-  modelReasoningEffort?: "minimal" | "low" | "medium" | "high" | "xhigh";
+  modelReasoningEffort?:
+    | "none"
+    | "minimal"
+    | "low"
+    | "medium"
+    | "high"
+    | "xhigh";
   networkAccessEnabled?: boolean;
   webSearchMode?: "disabled" | "cached" | "live";
   collaborationMode?: "plan" | "default";
@@ -169,6 +178,7 @@ interface CodexResolvedSettings {
   model?: string;
   approvalPolicy?: string;
   approvalsReviewer?: string;
+  codexPermissionsMode?: string;
   sandboxMode?: string;
   modelReasoningEffort?: string;
   networkAccessEnabled?: boolean;
@@ -180,9 +190,41 @@ export interface CodexProfileConfig {
   defaultProfile?: string;
 }
 
+export interface CodexModelMetadata {
+  model: string;
+  supportedReasoningEfforts: string[];
+  defaultReasoningEffort?: string;
+}
+
 interface CodexModelListResponse {
   data?: unknown[];
   nextCursor?: unknown;
+}
+
+function isCodexCliNotFoundError(err: Error): boolean {
+  const code = (err as NodeJS.ErrnoException).code;
+  return (
+    code === "ENOENT" ||
+    /\bspawn codex ENOENT\b/i.test(err.message) ||
+    /codex: command not found/i.test(err.message)
+  );
+}
+
+function codexAppServerStartError(
+  err: Error,
+): Extract<ServerMessage, { type: "error" }> {
+  if (isCodexCliNotFoundError(err)) {
+    return {
+      type: "error",
+      message: CODEX_CLI_NOT_FOUND_MESSAGE,
+      errorCode: "codex_cli_not_found",
+    };
+  }
+
+  return {
+    type: "error",
+    message: `Failed to start codex app-server: ${err.message}`,
+  };
 }
 
 export class CodexProcess extends EventEmitter<CodexProcessEvents> {
@@ -238,9 +280,13 @@ export class CodexProcess extends EventEmitter<CodexProcessEvents> {
   private stdoutBuffer = "";
 
   // Collaboration mode & plan completion state
-  private _approvalPolicy: string = "never";
-  private _approvalsReviewer: string = "user";
+  private _approvalPolicy: string | undefined = undefined;
+  private _approvalsReviewer: string | undefined = undefined;
+  private _codexPermissionsMode: CodexStartOptions["codexPermissionsMode"] | undefined;
   private _collaborationMode: "plan" | "default" = "default";
+  private _modelReasoningEffort:
+    | CodexStartOptions["modelReasoningEffort"]
+    | undefined;
   private lastPlanItemText: string | null = null;
   /** Last assistant text message — used as `result` in completion notification. */
   private lastResultText: string | null = null;
@@ -287,12 +333,35 @@ export class CodexProcess extends EventEmitter<CodexProcessEvents> {
   }
 
   get approvalPolicy(): string {
-    return this._approvalPolicy;
+    return this._approvalPolicy ?? "on-request";
   }
 
   get approvalsReviewer(): string {
     return normalizeApprovalsReviewerForClient(
       this._approvalsReviewer as CodexStartOptions["approvalsReviewer"],
+    );
+  }
+
+  get codexPermissionsMode(): CodexStartOptions["codexPermissionsMode"] | undefined {
+    return this._codexPermissionsMode;
+  }
+
+  get modelReasoningEffort():
+    | CodexStartOptions["modelReasoningEffort"]
+    | undefined {
+    return this._modelReasoningEffort;
+  }
+
+  /**
+   * Update reasoning effort at runtime.
+   * Takes effect on the next `turn/start` RPC call.
+   */
+  setModelReasoningEffort(
+    effort: NonNullable<CodexStartOptions["modelReasoningEffort"]>,
+  ): void {
+    this._modelReasoningEffort = normalizeReasoningEffort(effort);
+    console.log(
+      `[codex-process] Reasoning effort changed to: ${this._modelReasoningEffort}`,
     );
   }
 
@@ -438,7 +507,12 @@ export class CodexProcess extends EventEmitter<CodexProcessEvents> {
   }
 
   async listAvailableModels(): Promise<string[]> {
-    const models: string[] = [];
+    const models = await this.listAvailableModelMetadata();
+    return models.map((model) => model.model);
+  }
+
+  async listAvailableModelMetadata(): Promise<CodexModelMetadata[]> {
+    const models: CodexModelMetadata[] = [];
     const seenModels = new Set<string>();
     const seenCursors = new Set<string>();
     let cursor: string | null = null;
@@ -463,7 +537,16 @@ export class CodexProcess extends EventEmitter<CodexProcessEvents> {
                 : undefined;
           if (!model || seenModels.has(model)) continue;
           seenModels.add(model);
-          models.push(model);
+          models.push({
+            model,
+            supportedReasoningEfforts: extractReasoningEfforts(raw),
+            defaultReasoningEffort:
+              typeof raw.defaultReasoningEffort === "string"
+                ? raw.defaultReasoningEffort
+                : typeof raw.default_reasoning_effort === "string"
+                  ? raw.default_reasoning_effort
+                  : undefined,
+          });
         }
       }
 
@@ -541,10 +624,15 @@ export class CodexProcess extends EventEmitter<CodexProcessEvents> {
     this.cleanupSteerTempPaths();
     this.lastTokenUsage = null;
     this.startModel = sanitizeCodexModel(options?.model);
-    this._approvalPolicy = options?.approvalPolicy ?? "never";
-    this._approvalsReviewer = normalizeApprovalsReviewerForAppServer(
-      options?.approvalsReviewer,
-    );
+    this._approvalPolicy = options?.approvalPolicy;
+    this._approvalsReviewer =
+      options?.approvalsReviewer === undefined
+        ? undefined
+        : normalizeApprovalsReviewerForAppServer(options.approvalsReviewer);
+    this._codexPermissionsMode = options?.codexPermissionsMode;
+    this._modelReasoningEffort = options?.modelReasoningEffort
+      ? normalizeReasoningEffort(options.modelReasoningEffort)
+      : undefined;
     this._collaborationMode = options?.collaborationMode ?? "default";
     this.lastPlanItemText = null;
     this.lastResultText = null;
@@ -557,8 +645,11 @@ export class CodexProcess extends EventEmitter<CodexProcessEvents> {
     projectPath: string,
     options?: CodexStartOptions,
   ): void {
+    const sandboxLog = options?.sandboxMode ?? "config";
+    const approvalLog = options?.approvalPolicy ?? "config";
+    const reviewerLog = options?.approvalsReviewer ?? "config";
     console.log(
-      `[codex-process] Starting app-server (cwd: ${projectPath}, sandbox: ${options?.sandboxMode ?? "workspace-write"}, approval: ${options?.approvalPolicy ?? "never"}, reviewer: ${this.approvalsReviewer}, model: ${options?.model ?? "default"}, collaboration: ${this._collaborationMode})`,
+      `[codex-process] Starting app-server (cwd: ${projectPath}, sandbox: ${sandboxLog}, approval: ${approvalLog}, reviewer: ${reviewerLog}, model: ${options?.model ?? "default"}, collaboration: ${this._collaborationMode})`,
     );
 
     const transport = createCodexTransport(projectPath, this.platform);
@@ -578,10 +669,7 @@ export class CodexProcess extends EventEmitter<CodexProcessEvents> {
     transport.on("error", (err) => {
       if (this.stopped) return;
       console.error("[codex-process] app-server process error:", err);
-      this.emitMessage({
-        type: "error",
-        message: `Failed to start codex app-server: ${err.message}`,
-      });
+      this.emitMessage(codexAppServerStartError(err));
       this.setStatus("idle");
       this.emit("exit", 1);
     });
@@ -1005,31 +1093,36 @@ export class CodexProcess extends EventEmitter<CodexProcessEvents> {
     try {
       await this.initializeRpcConnection();
 
-      const requestedApprovalPolicy = normalizeApprovalPolicy(
-        options?.approvalPolicy ?? "never",
-      );
-      const requestedApprovalsReviewer = normalizeApprovalsReviewerForAppServer(
-        options?.approvalsReviewer,
-      );
+      const requestedApprovalPolicy = options?.approvalPolicy
+        ? normalizeApprovalPolicy(options.approvalPolicy)
+        : undefined;
+      const requestedApprovalsReviewer =
+        options?.approvalsReviewer === undefined
+          ? undefined
+          : normalizeApprovalsReviewerForAppServer(options.approvalsReviewer);
       const requestedClientApprovalsReviewer =
         normalizeApprovalsReviewerForClient(options?.approvalsReviewer);
-      const requestedSandboxMode = normalizeSandboxMode(
-        options?.sandboxMode ?? "workspace-write",
-      );
+      const requestedSandboxMode = options?.sandboxMode
+        ? normalizeSandboxMode(options.sandboxMode)
+        : undefined;
 
       const threadParams: Record<string, unknown> = {
         cwd: projectPath,
-        approvalPolicy: requestedApprovalPolicy,
-        approvalsReviewer: requestedApprovalsReviewer,
-        sandbox: requestedSandboxMode,
         experimentalRawEvents: false,
         persistExtendedHistory: true,
       };
+      if (requestedApprovalPolicy) {
+        threadParams.approvalPolicy = requestedApprovalPolicy;
+      }
+      if (requestedApprovalsReviewer) {
+        threadParams.approvalsReviewer = requestedApprovalsReviewer;
+      }
+      if (requestedSandboxMode) {
+        threadParams.sandbox = requestedSandboxMode;
+      }
       const threadConfig: Record<string, unknown> = {};
       const requestedModel = sanitizeCodexModel(options?.model);
-      const requestedReasoningEffort = options?.modelReasoningEffort
-        ? normalizeReasoningEffort(options.modelReasoningEffort)
-        : undefined;
+      const requestedReasoningEffort = this._modelReasoningEffort;
       if (requestedModel) threadParams.model = requestedModel;
       if (requestedReasoningEffort) {
         // app-server applies reasoning effort on thread start via config overrides,
@@ -1092,6 +1185,22 @@ export class CodexProcess extends EventEmitter<CodexProcessEvents> {
       if (resolvedSettings.model) {
         this.startModel = resolvedSettings.model;
       }
+      if (resolvedSettings.approvalPolicy) {
+        this._approvalPolicy = resolvedSettings.approvalPolicy;
+      }
+      if (resolvedSettings.approvalsReviewer) {
+        this._approvalsReviewer = normalizeApprovalsReviewerForAppServer(
+          resolvedSettings.approvalsReviewer as CodexStartOptions["approvalsReviewer"],
+        );
+      }
+      const resolvedReasoningEffort = resolvedSettings.modelReasoningEffort
+        ? normalizeReasoningEffort(
+            resolvedSettings.modelReasoningEffort as NonNullable<
+              CodexStartOptions["modelReasoningEffort"]
+            >,
+          )
+        : requestedReasoningEffort;
+      this._modelReasoningEffort = resolvedReasoningEffort;
 
       this._threadId = threadId;
       this._agentNickname = stringOrNull(thread?.agentNickname);
@@ -1125,10 +1234,11 @@ export class CodexProcess extends EventEmitter<CodexProcessEvents> {
         ...(resolvedSettings.sandboxMode ?? options?.sandboxMode
           ? { sandboxMode: resolvedSettings.sandboxMode ?? requestedSandboxMode }
           : {}),
-        ...(resolvedSettings.modelReasoningEffort
-          ? { modelReasoningEffort: resolvedSettings.modelReasoningEffort }
-          : requestedReasoningEffort
-            ? { modelReasoningEffort: requestedReasoningEffort }
+        ...(options?.codexPermissionsMode
+          ? { codexPermissionsMode: options.codexPermissionsMode }
+          : {}),
+        ...(resolvedReasoningEffort
+          ? { modelReasoningEffort: resolvedReasoningEffort }
           : {}),
         ...(resolvedSettings.networkAccessEnabled !== undefined
           ? { networkAccessEnabled: resolvedSettings.networkAccessEnabled }
@@ -1478,17 +1588,19 @@ export class CodexProcess extends EventEmitter<CodexProcessEvents> {
         const params: Record<string, unknown> = {
           threadId: this._threadId,
           input,
-          approvalPolicy: normalizeApprovalPolicy(
-            this._approvalPolicy as CodexStartOptions["approvalPolicy"],
-          ),
-          approvalsReviewer: normalizeApprovalsReviewerForAppServer(
-            this._approvalsReviewer as CodexStartOptions["approvalsReviewer"],
-          ),
         };
+        if (this._approvalPolicy) {
+          params.approvalPolicy = normalizeApprovalPolicy(
+            this._approvalPolicy as CodexStartOptions["approvalPolicy"],
+          );
+        }
+        if (this._approvalsReviewer) {
+          params.approvalsReviewer = normalizeApprovalsReviewerForAppServer(
+            this._approvalsReviewer as CodexStartOptions["approvalsReviewer"],
+          );
+        }
         const requestedModel = sanitizeCodexModel(options?.model);
-        const requestedReasoningEffort = options?.modelReasoningEffort
-          ? normalizeReasoningEffort(options.modelReasoningEffort)
-          : undefined;
+        const requestedReasoningEffort = this._modelReasoningEffort;
         if (requestedModel) params.model = requestedModel;
         if (requestedReasoningEffort) {
           params.effort = requestedReasoningEffort;
@@ -2715,8 +2827,27 @@ function normalizeSandboxMode(value: CodexStartOptions["sandboxMode"]): string {
 
 function normalizeReasoningEffort(
   value: NonNullable<CodexStartOptions["modelReasoningEffort"]>,
-): string {
+): NonNullable<CodexStartOptions["modelReasoningEffort"]> {
   return value;
+}
+
+function extractReasoningEfforts(raw: Record<string, unknown>): string[] {
+  const values =
+    Array.isArray(raw.supportedReasoningEfforts)
+      ? raw.supportedReasoningEfforts
+    : Array.isArray(raw.supported_reasoning_levels)
+      ? raw.supported_reasoning_levels
+    : [];
+  const seen = new Set<string>();
+  const efforts: string[] = [];
+  for (const value of values) {
+    if (typeof value !== "string") continue;
+    const normalized = value.trim();
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    efforts.push(normalized);
+  }
+  return efforts;
 }
 
 function sanitizeCodexModel(value: unknown): string | undefined {

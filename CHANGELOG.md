@@ -4,6 +4,52 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.99.1] - 2026-05-20
+
+### Changed
+- Require Bridge 1.61.1 for Codex model reasoning capability metadata.
+
+### Fixed
+- Allow Codex sessions to select `none` reasoning effort while hiding unsupported `minimal` effort.
+- Preserve the visible default Codex model when starting a session without manually reselecting it.
+
+## [1.99.0] - 2026-05-18
+
+### Added
+- Load Claude effort capabilities from the installed SDK through Bridge so session options match the available CLI capabilities.
+
+### Changed
+- Require Bridge 1.61.0 for SDK-driven Claude effort capability metadata.
+- Refresh store release notes and screenshots.
+
+### Fixed
+- Wait for machine manager initialization before auto-connecting to the default machine.
+
+## [1.98.2] - 2026-05-17
+
+### Changed
+- Require Bridge 1.59.3 for clearer Codex CLI setup errors.
+
+### Fixed
+- Show a clearer setup error when the Codex CLI is unavailable.
+- Improve markdown emphasis styling in chat messages.
+
+## [1.98.1] - 2026-05-16
+
+### Changed
+- Require Bridge 1.59.2 for multi-client user message synchronization.
+
+### Fixed
+- Display user messages received from another connected client or promoted from a Codex queued steer.
+
+## [1.98.0] - 2026-05-15
+
+### Added
+- Add official Codex permissions modes, including Auto-review, Full access, and config-driven Custom.
+
+### Changed
+- Require Bridge 1.59.0 for Codex permissions mode synchronization.
+
 ## [1.97.0] - 2026-05-13
 
 ### Added

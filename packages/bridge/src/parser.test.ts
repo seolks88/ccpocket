@@ -119,7 +119,7 @@ describe("parseClientMessage", () => {
 
   it("parses start with optional fields", () => {
     const msg = parseClientMessage(
-      '{"type":"start","projectPath":"/p","sessionId":"s1","continue":true,"permissionMode":"acceptEdits","profile":"ccpocket","approvalPolicy":"on-request","approvalsReviewer":"auto_review","additionalWritableRoots":["/tmp/extra"],"autoRename":true}',
+      '{"type":"start","projectPath":"/p","sessionId":"s1","continue":true,"permissionMode":"acceptEdits","profile":"ccpocket","approvalPolicy":"on-request","approvalsReviewer":"auto_review","codexPermissionsMode":"autoReview","additionalWritableRoots":["/tmp/extra"],"autoRename":true}',
     );
     expect(msg).toEqual({
       type: "start",
@@ -130,6 +130,7 @@ describe("parseClientMessage", () => {
       profile: "ccpocket",
       approvalPolicy: "on-request",
       approvalsReviewer: "auto_review",
+      codexPermissionsMode: "autoReview",
       additionalWritableRoots: ["/tmp/extra"],
       autoRename: true,
     });
@@ -148,13 +149,13 @@ describe("parseClientMessage", () => {
 
   it("parses start with advanced Claude options", () => {
     const msg = parseClientMessage(
-      '{"type":"start","projectPath":"/p","model":"claude-sonnet","effort":"high","maxTurns":5,"maxBudgetUsd":1.5,"fallbackModel":"claude-haiku","forkSession":true,"persistSession":false}',
+      '{"type":"start","projectPath":"/p","model":"claude-sonnet","effort":"xhigh","maxTurns":5,"maxBudgetUsd":1.5,"fallbackModel":"claude-haiku","forkSession":true,"persistSession":false}',
     );
     expect(msg).toEqual({
       type: "start",
       projectPath: "/p",
       model: "claude-sonnet",
-      effort: "high",
+      effort: "xhigh",
       maxTurns: 5,
       maxBudgetUsd: 1.5,
       fallbackModel: "claude-haiku",
@@ -236,13 +237,14 @@ describe("parseClientMessage", () => {
 
   it("parses set_permission_mode message", () => {
     const msg = parseClientMessage(
-      '{"type":"set_permission_mode","mode":"plan","sessionId":"s1","approvalsReviewer":"guardian_subagent"}',
+      '{"type":"set_permission_mode","mode":"plan","sessionId":"s1","approvalsReviewer":"guardian_subagent","codexPermissionsMode":"custom"}',
     );
     expect(msg).toEqual({
       type: "set_permission_mode",
       mode: "plan",
       sessionId: "s1",
       approvalsReviewer: "guardian_subagent",
+      codexPermissionsMode: "custom",
     });
   });
 
@@ -252,10 +254,42 @@ describe("parseClientMessage", () => {
     ).toBeNull();
   });
 
+  it("parses set_model_reasoning_effort message", () => {
+    const msg = parseClientMessage(
+      '{"type":"set_model_reasoning_effort","modelReasoningEffort":"none","sessionId":"s1"}',
+    );
+    expect(msg).toEqual({
+      type: "set_model_reasoning_effort",
+      modelReasoningEffort: "none",
+      sessionId: "s1",
+    });
+  });
+
+  it("rejects set_model_reasoning_effort with invalid effort", () => {
+    expect(
+      parseClientMessage(
+        '{"type":"set_model_reasoning_effort","modelReasoningEffort":"max"}',
+      ),
+    ).toBeNull();
+  });
+
   it("rejects invalid approvalsReviewer", () => {
     expect(
       parseClientMessage(
         '{"type":"start","projectPath":"/p","approvalsReviewer":"bot"}',
+      ),
+    ).toBeNull();
+  });
+
+  it("rejects invalid codexPermissionsMode", () => {
+    expect(
+      parseClientMessage(
+        '{"type":"start","projectPath":"/p","codexPermissionsMode":"reviewEverything"}',
+      ),
+    ).toBeNull();
+    expect(
+      parseClientMessage(
+        '{"type":"set_permission_mode","mode":"default","codexPermissionsMode":"reviewEverything"}',
       ),
     ).toBeNull();
   });
@@ -441,12 +475,17 @@ describe("parseClientMessage", () => {
     });
   });
 
-  it("rejects resume_session with invalid effort", () => {
+  it("parses resume_session with xhigh effort", () => {
     expect(
       parseClientMessage(
         '{"type":"resume_session","sessionId":"s3","projectPath":"/p","effort":"xhigh"}',
       ),
-    ).toBeNull();
+    ).toEqual({
+      type: "resume_session",
+      sessionId: "s3",
+      projectPath: "/p",
+      effort: "xhigh",
+    });
   });
 
   it("rejects resume_session without sessionId", () => {

@@ -2,6 +2,41 @@
 
 All notable changes to `@ccpocket/bridge` will be documented in this file.
 
+## [1.61.1] - 2026-05-20
+
+### Fixed
+- Load Codex model reasoning capabilities from the app-server and allow clients to use `none` reasoning effort.
+
+## [1.61.0] - 2026-05-18
+
+### Added
+- Load Claude effort capabilities from the SDK so clients can match the installed CLI capabilities.
+
+## [1.60.0] - 2026-05-17
+
+### Added
+- Add standard help and version commands to the Bridge CLI.
+
+## [1.59.3] - 2026-05-17
+
+### Fixed
+- Show a clear setup error when the Codex CLI is unavailable.
+
+## [1.59.2] - 2026-05-16
+
+### Fixed
+- Sync accepted user messages to other connected clients so multi-client Bridge sessions stay in sync.
+
+## [1.59.1] - 2026-05-15
+
+### Fixed
+- Speed up Codex recent session loading by limiting JSONL metadata reads to the visible app-server thread page.
+
+## [1.59.0] - 2026-05-15
+
+### Added
+- Support official Codex permissions modes, including config-driven custom mode.
+
 ## [1.58.1] - 2026-05-15
 
 ### Fixed

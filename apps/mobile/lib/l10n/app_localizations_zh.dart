@@ -822,7 +822,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get claudeEffortHighDesc => '更深入的分析';
 
   @override
+  String get claudeEffortXHighDesc => '复杂工作的扩展推理';
+
+  @override
   String get claudeEffortMaxDesc => '最深入，最慢';
+
+  @override
+  String get reasoningEffortNoneDesc => '无推理';
 
   @override
   String get reasoningEffortMinimalDesc => '最快，分析最少';

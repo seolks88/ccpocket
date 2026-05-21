@@ -27,7 +27,7 @@ import '../../utils/diff_parser.dart';
 import '../../utils/terminal_launcher.dart';
 import '../settings/state/settings_cubit.dart';
 import '../../widgets/new_session_sheet.dart'
-    show permissionModeFromRaw, sandboxModeFromRaw;
+    show permissionModeFromRaw, reasoningEffortFromRaw, sandboxModeFromRaw;
 import '../session_list/workspace_shell_screen.dart';
 import '../../widgets/approval_bar.dart';
 import '../../widgets/bubbles/ask_user_question_widget.dart';
@@ -177,6 +177,8 @@ class _CodexSessionScreenState extends State<CodexSessionScreen> {
   PermissionMode? _permissionMode;
   CodexApprovalPolicy? _codexApprovalPolicy;
   String? _codexApprovalsReviewer;
+  CodexPermissionsMode? _codexPermissionsMode;
+  ReasoningEffort? _modelReasoningEffort;
   StreamSubscription<ServerMessage>? _pendingSub;
   StreamSubscription<ServerMessage>? _sandboxRestartSub;
   StreamSubscription<String>? _sessionStoppedSub;
@@ -196,6 +198,7 @@ class _CodexSessionScreenState extends State<CodexSessionScreen> {
       widget.initialApprovalPolicy,
     );
     _codexApprovalsReviewer = widget.initialApprovalsReviewer;
+    _modelReasoningEffort = _cachedModelReasoningEffort(bridge, _sessionId);
     final explorerHistory = bridge.getExplorerHistory(_sessionId);
     _explorerCurrentPath = explorerHistory.currentPath;
     _recentPeekedFiles = explorerHistory.recentPeekedFiles;
@@ -280,6 +283,12 @@ class _CodexSessionScreenState extends State<CodexSessionScreen> {
           _codexApprovalPolicy;
       _codexApprovalsReviewer =
           msg.approvalsReviewer ?? _codexApprovalsReviewer;
+      _codexPermissionsMode =
+          codexPermissionsModeFromRaw(msg.codexPermissionsMode) ??
+          _codexPermissionsMode;
+      _modelReasoningEffort =
+          reasoningEffortFromRaw(msg.modelReasoningEffort) ??
+          _modelReasoningEffort;
       _explorerCurrentPath = explorerHistory.currentPath;
       _recentPeekedFiles = explorerHistory.recentPeekedFiles;
     });
@@ -306,6 +315,12 @@ class _CodexSessionScreenState extends State<CodexSessionScreen> {
           _codexApprovalPolicy;
       _codexApprovalsReviewer =
           msg.approvalsReviewer ?? _codexApprovalsReviewer;
+      _codexPermissionsMode =
+          codexPermissionsModeFromRaw(msg.codexPermissionsMode) ??
+          _codexPermissionsMode;
+      _modelReasoningEffort =
+          reasoningEffortFromRaw(msg.modelReasoningEffort) ??
+          _modelReasoningEffort;
       _isPending = false;
     });
     _pendingSub?.cancel();
@@ -368,9 +383,24 @@ class _CodexSessionScreenState extends State<CodexSessionScreen> {
         widget.initialApprovalPolicy,
       );
       _codexApprovalsReviewer = widget.initialApprovalsReviewer;
+      _modelReasoningEffort = _cachedModelReasoningEffort(
+        context.read<BridgeService>(),
+        widget.sessionId,
+      );
       _explorerCurrentPath = explorerHistory.currentPath;
       _recentPeekedFiles = explorerHistory.recentPeekedFiles;
     });
+  }
+
+  ReasoningEffort? _cachedModelReasoningEffort(
+    BridgeService bridge,
+    String sessionId,
+  ) {
+    for (final session in bridge.sessions) {
+      if (session.id != sessionId) continue;
+      return reasoningEffortFromRaw(session.codexModelReasoningEffort);
+    }
+    return null;
   }
 
   @override
@@ -433,6 +463,8 @@ class _CodexSessionScreenState extends State<CodexSessionScreen> {
       permissionMode: _permissionMode,
       codexApprovalPolicy: _codexApprovalPolicy,
       codexApprovalsReviewer: _codexApprovalsReviewer,
+      codexPermissionsMode: _codexPermissionsMode,
+      modelReasoningEffort: _modelReasoningEffort,
       onBackToSessions: widget.onBackToSessions,
       hideSessionBackButton: widget.hideSessionBackButton,
     );
@@ -454,6 +486,8 @@ class _CodexProviders extends StatelessWidget {
   final PermissionMode? permissionMode;
   final CodexApprovalPolicy? codexApprovalPolicy;
   final String? codexApprovalsReviewer;
+  final CodexPermissionsMode? codexPermissionsMode;
+  final ReasoningEffort? modelReasoningEffort;
   final VoidCallback? onBackToSessions;
   final bool hideSessionBackButton;
 
@@ -469,6 +503,8 @@ class _CodexProviders extends StatelessWidget {
     this.permissionMode,
     this.codexApprovalPolicy,
     this.codexApprovalsReviewer,
+    this.codexPermissionsMode,
+    this.modelReasoningEffort,
     this.onBackToSessions,
     this.hideSessionBackButton = false,
   });
@@ -491,6 +527,8 @@ class _CodexProviders extends StatelessWidget {
             initialPermissionMode: permissionMode,
             initialCodexApprovalPolicy: codexApprovalPolicy,
             initialCodexApprovalsReviewer: codexApprovalsReviewer,
+            initialCodexPermissionsMode: codexPermissionsMode,
+            initialModelReasoningEffort: modelReasoningEffort,
             initialProjectPath: projectPath,
           ),
         ),
@@ -866,7 +904,7 @@ class _CodexChatBody extends HookWidget {
             shift: true,
           ): () {
             final cubit = context.read<ChatSessionCubit>();
-            showExecutionModeMenu(context, cubit);
+            showCodexPermissionsMenu(context, cubit);
           },
           // Cmd+Enter: approve pending tool use
           const SingleActivator(LogicalKeyboardKey.enter, meta: true): () {

@@ -61,8 +61,21 @@ export type CodexApprovalsReviewer =
   | "user"
   | "auto_review"
   | "guardian_subagent";
+export type CodexPermissionsMode =
+  | "default"
+  | "autoReview"
+  | "fullAccess"
+  | "custom";
 
 export type Provider = "claude" | "codex";
+
+export type CodexReasoningEffort =
+  | "none"
+  | "minimal"
+  | "low"
+  | "medium"
+  | "high"
+  | "xhigh";
 
 export interface QueuedInputItem {
   itemId: string;
@@ -91,10 +104,11 @@ export type ClientMessage =
       executionMode?: ExecutionMode;
       approvalPolicy?: CodexApprovalPolicy;
       approvalsReviewer?: CodexApprovalsReviewer;
+      codexPermissionsMode?: CodexPermissionsMode;
       planMode?: boolean;
       sandboxMode?: string;
       model?: string;
-      effort?: "low" | "medium" | "high" | "max";
+      effort?: "low" | "medium" | "high" | "xhigh" | "max";
       maxTurns?: number;
       maxBudgetUsd?: number;
       fallbackModel?: string;
@@ -148,7 +162,13 @@ export type ClientMessage =
       executionMode?: ExecutionMode;
       approvalPolicy?: CodexApprovalPolicy;
       approvalsReviewer?: CodexApprovalsReviewer;
+      codexPermissionsMode?: CodexPermissionsMode;
       planMode?: boolean;
+      sessionId?: string;
+    }
+  | {
+      type: "set_model_reasoning_effort";
+      modelReasoningEffort: CodexReasoningEffort;
       sessionId?: string;
     }
   | { type: "set_sandbox_mode"; sandboxMode: string; sessionId?: string }
@@ -196,11 +216,12 @@ export type ClientMessage =
       executionMode?: ExecutionMode;
       approvalPolicy?: CodexApprovalPolicy;
       approvalsReviewer?: CodexApprovalsReviewer;
+      codexPermissionsMode?: CodexPermissionsMode;
       planMode?: boolean;
       provider?: Provider;
       sandboxMode?: string;
       model?: string;
-      effort?: "low" | "medium" | "high" | "max";
+      effort?: "low" | "medium" | "high" | "xhigh" | "max";
       maxTurns?: number;
       maxBudgetUsd?: number;
       fallbackModel?: string;
@@ -394,6 +415,7 @@ export type ServerMessage =
       projectPath?: string;
       approvalPolicy?: string;
       approvalsReviewer?: string;
+      codexPermissionsMode?: CodexPermissionsMode;
       executionMode?: ExecutionMode;
       planMode?: boolean;
       slashCommands?: string[];
@@ -828,7 +850,9 @@ export function parseClientMessage(data: string): ClientMessage | null {
           return null;
         if (
           msg.effort !== undefined &&
-          !["low", "medium", "high", "max"].includes(String(msg.effort))
+          !["low", "medium", "high", "xhigh", "max"].includes(
+            String(msg.effort),
+          )
         )
           return null;
         if (
@@ -867,7 +891,7 @@ export function parseClientMessage(data: string): ClientMessage | null {
           return null;
         if (
           msg.modelReasoningEffort !== undefined &&
-          !["minimal", "low", "medium", "high", "xhigh"].includes(
+          !["none", "minimal", "low", "medium", "high", "xhigh"].includes(
             String(msg.modelReasoningEffort),
           )
         )
@@ -897,6 +921,13 @@ export function parseClientMessage(data: string): ClientMessage | null {
           msg.approvalsReviewer !== undefined &&
           !["user", "auto_review", "guardian_subagent"].includes(
             String(msg.approvalsReviewer),
+          )
+        )
+          return null;
+        if (
+          msg.codexPermissionsMode !== undefined &&
+          !["default", "autoReview", "fullAccess", "custom"].includes(
+            String(msg.codexPermissionsMode),
           )
         )
           return null;
@@ -1053,7 +1084,24 @@ export function parseClientMessage(data: string): ClientMessage | null {
           )
         )
           return null;
+        if (
+          msg.codexPermissionsMode !== undefined &&
+          !["default", "autoReview", "fullAccess", "custom"].includes(
+            String(msg.codexPermissionsMode),
+          )
+        )
+          return null;
         if (msg.planMode !== undefined && typeof msg.planMode !== "boolean")
+          return null;
+        break;
+      case "set_model_reasoning_effort":
+        if (
+          !["none", "minimal", "low", "medium", "high", "xhigh"].includes(
+            String(msg.modelReasoningEffort),
+          )
+        )
+          return null;
+        if (msg.sessionId !== undefined && typeof msg.sessionId !== "string")
           return null;
         break;
       case "set_sandbox_mode":
@@ -1131,7 +1179,9 @@ export function parseClientMessage(data: string): ClientMessage | null {
           return null;
         if (
           msg.effort !== undefined &&
-          !["low", "medium", "high", "max"].includes(String(msg.effort))
+          !["low", "medium", "high", "xhigh", "max"].includes(
+            String(msg.effort),
+          )
         )
           return null;
         if (
@@ -1170,7 +1220,7 @@ export function parseClientMessage(data: string): ClientMessage | null {
           return null;
         if (
           msg.modelReasoningEffort !== undefined &&
-          !["minimal", "low", "medium", "high", "xhigh"].includes(
+          !["none", "minimal", "low", "medium", "high", "xhigh"].includes(
             String(msg.modelReasoningEffort),
           )
         )
@@ -1200,6 +1250,13 @@ export function parseClientMessage(data: string): ClientMessage | null {
           msg.approvalsReviewer !== undefined &&
           !["user", "auto_review", "guardian_subagent"].includes(
             String(msg.approvalsReviewer),
+          )
+        )
+          return null;
+        if (
+          msg.codexPermissionsMode !== undefined &&
+          !["default", "autoReview", "fullAccess", "custom"].includes(
+            String(msg.codexPermissionsMode),
           )
         )
           return null;
