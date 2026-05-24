@@ -126,7 +126,7 @@ MarkdownStyleSheet buildMarkdownStyle(BuildContext context) {
     tableCellsPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
     tableCellsDecoration: BoxDecoration(color: tableRowColor),
     tableVerticalAlignment: TableCellVerticalAlignment.top,
-    tableScrollbarThumbVisibility: true,
+    tableScrollbarThumbVisibility: false,
   );
 }
 

@@ -78,7 +78,7 @@ void main() {
               final styleSheet = buildMarkdownStyle(context);
 
               expect(styleSheet.tableColumnWidth, isA<IntrinsicColumnWidth>());
-              expect(styleSheet.tableScrollbarThumbVisibility, isTrue);
+              expect(styleSheet.tableScrollbarThumbVisibility, isFalse);
 
               return MarkdownBody(
                 data: tableMarkdown,
