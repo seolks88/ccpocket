@@ -130,6 +130,31 @@ MarkdownStyleSheet buildMarkdownStyle(BuildContext context) {
   );
 }
 
+Widget suppressMarkdownScrollbarIndicators(
+  BuildContext context, {
+  required Widget child,
+}) {
+  final theme = Theme.of(context);
+  return Theme(
+    data: theme.copyWith(
+      // flutter_markdown wraps wide tables in a Material Scrollbar. On iOS that
+      // widget delegates to CupertinoScrollbar, which paints a grey overlay
+      // while dragging even when thumbVisibility is false.
+      platform: TargetPlatform.android,
+      scrollbarTheme: theme.scrollbarTheme.copyWith(
+        thumbVisibility: const WidgetStatePropertyAll(false),
+        trackVisibility: const WidgetStatePropertyAll(false),
+        thickness: const WidgetStatePropertyAll(0),
+        thumbColor: const WidgetStatePropertyAll(Colors.transparent),
+        trackColor: const WidgetStatePropertyAll(Colors.transparent),
+        trackBorderColor: const WidgetStatePropertyAll(Colors.transparent),
+        interactive: false,
+      ),
+    ),
+    child: child,
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Color code preview: shows a colored circle next to HEX color codes
 // ---------------------------------------------------------------------------

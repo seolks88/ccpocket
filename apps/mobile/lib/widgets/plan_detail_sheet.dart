@@ -91,13 +91,16 @@ class _PlanViewMode extends StatelessWidget {
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
-      child: MarkdownBody(
-        data: planText,
-        selectable: true,
-        styleSheet: buildMarkdownStyle(context),
-        onTapLink: handleMarkdownLink,
-        inlineSyntaxes: colorCodeInlineSyntaxes,
-        builders: markdownBuilders,
+      child: suppressMarkdownScrollbarIndicators(
+        context,
+        child: MarkdownBody(
+          data: planText,
+          selectable: true,
+          styleSheet: buildMarkdownStyle(context),
+          onTapLink: handleMarkdownLink,
+          inlineSyntaxes: colorCodeInlineSyntaxes,
+          builders: markdownBuilders,
+        ),
       ),
     );
   }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -101,6 +102,45 @@ void main() {
       expect(
         tester.widget<Table>(find.byType(Table)).defaultColumnWidth,
         isA<IntrinsicColumnWidth>(),
+      );
+    });
+
+    testWidgets('suppresses iOS table scrollbar indicators in markdown scope', (
+      tester,
+    ) async {
+      const tableMarkdown = '''
+| 플랫폼 | 모델/사양 | 가격 | 상태 | 시점/노출 | 메모 | 링크 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 중고나라 | M4 Max 16인치 128GB / 1TB | 5,900,000원 | 판매 완료 | last month | 풀박스, 실버, 정가 언급 | 보기 |
+''';
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.darkTheme.copyWith(platform: TargetPlatform.iOS),
+          home: Builder(
+            builder: (context) {
+              return suppressMarkdownScrollbarIndicators(
+                context,
+                child: MarkdownBody(
+                  data: tableMarkdown,
+                  selectable: true,
+                  styleSheet: buildMarkdownStyle(context),
+                ),
+              );
+            },
+          ),
+        ),
+      );
+
+      expect(find.byType(CupertinoScrollbar), findsNothing);
+
+      final scrollbarContext = tester.element(find.byType(Scrollbar));
+      expect(Theme.of(scrollbarContext).platform, TargetPlatform.android);
+      expect(
+        ScrollbarTheme.of(
+          scrollbarContext,
+        ).thickness?.resolve(const <WidgetState>{}),
+        0,
       );
     });
   });

@@ -117,13 +117,16 @@ class _PlanBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final markdownWidget = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: MarkdownBody(
-        data: planText,
-        selectable: true,
-        styleSheet: buildMarkdownStyle(context),
-        onTapLink: handleMarkdownLink,
-        inlineSyntaxes: colorCodeInlineSyntaxes,
-        builders: markdownBuilders,
+      child: suppressMarkdownScrollbarIndicators(
+        context,
+        child: MarkdownBody(
+          data: planText,
+          selectable: true,
+          styleSheet: buildMarkdownStyle(context),
+          onTapLink: handleMarkdownLink,
+          inlineSyntaxes: colorCodeInlineSyntaxes,
+          builders: markdownBuilders,
+        ),
       ),
     );
 

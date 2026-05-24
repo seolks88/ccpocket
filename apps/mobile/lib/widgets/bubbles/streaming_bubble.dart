@@ -44,12 +44,15 @@ class _StreamingBubbleState extends State<StreamingBubble>
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          MarkdownBody(
-            data: widget.text,
-            styleSheet: buildMarkdownStyle(context),
-            onTapLink: handleMarkdownLink,
-            inlineSyntaxes: colorCodeInlineSyntaxes,
-            builders: markdownBuilders,
+          suppressMarkdownScrollbarIndicators(
+            context,
+            child: MarkdownBody(
+              data: widget.text,
+              styleSheet: buildMarkdownStyle(context),
+              onTapLink: handleMarkdownLink,
+              inlineSyntaxes: colorCodeInlineSyntaxes,
+              builders: markdownBuilders,
+            ),
           ),
           AnimatedBuilder(
             animation: _cursorController,

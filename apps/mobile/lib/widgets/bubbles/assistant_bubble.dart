@@ -257,23 +257,26 @@ class _DefaultLayout extends StatelessWidget {
               contextMenuBuilder: googleSearchSelectableTextContextMenuBuilder,
             )
           : GoogleSearchSelectionArea(
-              child: MarkdownBody(
-                data: text,
-                selectable: !googleSearchSelectionMenuEnabled,
-                styleSheet: buildMarkdownStyle(context),
-                onTapLink: handleMarkdownLink,
-                inlineSyntaxes: [
-                  if (onFileTap != null) ...[
-                    FilePathSyntax(knownPathSuffixes: fileSuffixes),
-                    BareFilePathSyntax(knownPathSuffixes: fileSuffixes),
+              child: suppressMarkdownScrollbarIndicators(
+                context,
+                child: MarkdownBody(
+                  data: text,
+                  selectable: !googleSearchSelectionMenuEnabled,
+                  styleSheet: buildMarkdownStyle(context),
+                  onTapLink: handleMarkdownLink,
+                  inlineSyntaxes: [
+                    if (onFileTap != null) ...[
+                      FilePathSyntax(knownPathSuffixes: fileSuffixes),
+                      BareFilePathSyntax(knownPathSuffixes: fileSuffixes),
+                    ],
+                    ...colorCodeInlineSyntaxes,
                   ],
-                  ...colorCodeInlineSyntaxes,
-                ],
-                builders: {
-                  if (onFileTap != null)
-                    'filePath': FilePathBuilder(onTap: onFileTap),
-                  ...markdownBuilders,
-                },
+                  builders: {
+                    if (onFileTap != null)
+                      'filePath': FilePathBuilder(onTap: onFileTap),
+                    ...markdownBuilders,
+                  },
+                ),
               ),
             ),
     );
