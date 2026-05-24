@@ -16,6 +16,7 @@ class _TestBridgeService extends BridgeService {
   final _fileContentController =
       StreamController<FileContentMessage>.broadcast();
   final sentMessages = <ClientMessage>[];
+  bool _disposed = false;
 
   @override
   Stream<FileContentMessage> get fileContent => _fileContentController.stream;
@@ -23,10 +24,25 @@ class _TestBridgeService extends BridgeService {
   @override
   void send(ClientMessage message) {
     sentMessages.add(message);
+    final payload = jsonDecode(message.toJson()) as Map<String, dynamic>;
+    if (payload['type'] == 'read_file') {
+      scheduleMicrotask(() {
+        if (_disposed) return;
+        _fileContentController.add(
+          FileContentMessage(
+            filePath: payload['filePath'] as String? ?? '',
+            content: 'void main() {}\n',
+            language: 'dart',
+            totalLines: 1,
+          ),
+        );
+      });
+    }
   }
 
   @override
   void dispose() {
+    _disposed = true;
     _fileContentController.close();
     super.dispose();
   }
@@ -192,7 +208,7 @@ void main() {
 
       await tester.tap(find.text('main.dart'));
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
 
       expect(find.byIcon(Icons.content_copy), findsOneWidget);
       expect(bridge.sentMessages, hasLength(1));

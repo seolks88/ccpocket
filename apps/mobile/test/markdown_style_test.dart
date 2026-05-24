@@ -60,6 +60,49 @@ void main() {
         expect(emphasisSpan!.style?.fontStyle, FontStyle.italic);
       },
     );
+
+    testWidgets('renders markdown tables with horizontal scrolling', (
+      tester,
+    ) async {
+      const tableMarkdown = '''
+| 플랫폼 | 모델/사양 | 가격 | 상태 | 시점/노출 | 메모 | 링크 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 중고나라 | M4 Max 16인치 128GB / 1TB | 5,900,000원 | 판매 완료 | last month | 풀박스, 실버, 정가 언급 | 보기 |
+''';
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.darkTheme,
+          home: Builder(
+            builder: (context) {
+              final styleSheet = buildMarkdownStyle(context);
+
+              expect(styleSheet.tableColumnWidth, isA<IntrinsicColumnWidth>());
+              expect(styleSheet.tableScrollbarThumbVisibility, isTrue);
+
+              return MarkdownBody(
+                data: tableMarkdown,
+                selectable: true,
+                styleSheet: styleSheet,
+              );
+            },
+          ),
+        ),
+      );
+
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is SingleChildScrollView &&
+              widget.scrollDirection == Axis.horizontal,
+        ),
+        findsOneWidget,
+      );
+      expect(
+        tester.widget<Table>(find.byType(Table)).defaultColumnWidth,
+        isA<IntrinsicColumnWidth>(),
+      );
+    });
   });
 
   group('highlightToTextSpans', () {

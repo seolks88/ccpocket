@@ -80,8 +80,16 @@ Future<void> handleMarkdownLink(String text, String? href, String title) async {
 MarkdownStyleSheet buildMarkdownStyle(BuildContext context) {
   final appColors = Theme.of(context).extension<AppColors>()!;
   final theme = Theme.of(context);
+  final colorScheme = theme.colorScheme;
   final baseStyle = theme.textTheme.bodyMedium ?? const TextStyle();
   final codeSettings = codeTextSettingsOf(context);
+  final tableLineColor = colorScheme.outlineVariant.withValues(
+    alpha: theme.brightness == Brightness.dark ? 0.85 : 1,
+  );
+  final tableRowColor = colorScheme.surfaceContainerHigh.withValues(
+    alpha: theme.brightness == Brightness.dark ? 0.45 : 0.7,
+  );
+  final tableTextStyle = baseStyle.copyWith(height: 1.35);
 
   return MarkdownStyleSheet.fromTheme(theme).copyWith(
     p: baseStyle,
@@ -106,6 +114,19 @@ MarkdownStyleSheet buildMarkdownStyle(BuildContext context) {
     ),
     blockquotePadding: const EdgeInsets.only(left: 12, top: 4, bottom: 4),
     listBullet: baseStyle.copyWith(fontSize: 14),
+    tableHead: GoogleFonts.ibmPlexSans(
+      textStyle: tableTextStyle,
+      fontWeight: FontWeight.w700,
+    ),
+    tableBody: tableTextStyle,
+    tableHeadAlign: TextAlign.left,
+    tablePadding: const EdgeInsets.symmetric(vertical: 8),
+    tableBorder: TableBorder.all(color: tableLineColor, width: 0.8),
+    tableColumnWidth: const IntrinsicColumnWidth(),
+    tableCellsPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    tableCellsDecoration: BoxDecoration(color: tableRowColor),
+    tableVerticalAlignment: TableCellVerticalAlignment.top,
+    tableScrollbarThumbVisibility: true,
   );
 }
 

@@ -9,6 +9,7 @@ class ExploreCubit extends Cubit<ExploreState> {
   final BridgeService _bridge;
   StreamSubscription<List<String>>? _fileListSub;
   List<String> _recentPeekedFiles;
+  bool _skipInitialEmptyFileList;
 
   ExploreCubit({
     required BridgeService bridge,
@@ -18,6 +19,7 @@ class ExploreCubit extends Cubit<ExploreState> {
     List<String> recentPeekedFiles = const [],
   }) : _bridge = bridge,
        _recentPeekedFiles = recentPeekedFiles.take(10).toList(),
+       _skipInitialEmptyFileList = initialFiles.isNotEmpty,
        super(ExploreState(projectPath: projectPath, currentPath: initialPath)) {
     _fileListSub = _bridge.fileList.listen(_onFileListUpdated);
     if (initialFiles.isNotEmpty) {
@@ -28,6 +30,13 @@ class ExploreCubit extends Cubit<ExploreState> {
   }
 
   void _onFileListUpdated(List<String> files) {
+    if (_skipInitialEmptyFileList &&
+        files.isEmpty &&
+        state.allFiles.isNotEmpty) {
+      _skipInitialEmptyFileList = false;
+      return;
+    }
+    _skipInitialEmptyFileList = false;
     _applyFiles(files);
   }
 
