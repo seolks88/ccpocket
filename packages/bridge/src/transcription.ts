@@ -110,17 +110,23 @@ export function handleTranscriptionRequest(
 
       const requestId =
         typeof parsed.requestId === "string" ? parsed.requestId : undefined;
+      const fileName =
+        typeof parsed.fileName === "string" ? parsed.fileName : undefined;
+      const model = typeof parsed.model === "string" ? parsed.model : undefined;
+      const language =
+        typeof parsed.language === "string" ? parsed.language : undefined;
       console.log(
-        `[transcribe] request${requestId ? ` ${requestId}` : ""} received`,
+        `[transcribe] request${requestId ? ` ${requestId}` : ""} received ` +
+          `mimeType=${parsed.mimeType} fileName=${fileName ?? "voice-command.m4a"} ` +
+          `bytes=${Buffer.from(parsed.audioBase64, "base64").length} ` +
+          `language=${language?.trim() || "auto"}`,
       );
       const result = await transcribeAudioWithOpenAI({
         audioBase64: parsed.audioBase64,
         mimeType: parsed.mimeType,
-        fileName:
-          typeof parsed.fileName === "string" ? parsed.fileName : undefined,
-        model: typeof parsed.model === "string" ? parsed.model : undefined,
-        language:
-          typeof parsed.language === "string" ? parsed.language : undefined,
+        fileName,
+        model,
+        language,
       });
       console.log(
         `[transcribe] request${requestId ? ` ${requestId}` : ""} succeeded`,

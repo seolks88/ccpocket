@@ -2,7 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
+import 'package:flutter/foundation.dart'
+    show debugPrint, kDebugMode, kIsWeb, visibleForTesting;
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
@@ -20,6 +21,7 @@ class VoiceInputService {
 
   bool _isAvailable = false;
   bool _isListening = false;
+  VoiceRecordingFormat? _currentRecordingFormat;
 
   bool get isAvailable => _isAvailable;
   bool get isListening => _isListening;
@@ -53,7 +55,12 @@ class VoiceInputService {
       ),
       path: path,
     );
+    _currentRecordingFormat = format;
     _isListening = true;
+    _logVoiceInput(
+      'recording started encoder=${format.encoder.name} '
+      'extension=${format.extension} mimeType=${format.mimeType}',
+    );
   }
 
   Future<String> stopAndTranscribe({
@@ -69,13 +76,19 @@ class VoiceInputService {
     try {
       final bytes = await file.readAsBytes();
       if (bytes.isEmpty) return '';
-      final format = voiceRecordingFormatForPath(path);
+      final format =
+          _currentRecordingFormat ?? voiceRecordingFormatForPath(path);
 
       final requestId = _uuid.v4();
       final baseUrl = bridge.httpBaseUrl;
       if (baseUrl == null) {
         throw StateError('Bridge is not connected');
       }
+      _logVoiceInput(
+        'transcribe request $requestId bytes=${bytes.length} '
+        'extension=${format.extension} mimeType=${format.mimeType} '
+        'language=${_normalizeLanguage(language) ?? 'auto'}',
+      );
       final response = await http
           .post(
             Uri.parse('$baseUrl/api/transcribe'),
@@ -90,6 +103,9 @@ class VoiceInputService {
             }),
           )
           .timeout(_transcriptionTimeout);
+      _logVoiceInput(
+        'transcribe response $requestId status=${response.statusCode}',
+      );
       final decoded = jsonDecode(response.body) as Map<String, dynamic>;
       if (response.statusCode < 200 ||
           response.statusCode >= 300 ||
@@ -99,6 +115,7 @@ class VoiceInputService {
       }
       return (decoded['text'] as String? ?? '').trim();
     } finally {
+      _currentRecordingFormat = null;
       unawaited(file.delete().catchError((_) => file));
     }
   }
@@ -107,11 +124,13 @@ class VoiceInputService {
     if (!_isListening) return;
     await _recorder.cancel();
     _isListening = false;
+    _currentRecordingFormat = null;
   }
 
   void dispose() {
     unawaited(_recorder.dispose());
     _isListening = false;
+    _currentRecordingFormat = null;
   }
 }
 
@@ -174,3 +193,9 @@ String? _normalizeLanguage(String? localeId) {
 @visibleForTesting
 String? normalizeVoiceInputLanguage(String? localeId) =>
     _normalizeLanguage(localeId);
+
+void _logVoiceInput(String message) {
+  if (kDebugMode) {
+    debugPrint('[voice-input] $message');
+  }
+}
