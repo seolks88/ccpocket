@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ccpocket/hooks/use_voice_input.dart';
 import 'package:ccpocket/l10n/app_localizations.dart';
+import 'package:ccpocket/services/voice_input_service.dart';
 
 void main() {
   group('useVoiceInput', () {
@@ -38,6 +39,26 @@ void main() {
 
       expect(result.text, 'append voice');
       expect(result.selection, const TextSelection.collapsed(offset: 12));
+    });
+
+    test('uses wav metadata for wav recordings', () {
+      final format = voiceRecordingFormatForPath('/tmp/voice-command.wav');
+
+      expect(format.extension, 'wav');
+      expect(format.mimeType, 'audio/wav');
+    });
+
+    test('keeps m4a metadata for legacy aac recordings', () {
+      final format = voiceRecordingFormatForPath('/tmp/voice-command.m4a');
+
+      expect(format.extension, 'm4a');
+      expect(format.mimeType, 'audio/mp4');
+    });
+
+    test('normalizes speech locale for transcription API', () {
+      expect(normalizeVoiceInputLanguage('ko-KR'), 'ko');
+      expect(normalizeVoiceInputLanguage('en_US'), 'en');
+      expect(normalizeVoiceInputLanguage(''), isNull);
     });
 
     testWidgets('returns initial state correctly', (tester) async {

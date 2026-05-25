@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
@@ -39,13 +39,14 @@ class VoiceInputService {
     if (!hasPermission) {
       throw StateError('Microphone permission is required for voice input');
     }
+    final format = await selectVoiceRecordingFormat(_recorder);
     final directory = await getTemporaryDirectory();
     final path =
-        '${directory.path}/ccpocket-voice-${DateTime.now().microsecondsSinceEpoch}.m4a';
+        '${directory.path}/ccpocket-voice-${DateTime.now().microsecondsSinceEpoch}.${format.extension}';
     await _recorder.start(
-      const RecordConfig(
-        encoder: AudioEncoder.aacLc,
-        bitRate: 64000,
+      RecordConfig(
+        encoder: format.encoder,
+        bitRate: format.bitRate,
         sampleRate: 16000,
         numChannels: 1,
         noiseSuppress: true,
@@ -68,6 +69,7 @@ class VoiceInputService {
     try {
       final bytes = await file.readAsBytes();
       if (bytes.isEmpty) return '';
+      final format = voiceRecordingFormatForPath(path);
 
       final requestId = _uuid.v4();
       final baseUrl = bridge.httpBaseUrl;
@@ -81,8 +83,8 @@ class VoiceInputService {
             body: jsonEncode({
               'requestId': requestId,
               'audioBase64': base64Encode(bytes),
-              'mimeType': 'audio/mp4',
-              'fileName': 'voice-command.m4a',
+              'mimeType': format.mimeType,
+              'fileName': 'voice-command.${format.extension}',
               'model': _transcriptionModel,
               'language': _normalizeLanguage(language),
             }),
@@ -113,8 +115,62 @@ class VoiceInputService {
   }
 }
 
+@visibleForTesting
+class VoiceRecordingFormat {
+  const VoiceRecordingFormat({
+    required this.encoder,
+    required this.extension,
+    required this.mimeType,
+    required this.bitRate,
+  });
+
+  final AudioEncoder encoder;
+  final String extension;
+  final String mimeType;
+  final int bitRate;
+}
+
+const _wavVoiceRecordingFormat = VoiceRecordingFormat(
+  encoder: AudioEncoder.wav,
+  extension: 'wav',
+  mimeType: 'audio/wav',
+  bitRate: 256000,
+);
+
+const _m4aVoiceRecordingFormat = VoiceRecordingFormat(
+  encoder: AudioEncoder.aacLc,
+  extension: 'm4a',
+  mimeType: 'audio/mp4',
+  bitRate: 64000,
+);
+
+Future<VoiceRecordingFormat> selectVoiceRecordingFormat(
+  AudioRecorder recorder,
+) async {
+  try {
+    if (await recorder.isEncoderSupported(_wavVoiceRecordingFormat.encoder)) {
+      return _wavVoiceRecordingFormat;
+    }
+  } catch (_) {
+    // Fall back to the legacy AAC path if encoder probing is unavailable.
+  }
+  return _m4aVoiceRecordingFormat;
+}
+
+@visibleForTesting
+VoiceRecordingFormat voiceRecordingFormatForPath(String path) {
+  final extension = path.split('.').last.toLowerCase();
+  return extension == _wavVoiceRecordingFormat.extension
+      ? _wavVoiceRecordingFormat
+      : _m4aVoiceRecordingFormat;
+}
+
 String? _normalizeLanguage(String? localeId) {
   final value = localeId?.trim();
   if (value == null || value.isEmpty) return null;
   return value.split(RegExp('[-_]')).first.toLowerCase();
 }
+
+@visibleForTesting
+String? normalizeVoiceInputLanguage(String? localeId) =>
+    _normalizeLanguage(localeId);
