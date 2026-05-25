@@ -426,7 +426,7 @@ void showCodexReasoningEffortMenu(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Thinking',
+                        'Codex mode',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
@@ -435,7 +435,7 @@ void showCodexReasoningEffortMenu(
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Applies from the next message.',
+                        'Current: ${_reasoningEffortDisplayLabel(currentEffort)} - applies from the next message.',
                         style: TextStyle(
                           fontSize: 12,
                           color: sheetCs.onSurfaceVariant,
@@ -453,7 +453,7 @@ void showCodexReasoningEffortMenu(
                         ? sheetCs.primary
                         : sheetCs.onSurfaceVariant,
                   ),
-                  title: Text(effort.label),
+                  title: Text(_reasoningEffortMenuLabel(effort)),
                   subtitle: Text(
                     _reasoningEffortDescription(effort, l),
                     style: const TextStyle(fontSize: 12),
@@ -522,6 +522,23 @@ IconData _reasoningEffortIcon(ReasoningEffort effort) => switch (effort) {
   ReasoningEffort.high => Icons.psychology,
   ReasoningEffort.xhigh => Icons.auto_awesome,
 };
+
+String _reasoningEffortDisplayLabel(ReasoningEffort effort) => switch (effort) {
+  ReasoningEffort.none => 'None',
+  ReasoningEffort.minimal => 'Fast',
+  ReasoningEffort.low => 'Low',
+  ReasoningEffort.medium => 'Medium',
+  ReasoningEffort.high => 'High',
+  ReasoningEffort.xhigh => 'X High',
+};
+
+String _reasoningEffortMenuLabel(ReasoningEffort effort) {
+  final label = _reasoningEffortDisplayLabel(effort);
+  if (effort == ReasoningEffort.minimal) {
+    return '$label (${effort.label})';
+  }
+  return label;
+}
 
 String _reasoningEffortDescription(
   ReasoningEffort effort,
@@ -999,34 +1016,39 @@ class ThinkingEffortChip extends StatelessWidget {
     final fg = currentEffort == ReasoningEffort.none
         ? cs.onSurfaceVariant
         : cs.primary;
+    final label = _reasoningEffortDisplayLabel(currentEffort);
 
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(10),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(_reasoningEffortIcon(currentEffort), size: 13, color: fg),
-              const SizedBox(width: 3),
-              Text(
-                currentEffort.label,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: fg,
+    return Tooltip(
+      message:
+          'Codex mode: $label (${currentEffort.label}). Applies from the next message.',
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(10),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(_reasoningEffortIcon(currentEffort), size: 13, color: fg),
+                const SizedBox(width: 3),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: fg,
+                  ),
                 ),
-              ),
-              Icon(
-                Icons.arrow_drop_down,
-                size: 14,
-                color: fg.withValues(alpha: 0.5),
-              ),
-            ],
+                Icon(
+                  Icons.arrow_drop_down,
+                  size: 14,
+                  color: fg.withValues(alpha: 0.5),
+                ),
+              ],
+            ),
           ),
         ),
       ),

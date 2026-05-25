@@ -61,8 +61,8 @@ class _MockBridgeService extends BridgeService {
   }
 }
 
-Widget _wrap(ChatSessionCubit cubit) {
-  return MaterialApp(
+Widget _wrap(ChatSessionCubit cubit, {BridgeService? bridge}) {
+  final child = MaterialApp(
     localizationsDelegates: AppLocalizations.localizationsDelegates,
     supportedLocales: AppLocalizations.supportedLocales,
     locale: const Locale('en'),
@@ -74,6 +74,8 @@ Widget _wrap(ChatSessionCubit cubit) {
       ),
     ),
   );
+  if (bridge == null) return child;
+  return RepositoryProvider<BridgeService>.value(value: bridge, child: child);
 }
 
 Map<String, dynamic> _decode(ClientMessage message) =>
@@ -231,5 +233,36 @@ void main() {
 
     expect(find.text('Sandbox'), findsNothing);
     expect(find.text('Default'), findsOneWidget);
+  });
+
+  testWidgets('codex reasoning effort exposes fast mode label and menu', (
+    tester,
+  ) async {
+    final fastCubit = ChatSessionCubit(
+      sessionId: 'codex-fast-session',
+      provider: Provider.codex,
+      bridge: bridge,
+      streamingCubit: streamingCubit,
+      initialModelReasoningEffort: ReasoningEffort.minimal,
+    );
+
+    await tester.pumpWidget(_wrap(fastCubit, bridge: bridge));
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('Fast'), findsOneWidget);
+    expect(find.text('Minimal'), findsNothing);
+
+    await tester.tap(find.text('Fast'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Codex mode'), findsOneWidget);
+    expect(
+      find.text('Current: Fast - applies from the next message.'),
+      findsOneWidget,
+    );
+    expect(find.text('Fast (Minimal)'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await fastCubit.close();
   });
 }
