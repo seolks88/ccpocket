@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'package:ccpocket/theme/app_theme.dart';
 import 'package:ccpocket/theme/markdown_style.dart';
@@ -46,15 +45,10 @@ void main() {
           'strong_text',
         );
         final baseStyle = AppTheme.lightTheme.textTheme.bodyMedium!;
-        final expectedStrongStyle = GoogleFonts.ibmPlexSans(
-          textStyle: baseStyle,
-          fontWeight: FontWeight.w700,
-        );
 
         expect(strongSpan, isNotNull);
         expect(strongSpan!.style?.fontWeight, FontWeight.w700);
-        expect(strongSpan.style?.fontFamily, expectedStrongStyle.fontFamily);
-        expect(strongSpan.style?.fontFamily, isNot(baseStyle.fontFamily));
+        expect(strongSpan.style?.fontFamily, baseStyle.fontFamily);
 
         final emphasisSpan = _findTextSpan(selectableText.textSpan!, 'em_text');
         expect(emphasisSpan, isNotNull);

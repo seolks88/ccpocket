@@ -87,6 +87,7 @@ dependencies:
   in_app_review: ^2.0.11
   flutter_slidable: ^4.0.3
   super_drag_and_drop: ^0.9.1
+  record: ^6.2.1
 
 dependency_overrides:
   # Temporary: use 16KB page-aligned fork until irondash/irondash#77 is merged
@@ -166,6 +167,19 @@ flutter:
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
   fonts:
+    - family: Pretendard
+      fonts:
+        - asset: assets/fonts/ui/PretendardVariable.ttf
+    - family: BerkeleyMono
+      fonts:
+        - asset: assets/fonts/code/BerkeleyMono-Regular.otf
+        - asset: assets/fonts/code/BerkeleyMono-Bold.otf
+          weight: 700
+        - asset: assets/fonts/code/BerkeleyMono-Oblique.otf
+          style: italic
+        - asset: assets/fonts/code/BerkeleyMono-Bold-Oblique.otf
+          weight: 700
+          style: italic
     - family: JetBrainsMono
       fonts:
         - asset: assets/fonts/code/JetBrainsMono-Regular.ttf

@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 // ---------------------------------------------------------------------------
-// AppTheme: Graphite & Ember design system (Space Grotesk + IBM Plex Sans)
+// AppTheme: Graphite & Ember design system (Pretendard + Berkeley Mono)
 //
 // Warm editorial palette. Dominant burnt-orange primary with muted teal
 // accent. Warm stone surfaces instead of cool slates. Inspired by IDE themes
@@ -11,6 +10,13 @@ import 'package:google_fonts/google_fonts.dart';
 // ---------------------------------------------------------------------------
 
 class AppTheme {
+  static const _appFontFamily = 'Pretendard';
+  static const _appFontFallbacks = <String>[
+    'Apple SD Gothic Neo',
+    'Noto Sans CJK KR',
+    'sans-serif',
+  ];
+
   static ThemeData get lightTheme {
     final colorScheme = ColorScheme.light(
       surface: const Color(0xFFF7F7F8), // cleaner off-white bg (Zinc 50)
@@ -262,95 +268,43 @@ class AppTheme {
   }
 
   static TextTheme _buildTextTheme(ColorScheme colorScheme) {
-    final baseTextTheme = GoogleFonts.ibmPlexSansTextTheme();
+    TextStyle style({
+      required double fontSize,
+      required FontWeight fontWeight,
+      Color? color,
+    }) {
+      return TextStyle(
+        fontFamily: _appFontFamily,
+        fontFamilyFallback: _appFontFallbacks,
+        fontSize: fontSize,
+        fontWeight: fontWeight,
+        letterSpacing: 0,
+        color: color ?? colorScheme.onSurface,
+      );
+    }
 
-    // Headlines: Space Grotesk — geometric, distinctive, avoids generic Poppins
-    // Body/Labels: IBM Plex Sans — professional & readable, avoids generic Inter
-    return baseTextTheme.copyWith(
-      displayLarge: GoogleFonts.spaceGrotesk(
-        fontSize: 57,
-        fontWeight: FontWeight.w700,
-        letterSpacing: -0.5,
-        color: colorScheme.onSurface,
-      ),
-      displayMedium: GoogleFonts.spaceGrotesk(
-        fontSize: 45,
-        fontWeight: FontWeight.w700,
-        letterSpacing: -0.25,
-        color: colorScheme.onSurface,
-      ),
-      displaySmall: GoogleFonts.spaceGrotesk(
-        fontSize: 36,
-        fontWeight: FontWeight.w600,
-        color: colorScheme.onSurface,
-      ),
-      headlineLarge: GoogleFonts.spaceGrotesk(
-        fontSize: 32,
-        fontWeight: FontWeight.w700,
-        letterSpacing: -0.25,
-        color: colorScheme.onSurface,
-      ),
-      headlineMedium: GoogleFonts.spaceGrotesk(
-        fontSize: 28,
-        fontWeight: FontWeight.w600,
-        color: colorScheme.onSurface,
-      ),
-      headlineSmall: GoogleFonts.spaceGrotesk(
-        fontSize: 24,
-        fontWeight: FontWeight.w600,
-        color: colorScheme.onSurface,
-      ),
-      titleLarge: GoogleFonts.ibmPlexSans(
-        fontSize: 22,
-        fontWeight: FontWeight.w600,
-        color: colorScheme.onSurface,
-      ),
-      titleMedium: GoogleFonts.ibmPlexSans(
-        fontSize: 16,
-        fontWeight: FontWeight.w600,
-        letterSpacing: 0.15,
-        color: colorScheme.onSurface,
-      ),
-      titleSmall: GoogleFonts.ibmPlexSans(
-        fontSize: 14,
-        fontWeight: FontWeight.w600,
-        letterSpacing: 0.1,
-        color: colorScheme.onSurface,
-      ),
-      bodyLarge: GoogleFonts.ibmPlexSans(
-        fontSize: 16,
-        fontWeight: FontWeight.w400,
-        letterSpacing: 0.25,
-        color: colorScheme.onSurface,
-      ),
-      bodyMedium: GoogleFonts.ibmPlexSans(
-        fontSize: 14,
-        fontWeight: FontWeight.w400,
-        letterSpacing: 0.15,
-        color: colorScheme.onSurface,
-      ),
-      bodySmall: GoogleFonts.ibmPlexSans(
+    return TextTheme(
+      displayLarge: style(fontSize: 57, fontWeight: FontWeight.w700),
+      displayMedium: style(fontSize: 45, fontWeight: FontWeight.w700),
+      displaySmall: style(fontSize: 36, fontWeight: FontWeight.w600),
+      headlineLarge: style(fontSize: 32, fontWeight: FontWeight.w700),
+      headlineMedium: style(fontSize: 28, fontWeight: FontWeight.w600),
+      headlineSmall: style(fontSize: 24, fontWeight: FontWeight.w600),
+      titleLarge: style(fontSize: 22, fontWeight: FontWeight.w600),
+      titleMedium: style(fontSize: 16, fontWeight: FontWeight.w600),
+      titleSmall: style(fontSize: 14, fontWeight: FontWeight.w600),
+      bodyLarge: style(fontSize: 16, fontWeight: FontWeight.w400),
+      bodyMedium: style(fontSize: 14, fontWeight: FontWeight.w400),
+      bodySmall: style(
         fontSize: 12,
         fontWeight: FontWeight.w400,
-        letterSpacing: 0.25,
         color: colorScheme.onSurfaceVariant,
       ),
-      labelLarge: GoogleFonts.ibmPlexSans(
-        fontSize: 14,
-        fontWeight: FontWeight.w600,
-        letterSpacing: 0.1,
-        color: colorScheme.onSurface,
-      ),
-      labelMedium: GoogleFonts.ibmPlexSans(
-        fontSize: 12,
-        fontWeight: FontWeight.w500,
-        letterSpacing: 0.4,
-        color: colorScheme.onSurface,
-      ),
-      labelSmall: GoogleFonts.ibmPlexSans(
+      labelLarge: style(fontSize: 14, fontWeight: FontWeight.w600),
+      labelMedium: style(fontSize: 12, fontWeight: FontWeight.w500),
+      labelSmall: style(
         fontSize: 11,
         fontWeight: FontWeight.w500,
-        letterSpacing: 0.4,
         color: colorScheme.onSurfaceVariant,
       ),
     );

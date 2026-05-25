@@ -1,4 +1,5 @@
 enum CodeFontFamily {
+  berkeleyMono('berkeleyMono', 'Berkeley Mono', 'BerkeleyMono'),
   jetBrainsMono('jetBrainsMono', 'JetBrains Mono', 'JetBrainsMono'),
   ioskeley('ioskeley', 'Ioskeley', 'IoskeleyMono'),
   dejaVuSansMono('dejaVuSansMono', 'DejaVu Sans Mono', 'DejaVuSansMono');
@@ -14,5 +15,5 @@ CodeFontFamily codeFontFamilyFromRaw(String? raw) {
   for (final family in CodeFontFamily.values) {
     if (family.id == raw) return family;
   }
-  return CodeFontFamily.jetBrainsMono;
+  return CodeFontFamily.berkeleyMono;
 }

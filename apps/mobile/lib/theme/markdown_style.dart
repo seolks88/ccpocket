@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:highlight/highlight.dart' as hl;
 import 'package:markdown/markdown.dart' as md;
 import 'package:syntax_highlight/syntax_highlight.dart';
@@ -93,10 +92,7 @@ MarkdownStyleSheet buildMarkdownStyle(BuildContext context) {
 
   return MarkdownStyleSheet.fromTheme(theme).copyWith(
     p: baseStyle,
-    strong: GoogleFonts.ibmPlexSans(
-      textStyle: baseStyle,
-      fontWeight: FontWeight.w700,
-    ),
+    strong: baseStyle.copyWith(fontWeight: FontWeight.w700),
     em: baseStyle.copyWith(fontStyle: FontStyle.italic),
     code: codeSettings.style(
       color: baseStyle.color,
@@ -114,10 +110,7 @@ MarkdownStyleSheet buildMarkdownStyle(BuildContext context) {
     ),
     blockquotePadding: const EdgeInsets.only(left: 12, top: 4, bottom: 4),
     listBullet: baseStyle.copyWith(fontSize: 14),
-    tableHead: GoogleFonts.ibmPlexSans(
-      textStyle: tableTextStyle,
-      fontWeight: FontWeight.w700,
-    ),
+    tableHead: tableTextStyle.copyWith(fontWeight: FontWeight.w700),
     tableBody: tableTextStyle,
     tableHeadAlign: TextAlign.left,
     tablePadding: const EdgeInsets.symmetric(vertical: 8),

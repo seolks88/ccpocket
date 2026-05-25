@@ -277,6 +277,15 @@ export type ClientMessage =
       includeDiff?: boolean;
     }
   | { type: "get_usage" }
+  | {
+      type: "transcribe_audio";
+      requestId: string;
+      audioBase64: string;
+      mimeType: string;
+      fileName?: string;
+      model?: string;
+      language?: string;
+    }
   | { type: "list_recordings" }
   | { type: "get_recording"; sessionId: string }
   | { type: "get_message_images"; claudeSessionId: string; messageUuid: string }
@@ -629,6 +638,14 @@ export type ServerMessage =
       savedBundlePath?: string;
     }
   | { type: "usage_result"; providers: UsageInfoPayload[] }
+  | {
+      type: "voice_transcription_result";
+      requestId: string;
+      success: boolean;
+      text?: string;
+      model?: string;
+      error?: string;
+    }
   | { type: "message_images_result"; messageUuid: string; images: ImageRef[] }
   | {
       type: "prompt_history_backup_result";
@@ -1367,6 +1384,17 @@ export function parseClientMessage(data: string): ClientMessage | null {
           return null;
         break;
       case "get_usage":
+        break;
+      case "transcribe_audio":
+        if (typeof msg.requestId !== "string") return null;
+        if (typeof msg.audioBase64 !== "string") return null;
+        if (typeof msg.mimeType !== "string") return null;
+        if (msg.fileName !== undefined && typeof msg.fileName !== "string")
+          return null;
+        if (msg.model !== undefined && typeof msg.model !== "string")
+          return null;
+        if (msg.language !== undefined && typeof msg.language !== "string")
+          return null;
         break;
       case "list_recordings":
         break;

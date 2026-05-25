@@ -1,9 +1,10 @@
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 
 import '../features/settings/state/settings_cubit.dart';
+import '../services/bridge_service.dart';
 import '../services/voice_input_service.dart';
 
 /// Result record returned by [useVoiceInput].
@@ -23,6 +24,7 @@ VoiceInputResult useVoiceInput(TextEditingController controller) {
   final voiceInput = useMemoized(() => VoiceInputService());
   final isAvailable = useState(false);
   final isRecording = useState(false);
+  final baseInputValue = useRef<TextEditingValue?>(null);
 
   useEffect(() {
     voiceInput.initialize().then((available) {
@@ -33,22 +35,41 @@ VoiceInputResult useVoiceInput(TextEditingController controller) {
 
   void toggle() {
     if (isRecording.value) {
-      voiceInput.stopListening();
       isRecording.value = false;
+      final localeId = context.read<SettingsCubit>().state.speechLocaleId;
+      final bridge = context.read<BridgeService>();
+      voiceInput
+          .stopAndTranscribe(
+            bridge: bridge,
+            language: localeId.isNotEmpty ? localeId : null,
+          )
+          .then((text) {
+            if (!context.mounted || text.isEmpty) return;
+            controller.value = composeVoiceInputValue(
+              baseInputValue.value ?? controller.value,
+              text,
+            );
+            baseInputValue.value = null;
+          })
+          .catchError((Object error) {
+            if (!context.mounted) return;
+            baseInputValue.value = null;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Voice transcription failed: $error')),
+            );
+          });
     } else {
       HapticFeedback.mediumImpact();
       isRecording.value = true;
-      final localeId = context.read<SettingsCubit>().state.speechLocaleId;
-      final baseInputValue = controller.value;
-      voiceInput.startListening(
-        onResult: (text, _) {
-          controller.value = composeVoiceInputValue(baseInputValue, text);
-        },
-        onDone: () {
-          if (context.mounted) isRecording.value = false;
-        },
-        localeId: localeId.isNotEmpty ? localeId : null,
-      );
+      baseInputValue.value = controller.value;
+      voiceInput.startRecording().catchError((Object error) {
+        if (!context.mounted) return;
+        isRecording.value = false;
+        baseInputValue.value = null;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Voice recording failed: $error')),
+        );
+      });
     }
   }
 

@@ -1,11 +1,23 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:speech_to_text/speech_recognition_result.dart';
-import 'package:speech_to_text/speech_to_text.dart';
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:path_provider/path_provider.dart';
+import 'package:record/record.dart';
+import 'package:uuid/uuid.dart';
+
+import '../models/messages.dart';
 import '../utils/platform_helper.dart';
+import 'bridge_service.dart';
 
 class VoiceInputService {
-  final SpeechToText _speech = SpeechToText();
+  static const _transcriptionModel = 'gpt-4o-mini-transcribe';
+  static const _transcriptionTimeout = Duration(seconds: 60);
+
+  final AudioRecorder _recorder = AudioRecorder();
+  final Uuid _uuid = const Uuid();
+
   bool _isAvailable = false;
   bool _isListening = false;
 
@@ -17,46 +29,84 @@ class VoiceInputService {
       _isAvailable = false;
       return false;
     }
-    _isAvailable = await _speech.initialize(
-      options: [SpeechToText.androidNoBluetooth],
-    );
+    _isAvailable = await _recorder.hasPermission();
     return _isAvailable;
   }
 
-  Future<void> startListening({
-    required void Function(String text, bool isFinal) onResult,
-    required void Function() onDone,
-    String? localeId,
-  }) async {
+  Future<void> startRecording() async {
     if (!_isAvailable || _isListening) return;
-    _isListening = true;
-    await _speech.listen(
-      onResult: (SpeechRecognitionResult result) {
-        onResult(result.recognizedWords, result.finalResult);
-      },
-      localeId: localeId,
-      listenOptions: SpeechListenOptions(
-        cancelOnError: true,
-        partialResults: true,
+    final directory = await getTemporaryDirectory();
+    final path =
+        '${directory.path}/ccpocket-voice-${DateTime.now().microsecondsSinceEpoch}.m4a';
+    await _recorder.start(
+      const RecordConfig(
+        encoder: AudioEncoder.aacLc,
+        bitRate: 64000,
+        sampleRate: 16000,
+        numChannels: 1,
+        noiseSuppress: true,
       ),
+      path: path,
     );
-    // SpeechToText calls onDone via statusListener when done
-    _speech.statusListener = (status) {
-      if (status == 'done' || status == 'notListening') {
-        _isListening = false;
-        onDone();
-      }
-    };
+    _isListening = true;
   }
 
-  Future<void> stopListening() async {
+  Future<String> stopAndTranscribe({
+    required BridgeService bridge,
+    String? language,
+  }) async {
+    if (!_isListening) return '';
+    final path = await _recorder.stop();
+    _isListening = false;
+    if (path == null || path.isEmpty) return '';
+
+    final file = File(path);
+    try {
+      final bytes = await file.readAsBytes();
+      if (bytes.isEmpty) return '';
+
+      final requestId = _uuid.v4();
+      final resultFuture = bridge.messages
+          .where((message) => message is VoiceTranscriptionResultMessage)
+          .cast<VoiceTranscriptionResultMessage>()
+          .firstWhere((message) => message.requestId == requestId)
+          .timeout(_transcriptionTimeout);
+
+      bridge.send(
+        ClientMessage.transcribeAudio(
+          requestId: requestId,
+          audioBase64: base64Encode(bytes),
+          mimeType: 'audio/mp4',
+          fileName: 'voice-command.m4a',
+          model: _transcriptionModel,
+          language: _normalizeLanguage(language),
+        ),
+      );
+
+      final result = await resultFuture;
+      if (!result.success) {
+        throw StateError(result.error ?? 'Voice transcription failed');
+      }
+      return result.text?.trim() ?? '';
+    } finally {
+      unawaited(file.delete().catchError((_) => file));
+    }
+  }
+
+  Future<void> cancel() async {
     if (!_isListening) return;
-    await _speech.stop();
+    await _recorder.cancel();
     _isListening = false;
   }
 
   void dispose() {
-    _speech.cancel();
+    unawaited(_recorder.dispose());
     _isListening = false;
   }
+}
+
+String? _normalizeLanguage(String? localeId) {
+  final value = localeId?.trim();
+  if (value == null || value.isEmpty) return null;
+  return value.split(RegExp('[-_]')).first.toLowerCase();
 }

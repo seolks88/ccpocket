@@ -917,6 +917,13 @@ sealed class ServerMessage {
             .map((p) => UsageInfo.fromJson(p as Map<String, dynamic>))
             .toList(),
       ),
+      'voice_transcription_result' => VoiceTranscriptionResultMessage(
+        requestId: json['requestId'] as String? ?? '',
+        success: json['success'] as bool? ?? false,
+        text: json['text'] as String?,
+        model: json['model'] as String?,
+        error: json['error'] as String?,
+      ),
       'recording_list' => RecordingListMessage(
         recordings: (json['recordings'] as List)
             .map((r) => RecordingInfo.fromJson(r as Map<String, dynamic>))
@@ -2483,6 +2490,21 @@ class UsageResultMessage implements ServerMessage {
   const UsageResultMessage({required this.providers});
 }
 
+class VoiceTranscriptionResultMessage implements ServerMessage {
+  final String requestId;
+  final bool success;
+  final String? text;
+  final String? model;
+  final String? error;
+  const VoiceTranscriptionResultMessage({
+    required this.requestId,
+    required this.success,
+    this.text,
+    this.model,
+    this.error,
+  });
+}
+
 class RecordingListMessage implements ServerMessage {
   final List<RecordingInfo> recordings;
   const RecordingListMessage({required this.recordings});
@@ -3648,6 +3670,23 @@ class ClientMessage {
   factory ClientMessage.pushUnregister(String token) => ClientMessage._(
     <String, dynamic>{'type': 'push_unregister', 'token': token},
   );
+
+  factory ClientMessage.transcribeAudio({
+    required String requestId,
+    required String audioBase64,
+    required String mimeType,
+    String? fileName,
+    String? model,
+    String? language,
+  }) => ClientMessage._(<String, dynamic>{
+    'type': 'transcribe_audio',
+    'requestId': requestId,
+    'audioBase64': audioBase64,
+    'mimeType': mimeType,
+    'fileName': ?fileName,
+    'model': ?model,
+    'language': ?language,
+  });
 
   factory ClientMessage.setPermissionMode(String mode, {String? sessionId}) {
     return ClientMessage._(<String, dynamic>{

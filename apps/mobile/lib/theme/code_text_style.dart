@@ -9,14 +9,19 @@ const minCodeFontSize = 8.0;
 const maxCodeFontSize = 24.0;
 const codeLineHeight = 1.45;
 
-const _fontFallbacks = ['monospace'];
+const _fontFallbacks = [
+  'JetBrainsMono',
+  'IoskeleyMono',
+  'DejaVuSansMono',
+  'monospace',
+];
 
 class CodeTextSettings {
   final CodeFontFamily family;
   final double fontSize;
 
   const CodeTextSettings({
-    this.family = CodeFontFamily.jetBrainsMono,
+    this.family = CodeFontFamily.berkeleyMono,
     this.fontSize = defaultCodeFontSize,
   });
 

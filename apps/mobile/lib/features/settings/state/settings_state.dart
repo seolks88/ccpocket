@@ -70,7 +70,7 @@ abstract class SettingsState with _$SettingsState {
     @Default(12.0) double codeFontSize,
 
     /// Font family used only for code-oriented surfaces.
-    @Default(CodeFontFamily.jetBrainsMono) CodeFontFamily codeFontFamily,
+    @Default(CodeFontFamily.berkeleyMono) CodeFontFamily codeFontFamily,
 
     /// Whether to hide the voice input button in the chat input bar.
     @Default(false) bool hideVoiceInput,

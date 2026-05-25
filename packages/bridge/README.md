@@ -51,7 +51,7 @@ ccpocket-bridge --version
 | `DIFF_IMAGE_MAX_SIZE_MB` | `5` (5 MB) | Maximum diff image size available for on-demand loading, in MB |
 | `ANTHROPIC_API_KEY` | (none) | Claude Agent SDK API key used for Claude sessions |
 | `ANTHROPIC_AUTH_TOKEN` | (none) | Advanced Claude SDK auth token; prefer `ANTHROPIC_API_KEY` |
-| `OPENAI_API_KEY` | (none) | Codex API key; Codex can also use `~/.codex/auth.json` |
+| `OPENAI_API_KEY` | (none) | Codex API key and voice transcription API key; Codex can also use `~/.codex/auth.json`, but voice transcription requires this environment variable |
 | `HTTPS_PROXY` / `HTTP_PROXY` / `ALL_PROXY` | (none) | Proxy for outgoing fetch requests (`http://`, `https://`, `socks4://`, `socks5://`) |
 
 Lowercase proxy variables (`https_proxy`, `http_proxy`, `all_proxy`) are also

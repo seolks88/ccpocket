@@ -59,14 +59,14 @@ void main() {
     });
 
     test(
-      'code font defaults to Codex-sized JetBrains Mono and persists',
+      'code font defaults to Codex-sized Berkeley Mono and persists',
       () async {
         SharedPreferences.setMockInitialValues({});
         final prefs = await SharedPreferences.getInstance();
         final cubit = SettingsCubit(prefs);
 
         expect(cubit.state.codeFontSize, defaultCodeFontSize);
-        expect(cubit.state.codeFontFamily, CodeFontFamily.jetBrainsMono);
+        expect(cubit.state.codeFontFamily, CodeFontFamily.berkeleyMono);
 
         cubit.setCodeFontSize(16);
         cubit.setCodeFontFamily(CodeFontFamily.dejaVuSansMono);
