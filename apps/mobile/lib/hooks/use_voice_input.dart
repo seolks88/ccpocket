@@ -11,19 +11,21 @@ import '../services/voice_input_service.dart';
 typedef VoiceInputResult = ({
   bool isAvailable,
   bool isRecording,
+  bool isTranscribing,
   void Function() toggle,
 });
 
 /// Manages [VoiceInputService] lifecycle: initialization, start/stop, and
 /// disposal.
 ///
-/// The [controller] is updated in real-time with recognized speech text.
+/// The [controller] is updated after the bridge transcribes the recording.
 /// Speech locale is read from [SettingsCubit].
 VoiceInputResult useVoiceInput(TextEditingController controller) {
   final context = useContext();
   final voiceInput = useMemoized(() => VoiceInputService());
   final isAvailable = useState(false);
   final isRecording = useState(false);
+  final isTranscribing = useState(false);
   final baseInputValue = useRef<TextEditingValue?>(null);
 
   useEffect(() {
@@ -34,8 +36,10 @@ VoiceInputResult useVoiceInput(TextEditingController controller) {
   }, const []);
 
   void toggle() {
+    if (isTranscribing.value) return;
     if (isRecording.value) {
       isRecording.value = false;
+      isTranscribing.value = true;
       final localeId = context.read<SettingsCubit>().state.speechLocaleId;
       final bridge = context.read<BridgeService>();
       voiceInput
@@ -57,6 +61,10 @@ VoiceInputResult useVoiceInput(TextEditingController controller) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('Voice transcription failed: $error')),
             );
+          })
+          .whenComplete(() {
+            if (!context.mounted) return;
+            isTranscribing.value = false;
           });
     } else {
       HapticFeedback.mediumImpact();
@@ -76,6 +84,7 @@ VoiceInputResult useVoiceInput(TextEditingController controller) {
   return (
     isAvailable: isAvailable.value,
     isRecording: isRecording.value,
+    isTranscribing: isTranscribing.value,
     toggle: toggle,
   );
 }

@@ -3,11 +3,11 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 import 'package:uuid/uuid.dart';
 
-import '../models/messages.dart';
 import '../utils/platform_helper.dart';
 import 'bridge_service.dart';
 
@@ -29,12 +29,16 @@ class VoiceInputService {
       _isAvailable = false;
       return false;
     }
-    _isAvailable = await _recorder.hasPermission();
+    _isAvailable = true;
     return _isAvailable;
   }
 
   Future<void> startRecording() async {
     if (!_isAvailable || _isListening) return;
+    final hasPermission = await _recorder.hasPermission();
+    if (!hasPermission) {
+      throw StateError('Microphone permission is required for voice input');
+    }
     final directory = await getTemporaryDirectory();
     final path =
         '${directory.path}/ccpocket-voice-${DateTime.now().microsecondsSinceEpoch}.m4a';
@@ -66,28 +70,32 @@ class VoiceInputService {
       if (bytes.isEmpty) return '';
 
       final requestId = _uuid.v4();
-      final resultFuture = bridge.messages
-          .where((message) => message is VoiceTranscriptionResultMessage)
-          .cast<VoiceTranscriptionResultMessage>()
-          .firstWhere((message) => message.requestId == requestId)
-          .timeout(_transcriptionTimeout);
-
-      bridge.send(
-        ClientMessage.transcribeAudio(
-          requestId: requestId,
-          audioBase64: base64Encode(bytes),
-          mimeType: 'audio/mp4',
-          fileName: 'voice-command.m4a',
-          model: _transcriptionModel,
-          language: _normalizeLanguage(language),
-        ),
-      );
-
-      final result = await resultFuture;
-      if (!result.success) {
-        throw StateError(result.error ?? 'Voice transcription failed');
+      final baseUrl = bridge.httpBaseUrl;
+      if (baseUrl == null) {
+        throw StateError('Bridge is not connected');
       }
-      return result.text?.trim() ?? '';
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/api/transcribe'),
+            headers: const {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'requestId': requestId,
+              'audioBase64': base64Encode(bytes),
+              'mimeType': 'audio/mp4',
+              'fileName': 'voice-command.m4a',
+              'model': _transcriptionModel,
+              'language': _normalizeLanguage(language),
+            }),
+          )
+          .timeout(_transcriptionTimeout);
+      final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+      if (response.statusCode < 200 ||
+          response.statusCode >= 300 ||
+          decoded['success'] != true) {
+        final error = decoded['error'] as String?;
+        throw StateError(error ?? 'Voice transcription failed');
+      }
+      return (decoded['text'] as String? ?? '').trim();
     } finally {
       unawaited(file.delete().catchError((_) => file));
     }

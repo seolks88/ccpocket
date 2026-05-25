@@ -1598,6 +1598,23 @@ class AppLocalizationsJa extends AppLocalizations {
       '長い行を折り返さず、hunk 単位で横スクロールできます。Git 操作はロングタップのメニューまたは下部ボタンから実行します。';
 
   @override
+  String get imagePasteShortcut => '画像ペーストのショートカット';
+
+  @override
+  String get imagePasteShortcutCtrlV => 'Ctrl+V';
+
+  @override
+  String get imagePasteShortcutCtrlVDescription =>
+      'macOS で推奨。Cmd+V を通常のペーストや音声入力ツール用に残します。';
+
+  @override
+  String get imagePasteShortcutCommandV => 'Cmd+V';
+
+  @override
+  String get imagePasteShortcutCommandVDescription =>
+      '音声入力アプリ、クリップボード管理アプリ、テキスト展開ツールと競合する可能性があります。';
+
+  @override
   String get gitDiffFocusAutoLandscape => 'diff集中モードで横画面にする';
 
   @override
@@ -1953,6 +1970,9 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get tooltipStopRecording => '録音を停止';
+
+  @override
+  String get tooltipTranscribingVoiceInput => '音声を文字起こし中';
 
   @override
   String get tooltipSendMessage => 'メッセージを送信';

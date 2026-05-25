@@ -2,6 +2,31 @@
 
 All notable changes to `@ccpocket/bridge` will be documented in this file.
 
+## [1.62.0] - 2026-05-25
+
+### Added
+- Load local Bridge environment files so OpenAI transcription keys can live in `.env.local`.
+- Add an HTTP transcription endpoint for mobile voice input.
+
+### Changed
+- Keep the existing WebSocket transcription path for compatibility while routing mobile voice input through HTTP for a more stable request lifecycle.
+
+## [1.61.4] - 2026-05-25
+
+### Changed
+- Update the Claude Agent SDK to 0.3.148.
+- Switch the Bridge package license metadata to MIT.
+
+## [1.61.3] - 2026-05-23
+
+### Fixed
+- Support the `bonjour-service` 1.4 CommonJS export shape so mDNS advertising continues to work after fresh installs.
+
+## [1.61.2] - 2026-05-21
+
+### Fixed
+- Persist Claude session renames through the Claude Agent SDK transcript metadata instead of creating incomplete `sessions-index.json` entries.
+
 ## [1.61.1] - 2026-05-20
 
 ### Fixed

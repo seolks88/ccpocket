@@ -5,7 +5,6 @@ import { readFileSync, existsSync } from "node:fs";
 import { lstat, readFile, readlink, stat, unlink } from "node:fs/promises";
 import { resolve, extname, basename, relative } from "node:path";
 import { promisify } from "node:util";
-import { fetch as undiciFetch, FormData } from "undici";
 import { WebSocketServer, WebSocket } from "ws";
 import {
   SessionManager,
@@ -96,6 +95,7 @@ import {
   resolvePlatformPath,
   resolvePlatformPathFrom,
 } from "./path-utils.js";
+import { transcribeAudioWithOpenAI } from "./transcription.js";
 
 type SystemServerMessage = Extract<ServerMessage, { type: "system" }>;
 type ClaudePermissionMode =
@@ -398,70 +398,6 @@ function inferCodexPermissionsMode(params: {
 
 function errorMessageOf(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
-}
-
-const DEFAULT_TRANSCRIPTION_MODEL = "gpt-4o-mini-transcribe";
-const MAX_TRANSCRIPTION_AUDIO_BYTES = 25 * 1024 * 1024;
-
-async function transcribeAudioWithOpenAI(params: {
-  audioBase64: string;
-  mimeType: string;
-  fileName?: string;
-  model?: string;
-  language?: string;
-}): Promise<{ text: string; model: string }> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error("OPENAI_API_KEY is not set on the Bridge machine");
-  }
-
-  const audio = Buffer.from(params.audioBase64, "base64");
-  if (audio.length === 0) {
-    throw new Error("Audio recording is empty");
-  }
-  if (audio.length > MAX_TRANSCRIPTION_AUDIO_BYTES) {
-    throw new Error("Audio recording exceeds the 25 MB transcription limit");
-  }
-
-  const model = params.model?.trim() || DEFAULT_TRANSCRIPTION_MODEL;
-  const form = new FormData();
-  form.append(
-    "file",
-    new Blob([audio], {
-      type: params.mimeType || "audio/mp4",
-    }),
-    params.fileName || "voice-command.m4a",
-  );
-  form.append("model", model);
-  form.append("response_format", "json");
-  if (params.language?.trim()) {
-    form.append("language", params.language.trim());
-  }
-
-  const response = await undiciFetch(
-    "https://api.openai.com/v1/audio/transcriptions",
-    {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}` },
-      body: form,
-    },
-  );
-
-  const body = (await response.json().catch(() => null)) as
-    | { text?: unknown; error?: { message?: unknown } }
-    | null;
-  if (!response.ok) {
-    throw new Error(
-      typeof body?.error?.message === "string"
-        ? body.error.message
-        : `OpenAI transcription failed with HTTP ${response.status}`,
-    );
-  }
-
-  if (typeof body?.text !== "string") {
-    throw new Error("OpenAI transcription response did not include text");
-  }
-  return { text: body.text.trim(), model };
 }
 
 function isClaudeAutoModeUnavailableError(err: unknown): boolean {

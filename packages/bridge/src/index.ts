@@ -11,15 +11,19 @@ import { ProjectHistory } from "./project-history.js";
 import { getVersionInfo } from "./version.js";
 import { fetchAllUsage } from "./usage.js";
 import { runDoctor } from "./doctor.js";
+import { handleTranscriptionRequest } from "./transcription.js";
 import { DebugTraceStore } from "./debug-trace-store.js";
 import { RecordingStore } from "./recording-store.js";
 import { FirebaseAuthClient } from "./firebase-auth.js";
 import { PromptHistoryBackupStore } from "./prompt-history-backup.js";
+import { loadEnvFiles } from "./env-file.js";
 import {
   promptHistoryStoreFileForPort,
   PromptHistoryStore,
 } from "./prompt-history-store.js";
 import { resolvePlatformPath } from "./path-utils.js";
+
+loadEnvFiles();
 
 export async function startServer() {
   const PORT = parseInt(process.env.BRIDGE_PORT ?? "8765", 10);
@@ -161,6 +165,10 @@ export async function startServer() {
         });
       return;
     }
+
+    // Voice transcription endpoint. This is HTTP-based instead of WebSocket so
+    // a long audio request is not tied to the chat session socket lifecycle.
+    if (handleTranscriptionRequest(req, res)) return;
 
     // Doctor endpoint
     if (req.url === "/doctor" && req.method === "GET") {

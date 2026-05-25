@@ -62,6 +62,7 @@ void main() {
       // test environment).
       expect(result.isAvailable, isFalse);
       expect(result.isRecording, isFalse);
+      expect(result.isTranscribing, isFalse);
 
       controller.dispose();
     });

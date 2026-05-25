@@ -1016,6 +1016,7 @@ class ChatInputWithOverlays extends HookWidget {
                     !context.watch<SettingsCubit>().state.hideVoiceInput &&
                     voice.isAvailable,
                 isRecording: voice.isRecording,
+                isTranscribing: voice.isTranscribing,
                 onSend: sendMessage,
                 onStop: stopSession,
                 onInterrupt: interruptSession,
@@ -1039,6 +1040,10 @@ class ChatInputWithOverlays extends HookWidget {
                     : null,
                 hintText: hintText,
                 onPasteImage: isDesktopPlatform ? tryPasteImage : null,
+                imagePasteShortcut: context
+                    .watch<SettingsCubit>()
+                    .state
+                    .imagePasteShortcut,
                 onCompletionKeyEvent: handleCompletionKeyEvent,
               ),
             ),
