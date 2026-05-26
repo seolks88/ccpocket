@@ -179,6 +179,7 @@ class _CodexSessionScreenState extends State<CodexSessionScreen> {
   String? _codexApprovalsReviewer;
   CodexPermissionsMode? _codexPermissionsMode;
   ReasoningEffort? _modelReasoningEffort;
+  String? _serviceTier;
   StreamSubscription<ServerMessage>? _pendingSub;
   StreamSubscription<ServerMessage>? _sandboxRestartSub;
   StreamSubscription<String>? _sessionStoppedSub;
@@ -199,6 +200,7 @@ class _CodexSessionScreenState extends State<CodexSessionScreen> {
     );
     _codexApprovalsReviewer = widget.initialApprovalsReviewer;
     _modelReasoningEffort = _cachedModelReasoningEffort(bridge, _sessionId);
+    _serviceTier = _cachedServiceTier(bridge, _sessionId);
     final explorerHistory = bridge.getExplorerHistory(_sessionId);
     _explorerCurrentPath = explorerHistory.currentPath;
     _recentPeekedFiles = explorerHistory.recentPeekedFiles;
@@ -289,6 +291,7 @@ class _CodexSessionScreenState extends State<CodexSessionScreen> {
       _modelReasoningEffort =
           reasoningEffortFromRaw(msg.modelReasoningEffort) ??
           _modelReasoningEffort;
+      _serviceTier = msg.serviceTier ?? _serviceTier;
       _explorerCurrentPath = explorerHistory.currentPath;
       _recentPeekedFiles = explorerHistory.recentPeekedFiles;
     });
@@ -321,6 +324,7 @@ class _CodexSessionScreenState extends State<CodexSessionScreen> {
       _modelReasoningEffort =
           reasoningEffortFromRaw(msg.modelReasoningEffort) ??
           _modelReasoningEffort;
+      _serviceTier = msg.serviceTier ?? _serviceTier;
       _isPending = false;
     });
     _pendingSub?.cancel();
@@ -387,6 +391,10 @@ class _CodexSessionScreenState extends State<CodexSessionScreen> {
         context.read<BridgeService>(),
         widget.sessionId,
       );
+      _serviceTier = _cachedServiceTier(
+        context.read<BridgeService>(),
+        widget.sessionId,
+      );
       _explorerCurrentPath = explorerHistory.currentPath;
       _recentPeekedFiles = explorerHistory.recentPeekedFiles;
     });
@@ -399,6 +407,14 @@ class _CodexSessionScreenState extends State<CodexSessionScreen> {
     for (final session in bridge.sessions) {
       if (session.id != sessionId) continue;
       return reasoningEffortFromRaw(session.codexModelReasoningEffort);
+    }
+    return null;
+  }
+
+  String? _cachedServiceTier(BridgeService bridge, String sessionId) {
+    for (final session in bridge.sessions) {
+      if (session.id != sessionId) continue;
+      return session.codexServiceTier;
     }
     return null;
   }
@@ -465,6 +481,7 @@ class _CodexSessionScreenState extends State<CodexSessionScreen> {
       codexApprovalsReviewer: _codexApprovalsReviewer,
       codexPermissionsMode: _codexPermissionsMode,
       modelReasoningEffort: _modelReasoningEffort,
+      serviceTier: _serviceTier,
       onBackToSessions: widget.onBackToSessions,
       hideSessionBackButton: widget.hideSessionBackButton,
     );
@@ -488,6 +505,7 @@ class _CodexProviders extends StatelessWidget {
   final String? codexApprovalsReviewer;
   final CodexPermissionsMode? codexPermissionsMode;
   final ReasoningEffort? modelReasoningEffort;
+  final String? serviceTier;
   final VoidCallback? onBackToSessions;
   final bool hideSessionBackButton;
 
@@ -505,6 +523,7 @@ class _CodexProviders extends StatelessWidget {
     this.codexApprovalsReviewer,
     this.codexPermissionsMode,
     this.modelReasoningEffort,
+    this.serviceTier,
     this.onBackToSessions,
     this.hideSessionBackButton = false,
   });
@@ -529,6 +548,7 @@ class _CodexProviders extends StatelessWidget {
             initialCodexApprovalsReviewer: codexApprovalsReviewer,
             initialCodexPermissionsMode: codexPermissionsMode,
             initialModelReasoningEffort: modelReasoningEffort,
+            initialServiceTier: serviceTier,
             initialProjectPath: projectPath,
           ),
         ),

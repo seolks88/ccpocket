@@ -6,6 +6,7 @@ import '../theme/app_theme.dart';
 class CodexEnvironmentSummary extends StatelessWidget {
   final String? model;
   final String? reasoningEffort;
+  final String? serviceTier;
   final String? approvalPolicy;
   final String? approvalsReviewer;
   final String? sandboxMode;
@@ -18,6 +19,7 @@ class CodexEnvironmentSummary extends StatelessWidget {
     super.key,
     this.model,
     this.reasoningEffort,
+    this.serviceTier,
     this.approvalPolicy,
     this.approvalsReviewer,
     this.sandboxMode,
@@ -61,6 +63,12 @@ class CodexEnvironmentSummary extends StatelessWidget {
           label: executionLabel,
           compact: compact,
         ),
+      if (serviceTier != null && serviceTier!.isNotEmpty)
+        _EnvironmentMeta(
+          icon: Icons.flash_on_outlined,
+          label: _serviceTierLabel(serviceTier),
+          compact: compact,
+        ),
       _EnvironmentMeta(
         icon: _sandboxIcon(sandboxMode),
         label: _sandboxLabel(sandboxMode),
@@ -75,6 +83,14 @@ class CodexEnvironmentSummary extends StatelessWidget {
       children: children,
     );
   }
+}
+
+String _serviceTierLabel(String? serviceTier) {
+  return switch (serviceTier) {
+    'priority' || 'fast' => 'Fast Tier',
+    null || '' => 'Default Tier',
+    final other => '$other Tier',
+  };
 }
 
 class _EnvironmentMeta extends StatelessWidget {

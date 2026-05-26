@@ -235,34 +235,63 @@ void main() {
     expect(find.text('Default'), findsOneWidget);
   });
 
-  testWidgets('codex reasoning effort exposes fast mode label and menu', (
+  testWidgets('codex reasoning effort stays separate from service tier', (
     tester,
   ) async {
-    final fastCubit = ChatSessionCubit(
-      sessionId: 'codex-fast-session',
+    final minimalCubit = ChatSessionCubit(
+      sessionId: 'codex-minimal-session',
       provider: Provider.codex,
       bridge: bridge,
       streamingCubit: streamingCubit,
       initialModelReasoningEffort: ReasoningEffort.minimal,
     );
 
-    await tester.pumpWidget(_wrap(fastCubit, bridge: bridge));
+    await tester.pumpWidget(_wrap(minimalCubit, bridge: bridge));
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('Minimal'), findsOneWidget);
+    expect(find.text('Fast'), findsNothing);
+
+    await tester.tap(find.text('Minimal'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Reasoning'), findsOneWidget);
+    expect(
+      find.text('Current: Minimal - applies from the next message.'),
+      findsOneWidget,
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await minimalCubit.close();
+  });
+
+  testWidgets('codex service tier exposes fast mode separately', (
+    tester,
+  ) async {
+    final tierCubit = ChatSessionCubit(
+      sessionId: 'codex-tier-session',
+      provider: Provider.codex,
+      bridge: bridge,
+      streamingCubit: streamingCubit,
+      initialServiceTier: 'priority',
+    );
+
+    await tester.pumpWidget(_wrap(tierCubit, bridge: bridge));
     await tester.pump(const Duration(milliseconds: 100));
 
     expect(find.text('Fast'), findsOneWidget);
-    expect(find.text('Minimal'), findsNothing);
 
     await tester.tap(find.text('Fast'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Codex mode'), findsOneWidget);
+    expect(find.text('Service tier'), findsOneWidget);
     expect(
       find.text('Current: Fast - applies from the next message.'),
       findsOneWidget,
     );
-    expect(find.text('Fast (Minimal)'), findsOneWidget);
+    expect(find.text('Default'), findsWidgets);
 
     await tester.pumpWidget(const SizedBox.shrink());
-    await fastCubit.close();
+    await tierCubit.close();
   });
 }

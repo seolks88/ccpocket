@@ -88,6 +88,21 @@ class SessionModeBar extends StatelessWidget {
                       color: cs.outlineVariant.withValues(alpha: 0.4),
                     ),
                   ),
+                  ValueListenableBuilder<String?>(
+                    valueListenable: chatCubit.serviceTierListenable,
+                    builder: (context, serviceTier, _) => ServiceTierChip(
+                      serviceTier: serviceTier,
+                      onTap: () => showCodexServiceTierMenu(context, chatCubit),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: VerticalDivider(
+                      width: 1,
+                      thickness: 1,
+                      color: cs.outlineVariant.withValues(alpha: 0.4),
+                    ),
+                  ),
                   ExecutionModeChip(
                     currentMode: executionMode,
                     codexApprovalPolicy: chatCubit.state.codexApprovalPolicy,
@@ -426,7 +441,7 @@ void showCodexReasoningEffortMenu(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Codex mode',
+                        'Reasoning',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
@@ -453,7 +468,7 @@ void showCodexReasoningEffortMenu(
                         ? sheetCs.primary
                         : sheetCs.onSurfaceVariant,
                   ),
-                  title: Text(_reasoningEffortMenuLabel(effort)),
+                  title: Text(_reasoningEffortDisplayLabel(effort)),
                   subtitle: Text(
                     _reasoningEffortDescription(effort, l),
                     style: const TextStyle(fontSize: 12),
@@ -466,6 +481,106 @@ void showCodexReasoningEffortMenu(
                     if (effort == currentEffort) return;
                     HapticFeedback.lightImpact();
                     chatCubit.setModelReasoningEffort(effort);
+                  },
+                ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
+void showCodexServiceTierMenu(
+  BuildContext context,
+  ChatSessionCubit chatCubit,
+) {
+  if (!chatCubit.isCodex) return;
+  final currentTier = chatCubit.serviceTier;
+  final tiers = _codexServiceTiersForSession(context, chatCubit, currentTier);
+
+  showModalBottomSheet(
+    context: context,
+    builder: (sheetContext) {
+      final sheetCs = Theme.of(sheetContext).colorScheme;
+      return SafeArea(
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Service tier',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: sheetCs.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Current: ${_serviceTierLabel(currentTier, tiers)} - applies from the next message.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: sheetCs.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              ListTile(
+                leading: Icon(
+                  Icons.tune,
+                  color: currentTier == null
+                      ? sheetCs.primary
+                      : sheetCs.onSurfaceVariant,
+                ),
+                title: const Text('Default'),
+                subtitle: const Text(
+                  'Use Codex config default',
+                  style: TextStyle(fontSize: 12),
+                ),
+                trailing: currentTier == null
+                    ? Icon(Icons.check, color: sheetCs.primary, size: 20)
+                    : null,
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  if (currentTier == null) return;
+                  HapticFeedback.lightImpact();
+                  chatCubit.setServiceTier(null);
+                },
+              ),
+              for (final tier in tiers)
+                ListTile(
+                  leading: Icon(
+                    Icons.flash_on_outlined,
+                    color: tier.id == currentTier
+                        ? sheetCs.primary
+                        : sheetCs.onSurfaceVariant,
+                  ),
+                  title: Text(_serviceTierLabel(tier.id, tiers)),
+                  subtitle: Text(
+                    tier.description?.isNotEmpty == true
+                        ? tier.description!
+                        : 'Service tier: ${tier.id}',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  trailing: tier.id == currentTier
+                      ? Icon(Icons.check, color: sheetCs.primary, size: 20)
+                      : null,
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    if (tier.id == currentTier) return;
+                    HapticFeedback.lightImpact();
+                    chatCubit.setServiceTier(tier.id);
                   },
                 ),
               const SizedBox(height: 8),
@@ -506,6 +621,38 @@ List<ReasoningEffort> _codexReasoningEffortsForSession(
   return efforts.length > 1 ? efforts : fallback;
 }
 
+List<CodexServiceTier> _codexServiceTiersForSession(
+  BuildContext context,
+  ChatSessionCubit chatCubit,
+  String? currentTier,
+) {
+  final bridge = context.read<BridgeService>();
+  SessionInfo? session;
+  for (final candidate in bridge.sessions) {
+    if (candidate.id == chatCubit.sessionId) {
+      session = candidate;
+      break;
+    }
+  }
+  final model = sanitizeCodexModelName(session?.codexModel);
+  final tiers = model == null
+      ? const <CodexServiceTier>[]
+      : bridge.codexModelServiceTiers[model] ?? const <CodexServiceTier>[];
+  final byId = <String, CodexServiceTier>{
+    for (final tier in tiers)
+      if (tier.id.isNotEmpty) tier.id: tier,
+  };
+  if (currentTier != null &&
+      currentTier.isNotEmpty &&
+      !byId.containsKey(currentTier)) {
+    byId[currentTier] = CodexServiceTier(
+      id: currentTier,
+      name: _serviceTierFallbackName(currentTier),
+    );
+  }
+  return byId.values.toList(growable: false);
+}
+
 ReasoningEffort? _reasoningEffortFromRaw(String? raw) {
   if (raw == null || raw.isEmpty) return null;
   for (final effort in ReasoningEffort.values) {
@@ -525,19 +672,28 @@ IconData _reasoningEffortIcon(ReasoningEffort effort) => switch (effort) {
 
 String _reasoningEffortDisplayLabel(ReasoningEffort effort) => switch (effort) {
   ReasoningEffort.none => 'None',
-  ReasoningEffort.minimal => 'Fast',
+  ReasoningEffort.minimal => 'Minimal',
   ReasoningEffort.low => 'Low',
   ReasoningEffort.medium => 'Medium',
   ReasoningEffort.high => 'High',
   ReasoningEffort.xhigh => 'X High',
 };
 
-String _reasoningEffortMenuLabel(ReasoningEffort effort) {
-  final label = _reasoningEffortDisplayLabel(effort);
-  if (effort == ReasoningEffort.minimal) {
-    return '$label (${effort.label})';
+String _serviceTierFallbackName(String serviceTier) {
+  final normalized = serviceTier.trim().toLowerCase();
+  if (normalized == 'priority' || normalized == 'fast') return 'Fast';
+  return serviceTier;
+}
+
+String _serviceTierLabel(String? serviceTier, List<CodexServiceTier> tiers) {
+  if (serviceTier == null || serviceTier.isEmpty) return 'Default';
+  for (final tier in tiers) {
+    if (tier.id == serviceTier) {
+      final label = tier.label;
+      return label == tier.id ? _serviceTierFallbackName(serviceTier) : label;
+    }
   }
-  return label;
+  return _serviceTierFallbackName(serviceTier);
 }
 
 String _reasoningEffortDescription(
@@ -1033,6 +1189,65 @@ class ThinkingEffortChip extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(_reasoningEffortIcon(currentEffort), size: 13, color: fg),
+                const SizedBox(width: 3),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: fg,
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_drop_down,
+                  size: 14,
+                  color: fg.withValues(alpha: 0.5),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class ServiceTierChip extends StatelessWidget {
+  final String? serviceTier;
+  final VoidCallback onTap;
+
+  const ServiceTierChip({
+    super.key,
+    required this.serviceTier,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDefault = serviceTier == null || serviceTier!.isEmpty;
+    final fg = isDefault ? cs.onSurfaceVariant : cs.primary;
+    final label = isDefault ? 'Tier' : _serviceTierFallbackName(serviceTier!);
+
+    return Tooltip(
+      message:
+          'Service tier: ${isDefault ? 'Default' : '$label ($serviceTier)'}. Applies from the next message.',
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(10),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  isDefault ? Icons.tune : Icons.flash_on_outlined,
+                  size: 13,
+                  color: fg,
+                ),
                 const SizedBox(width: 3),
                 Text(
                   label,

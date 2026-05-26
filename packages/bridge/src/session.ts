@@ -72,6 +72,7 @@ export interface SessionInfo {
     sandboxMode?: string;
     model?: string;
     modelReasoningEffort?: string;
+    serviceTier?: string | null;
     networkAccessEnabled?: boolean;
     webSearchMode?: string;
     additionalWritableRoots?: string[];
@@ -145,6 +146,7 @@ export interface SessionSummary {
     sandboxMode?: string;
     model?: string;
     modelReasoningEffort?: string;
+    serviceTier?: string | null;
     networkAccessEnabled?: boolean;
     webSearchMode?: string;
     additionalWritableRoots?: string[];
@@ -187,6 +189,7 @@ function mergeCodexSettings(
     ...(msg.modelReasoningEffort !== undefined
       ? { modelReasoningEffort: msg.modelReasoningEffort }
       : {}),
+    ...(msg.serviceTier !== undefined ? { serviceTier: msg.serviceTier } : {}),
     ...(msg.networkAccessEnabled !== undefined
       ? { networkAccessEnabled: msg.networkAccessEnabled }
       : {}),
@@ -627,6 +630,7 @@ export class SessionManager {
         sandboxMode: codexOptions.sandboxMode,
         model: codexOptions.model,
         modelReasoningEffort: codexOptions.modelReasoningEffort,
+        serviceTier: codexOptions.serviceTier,
         networkAccessEnabled: codexOptions.networkAccessEnabled,
         webSearchMode: codexOptions.webSearchMode,
         additionalWritableRoots: codexOptions.additionalWritableRoots,

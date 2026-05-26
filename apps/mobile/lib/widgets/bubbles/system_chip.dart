@@ -24,6 +24,7 @@ class SystemChip extends StatelessWidget {
                   leadingLabel: 'Session started',
                   model: message.model,
                   reasoningEffort: message.modelReasoningEffort,
+                  serviceTier: message.serviceTier,
                   approvalPolicy: message.approvalPolicy,
                   approvalsReviewer: message.approvalsReviewer,
                   sandboxMode: message.sandboxMode,

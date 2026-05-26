@@ -53,8 +53,10 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
   bool? _pendingPlanRollback;
   SandboxMode? _pendingSandboxRollback;
   ReasoningEffort? _pendingModelReasoningEffortRollback;
+  String? _pendingServiceTierRollback;
 
   final ValueNotifier<ReasoningEffort> modelReasoningEffortNotifier;
+  final ValueNotifier<String?> serviceTierNotifier;
 
   /// Whether this session is a Codex session.
   bool get isCodex => provider == Provider.codex;
@@ -64,6 +66,10 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
 
   ReasoningEffort get modelReasoningEffort =>
       modelReasoningEffortNotifier.value;
+
+  ValueListenable<String?> get serviceTierListenable => serviceTierNotifier;
+
+  String? get serviceTier => serviceTierNotifier.value;
 
   String _nextOptimisticCodexUserTurnUuid() {
     final userTurnCount = state.entries.whereType<UserChatEntry>().length;
@@ -99,12 +105,14 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
     String? initialCodexApprovalsReviewer,
     CodexPermissionsMode? initialCodexPermissionsMode,
     ReasoningEffort? initialModelReasoningEffort,
+    String? initialServiceTier,
     String? initialProjectPath,
   }) : _bridge = bridge,
        _streamingCubit = streamingCubit,
        modelReasoningEffortNotifier = ValueNotifier(
          initialModelReasoningEffort ?? ReasoningEffort.high,
        ),
+       serviceTierNotifier = ValueNotifier(initialServiceTier),
        super(
          ChatSessionState(
            permissionMode: initialPermissionMode ?? PermissionMode.defaultMode,
@@ -649,6 +657,12 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
     if (update.modelReasoningEffort != null &&
         modelReasoningEffortNotifier.value != update.modelReasoningEffort) {
       modelReasoningEffortNotifier.value = update.modelReasoningEffort!;
+    }
+    if (update.clearServiceTier) {
+      serviceTierNotifier.value = null;
+    } else if (update.serviceTier != null &&
+        serviceTierNotifier.value != update.serviceTier) {
+      serviceTierNotifier.value = update.serviceTier;
     }
     if (isDeliveryPendingQueuedInput(current.queuedInput) &&
         current.queuedInput?.itemId != nextQueuedInput?.itemId) {
@@ -1616,6 +1630,20 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
     );
   }
 
+  /// Change Codex service tier for the next user turn.
+  void setServiceTier(String? serviceTier) {
+    if (!isCodex || serviceTierNotifier.value == serviceTier) return;
+    logger.info(
+      '[session:$sessionId] setServiceTier=${serviceTier ?? 'default'}',
+    );
+    _pendingServiceTierRollback = serviceTierNotifier.value;
+    serviceTierNotifier.value = serviceTier;
+    _bridge.patchSessionServiceTier(sessionId, serviceTier);
+    _bridge.send(
+      ClientMessage.setServiceTier(serviceTier, sessionId: sessionId),
+    );
+  }
+
   /// Change sandbox mode (Claude & Codex).
   /// Bridge destroys and resumes the session with new sandbox settings.
   void setSandboxMode(SandboxMode mode) {
@@ -1716,6 +1744,12 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
         _bridge.patchSessionModelReasoningEffort(sessionId, previous.value);
       }
     }
+    if (_isServiceTierFailure(msg)) {
+      final previous = _pendingServiceTierRollback;
+      _pendingServiceTierRollback = null;
+      serviceTierNotifier.value = previous;
+      _bridge.patchSessionServiceTier(sessionId, previous);
+    }
   }
 
   bool _isPermissionModeFailure(ErrorMessage msg) {
@@ -1740,6 +1774,13 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
         (msg.errorCode == 'unsupported_message' &&
             msg.message == 'set_model_reasoning_effort') ||
         msg.message.startsWith('Failed to set reasoning effort:');
+  }
+
+  bool _isServiceTierFailure(ErrorMessage msg) {
+    return msg.errorCode == 'set_service_tier_rejected' ||
+        (msg.errorCode == 'unsupported_message' &&
+            msg.message == 'set_service_tier') ||
+        msg.message.startsWith('Failed to set service tier:');
   }
 
   /// Stop the session.
@@ -1941,6 +1982,7 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
     _deliveryPendingInputs.clear();
     _subscription?.cancel();
     modelReasoningEffortNotifier.dispose();
+    serviceTierNotifier.dispose();
     _sideEffectsController.close();
     return super.close();
   }

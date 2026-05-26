@@ -117,6 +117,7 @@ export type ClientMessage =
       persistSession?: boolean;
       profile?: string;
       modelReasoningEffort?: string;
+      serviceTier?: string | null;
       networkAccessEnabled?: boolean;
       webSearchMode?: string;
       additionalWritableRoots?: string[];
@@ -170,6 +171,11 @@ export type ClientMessage =
   | {
       type: "set_model_reasoning_effort";
       modelReasoningEffort: CodexReasoningEffort;
+      sessionId?: string;
+    }
+  | {
+      type: "set_service_tier";
+      serviceTier: string | null;
       sessionId?: string;
     }
   | { type: "set_sandbox_mode"; sandboxMode: string; sessionId?: string }
@@ -230,6 +236,7 @@ export type ClientMessage =
       persistSession?: boolean;
       profile?: string;
       modelReasoningEffort?: string;
+      serviceTier?: string | null;
       networkAccessEnabled?: boolean;
       webSearchMode?: string;
       additionalWritableRoots?: string[];
@@ -472,6 +479,7 @@ export type ServerMessage =
       permissionMode?: PermissionMode;
       sandboxMode?: string;
       modelReasoningEffort?: string;
+      serviceTier?: string | null;
       networkAccessEnabled?: boolean;
       webSearchMode?: string;
       additionalWritableRoots?: string[];
@@ -919,6 +927,12 @@ export function parseClientMessage(data: string): ClientMessage | null {
         )
           return null;
         if (
+          msg.serviceTier !== undefined &&
+          msg.serviceTier !== null &&
+          typeof msg.serviceTier !== "string"
+        )
+          return null;
+        if (
           msg.permissionMode !== undefined &&
           !["default", "auto", "acceptEdits", "bypassPermissions", "plan"].includes(
             String(msg.permissionMode),
@@ -1126,6 +1140,12 @@ export function parseClientMessage(data: string): ClientMessage | null {
         if (msg.sessionId !== undefined && typeof msg.sessionId !== "string")
           return null;
         break;
+      case "set_service_tier":
+        if (msg.serviceTier !== null && typeof msg.serviceTier !== "string")
+          return null;
+        if (msg.sessionId !== undefined && typeof msg.sessionId !== "string")
+          return null;
+        break;
       case "set_sandbox_mode":
         if (typeof msg.sandboxMode !== "string") return null;
         break;
@@ -1245,6 +1265,12 @@ export function parseClientMessage(data: string): ClientMessage | null {
           !["none", "minimal", "low", "medium", "high", "xhigh"].includes(
             String(msg.modelReasoningEffort),
           )
+        )
+          return null;
+        if (
+          msg.serviceTier !== undefined &&
+          msg.serviceTier !== null &&
+          typeof msg.serviceTier !== "string"
         )
           return null;
         if (

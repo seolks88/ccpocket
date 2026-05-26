@@ -34,6 +34,8 @@ class ChatStateUpdate {
   final String? codexApprovalsReviewer;
   final CodexPermissionsMode? codexPermissionsMode;
   final ReasoningEffort? modelReasoningEffort;
+  final String? serviceTier;
+  final bool clearServiceTier;
   final bool? planMode;
   final List<ChatEntry> entriesToAdd;
   final List<ChatEntry> entriesToPrepend;
@@ -91,6 +93,8 @@ class ChatStateUpdate {
     this.codexApprovalsReviewer,
     this.codexPermissionsMode,
     this.modelReasoningEffort,
+    this.serviceTier,
+    this.clearServiceTier = false,
     this.planMode,
     this.entriesToAdd = const [],
     this.entriesToPrepend = const [],
@@ -141,6 +145,7 @@ const _unsupportedActions = <String, UnsupportedAction>{
   'read_file': UnsupportedAction.showUpdateHint,
   'steer_queued_input': UnsupportedAction.showUpdateHint,
   'set_model_reasoning_effort': UnsupportedAction.showUpdateHint,
+  'set_service_tier': UnsupportedAction.showUpdateHint,
   'mutate_prompt_history': UnsupportedAction.showUpdateHint,
   'import_prompt_history_v1': UnsupportedAction.showUpdateHint,
   // Git Operations (Phase 1-3)
@@ -561,6 +566,8 @@ class ChatMessageHandler {
     String? projectPath;
     QueuedInputItem? queuedInput;
     ReasoningEffort? modelReasoningEffort;
+    String? serviceTier;
+    bool clearServiceTier = false;
     var clearQueuedInput = false;
 
     // Track last known timestamp from user messages so server entries
@@ -650,6 +657,11 @@ class ChatMessageHandler {
             m.modelReasoningEffort,
           );
         }
+        if (m is SystemMessage &&
+            (m.serviceTier != null || m.subtype == 'set_service_tier')) {
+          serviceTier = m.serviceTier;
+          clearServiceTier = m.serviceTier == null;
+        }
         // Track pending permission request
         if (m is PermissionRequestMessage) {
           if (m.usesAskUserUi) {
@@ -714,6 +726,8 @@ class ChatMessageHandler {
       projectPath: projectPath,
       queuedInput: queuedInput,
       modelReasoningEffort: modelReasoningEffort,
+      serviceTier: serviceTier,
+      clearServiceTier: clearServiceTier,
       clearQueuedInput: clearQueuedInput,
     );
   }
@@ -737,6 +751,8 @@ class ChatMessageHandler {
     String? codexApprovalsReviewer;
     CodexPermissionsMode? codexPermissionsMode;
     ReasoningEffort? modelReasoningEffort;
+    String? serviceTier;
+    bool clearServiceTier = false;
     bool? inPlanMode;
     bool? planMode;
     bool hasExecutionSignals(SystemMessage message) =>
@@ -764,9 +780,12 @@ class ChatMessageHandler {
       );
     }
     if (msg is SystemMessage && msg.modelReasoningEffort != null) {
-      modelReasoningEffort = _reasoningEffortFromRaw(
-        msg.modelReasoningEffort,
-      );
+      modelReasoningEffort = _reasoningEffortFromRaw(msg.modelReasoningEffort);
+    }
+    if (msg is SystemMessage &&
+        (msg.serviceTier != null || subtype == 'set_service_tier')) {
+      serviceTier = msg.serviceTier;
+      clearServiceTier = msg.serviceTier == null;
     }
     if (msg is SystemMessage && msg.permissionMode != null) {
       codexApprovalsReviewer = msg.approvalsReviewer;
@@ -848,6 +867,8 @@ class ChatMessageHandler {
       codexApprovalsReviewer: codexApprovalsReviewer,
       codexPermissionsMode: codexPermissionsMode,
       modelReasoningEffort: modelReasoningEffort,
+      serviceTier: serviceTier,
+      clearServiceTier: clearServiceTier,
       planMode: planMode,
       inPlanMode: inPlanMode,
       slashCommands: commands,

@@ -1518,6 +1518,7 @@ class _SessionListScreenState extends State<SessionListScreen>
       modelReasoningEffort: isCodex
           ? (useCodexProfile ? null : session.codexModelReasoningEffort)
           : null,
+      serviceTier: isCodex ? session.codexServiceTier : null,
       networkAccessEnabled: isCodex
           ? (useCodexCustomPermissions
                 ? null

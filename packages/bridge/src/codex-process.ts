@@ -35,6 +35,7 @@ export interface CodexStartOptions {
     | "medium"
     | "high"
     | "xhigh";
+  serviceTier?: string | null;
   networkAccessEnabled?: boolean;
   webSearchMode?: "disabled" | "cached" | "live";
   collaborationMode?: "plan" | "default";
@@ -181,6 +182,7 @@ interface CodexResolvedSettings {
   codexPermissionsMode?: string;
   sandboxMode?: string;
   modelReasoningEffort?: string;
+  serviceTier?: string | null;
   networkAccessEnabled?: boolean;
   webSearchMode?: string;
 }
@@ -194,6 +196,7 @@ export interface CodexModelMetadata {
   model: string;
   supportedReasoningEfforts: string[];
   defaultReasoningEffort?: string;
+  serviceTiers?: Array<{ id: string; name?: string; description?: string }>;
 }
 
 interface CodexModelListResponse {
@@ -287,6 +290,7 @@ export class CodexProcess extends EventEmitter<CodexProcessEvents> {
   private _modelReasoningEffort:
     | CodexStartOptions["modelReasoningEffort"]
     | undefined;
+  private _serviceTier: string | null | undefined = undefined;
   private lastPlanItemText: string | null = null;
   /** Last assistant text message — used as `result` in completion notification. */
   private lastResultText: string | null = null;
@@ -352,6 +356,10 @@ export class CodexProcess extends EventEmitter<CodexProcessEvents> {
     return this._modelReasoningEffort;
   }
 
+  get serviceTier(): string | null | undefined {
+    return this._serviceTier;
+  }
+
   /**
    * Update reasoning effort at runtime.
    * Takes effect on the next `turn/start` RPC call.
@@ -362,6 +370,17 @@ export class CodexProcess extends EventEmitter<CodexProcessEvents> {
     this._modelReasoningEffort = normalizeReasoningEffort(effort);
     console.log(
       `[codex-process] Reasoning effort changed to: ${this._modelReasoningEffort}`,
+    );
+  }
+
+  /**
+   * Update service tier at runtime.
+   * Takes effect on the next `turn/start` RPC call.
+   */
+  setServiceTier(serviceTier: string | null): void {
+    this._serviceTier = normalizeServiceTier(serviceTier);
+    console.log(
+      `[codex-process] Service tier changed to: ${this._serviceTier ?? "default"}`,
     );
   }
 
@@ -537,6 +556,7 @@ export class CodexProcess extends EventEmitter<CodexProcessEvents> {
                 : undefined;
           if (!model || seenModels.has(model)) continue;
           seenModels.add(model);
+          const serviceTiers = extractServiceTiers(raw);
           models.push({
             model,
             supportedReasoningEfforts: extractReasoningEfforts(raw),
@@ -546,6 +566,7 @@ export class CodexProcess extends EventEmitter<CodexProcessEvents> {
                 : typeof raw.default_reasoning_effort === "string"
                   ? raw.default_reasoning_effort
                   : undefined,
+            ...(serviceTiers.length > 0 ? { serviceTiers } : {}),
           });
         }
       }
@@ -633,6 +654,10 @@ export class CodexProcess extends EventEmitter<CodexProcessEvents> {
     this._modelReasoningEffort = options?.modelReasoningEffort
       ? normalizeReasoningEffort(options.modelReasoningEffort)
       : undefined;
+    this._serviceTier =
+      options?.serviceTier !== undefined
+        ? normalizeServiceTier(options.serviceTier)
+        : undefined;
     this._collaborationMode = options?.collaborationMode ?? "default";
     this.lastPlanItemText = null;
     this.lastResultText = null;
@@ -1123,7 +1148,11 @@ export class CodexProcess extends EventEmitter<CodexProcessEvents> {
       const threadConfig: Record<string, unknown> = {};
       const requestedModel = sanitizeCodexModel(options?.model);
       const requestedReasoningEffort = this._modelReasoningEffort;
+      const requestedServiceTier = this._serviceTier;
       if (requestedModel) threadParams.model = requestedModel;
+      if (requestedServiceTier !== undefined) {
+        threadParams.serviceTier = requestedServiceTier;
+      }
       if (requestedReasoningEffort) {
         // app-server applies reasoning effort on thread start via config overrides,
         // not the top-level thread/start payload.
@@ -1201,6 +1230,11 @@ export class CodexProcess extends EventEmitter<CodexProcessEvents> {
           )
         : requestedReasoningEffort;
       this._modelReasoningEffort = resolvedReasoningEffort;
+      const resolvedServiceTier =
+        resolvedSettings.serviceTier !== undefined
+          ? normalizeServiceTier(resolvedSettings.serviceTier)
+          : requestedServiceTier;
+      this._serviceTier = resolvedServiceTier;
 
       this._threadId = threadId;
       this._agentNickname = stringOrNull(thread?.agentNickname);
@@ -1239,6 +1273,9 @@ export class CodexProcess extends EventEmitter<CodexProcessEvents> {
           : {}),
         ...(resolvedReasoningEffort
           ? { modelReasoningEffort: resolvedReasoningEffort }
+          : {}),
+        ...(resolvedServiceTier !== undefined
+          ? { serviceTier: resolvedServiceTier }
           : {}),
         ...(resolvedSettings.networkAccessEnabled !== undefined
           ? { networkAccessEnabled: resolvedSettings.networkAccessEnabled }
@@ -1601,7 +1638,11 @@ export class CodexProcess extends EventEmitter<CodexProcessEvents> {
         }
         const requestedModel = sanitizeCodexModel(options?.model);
         const requestedReasoningEffort = this._modelReasoningEffort;
+        const requestedServiceTier = this._serviceTier;
         if (requestedModel) params.model = requestedModel;
+        if (requestedServiceTier !== undefined) {
+          params.serviceTier = requestedServiceTier;
+        }
         if (requestedReasoningEffort) {
           params.effort = requestedReasoningEffort;
         }
@@ -2831,6 +2872,14 @@ function normalizeReasoningEffort(
   return value;
 }
 
+function normalizeServiceTier(
+  value: string | null | undefined,
+): string | null | undefined {
+  if (value === undefined || value === null) return value;
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : null;
+}
+
 function extractReasoningEfforts(raw: Record<string, unknown>): string[] {
   const values =
     Array.isArray(raw.supportedReasoningEfforts)
@@ -2848,6 +2897,33 @@ function extractReasoningEfforts(raw: Record<string, unknown>): string[] {
     efforts.push(normalized);
   }
   return efforts;
+}
+
+function extractServiceTiers(
+  raw: Record<string, unknown>,
+): Array<{ id: string; name?: string; description?: string }> {
+  const values = Array.isArray(raw.serviceTiers)
+    ? raw.serviceTiers
+    : Array.isArray(raw.service_tiers)
+      ? raw.service_tiers
+      : [];
+  const seen = new Set<string>();
+  const tiers: Array<{ id: string; name?: string; description?: string }> = [];
+  for (const value of values) {
+    if (!value || typeof value !== "object") continue;
+    const entry = value as Record<string, unknown>;
+    const id = typeof entry.id === "string" ? entry.id.trim() : "";
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    tiers.push({
+      id,
+      ...(typeof entry.name === "string" ? { name: entry.name } : {}),
+      ...(typeof entry.description === "string"
+        ? { description: entry.description }
+        : {}),
+    });
+  }
+  return tiers;
 }
 
 function sanitizeCodexModel(value: unknown): string | undefined {
@@ -2887,6 +2963,16 @@ function extractResolvedSettingsFromThreadResponse(
         : typeof collaborationSettings?.reasoning_effort === "string"
           ? collaborationSettings.reasoning_effort
         : undefined,
+    serviceTier:
+      typeof response.serviceTier === "string"
+        ? response.serviceTier
+        : response.serviceTier === null
+          ? null
+          : typeof response.service_tier === "string"
+            ? response.service_tier
+            : response.service_tier === null
+              ? null
+              : undefined,
     networkAccessEnabled:
       typeof sandbox?.networkAccess === "boolean"
         ? sandbox.networkAccess
