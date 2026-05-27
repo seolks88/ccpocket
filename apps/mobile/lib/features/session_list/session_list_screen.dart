@@ -434,16 +434,27 @@ class _SessionListScreenState extends State<SessionListScreen>
       unawaited(machineManagerCubit.refreshLatestBridgeVersionIfStale());
     }
 
-    // Health check before connecting
-    final health = await BridgeService.checkHealth(url);
-    if (health == null && mounted) {
+    final trimmedApiKey = apiKey?.trim() ?? '';
+
+    // Probe both HTTP health and WebSocket authentication before saving.
+    final diagnostic = await BridgeService.diagnoseConnection(
+      url,
+      apiKey: trimmedApiKey.isNotEmpty ? trimmedApiKey : null,
+    );
+    if (diagnostic.status ==
+            BridgeConnectionDiagnosticStatus.healthUnreachable &&
+        mounted) {
       final shouldConnect = await _showSetupGuide(url);
       if (shouldConnect != true) return;
+    } else if (!diagnostic.canConnect && mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(diagnostic.userMessage)));
+      return;
     }
 
     if (!mounted) return;
     // Auto-save to Machines on successful health check (or user choosing to connect)
-    final trimmedApiKey = apiKey?.trim() ?? '';
     if (machineManagerCubit != null) {
       // Parse host and port from URL
       final uri = Uri.tryParse(
@@ -1013,10 +1024,7 @@ class _SessionListScreenState extends State<SessionListScreen>
     final prefs = await SharedPreferences.getInstance();
     // Merge with existing settings to preserve fields not being updated.
     final existing = await loadClaudeSessionSettings(sessionId);
-    final merged = <String, dynamic>{
-      if (existing != null) ...existing,
-      ...settings,
-    };
+    final merged = <String, dynamic>{...?existing, ...settings};
     await prefs.setString(
       '$_prefKeyClaudeSessionSettingsPrefix$sessionId',
       jsonEncode(merged),

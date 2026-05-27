@@ -527,6 +527,27 @@ describe("BridgeWebSocketServer resume/get_history flow", () => {
     bridge.close();
   });
 
+  it("throttles scheduled codex metadata refreshes", async () => {
+    vi.useFakeTimers();
+    const bridge = new BridgeWebSocketServer({ server: httpServer });
+    (bridge as any).refreshCodexProfiles = vi.fn(async () => {});
+    (bridge as any).refreshCodexModels = vi.fn(async () => {});
+
+    (bridge as any).scheduleCodexMetadataRefresh("/tmp/project-models");
+    await vi.advanceTimersByTimeAsync(500);
+    await Promise.resolve();
+
+    (bridge as any).scheduleCodexMetadataRefresh("/tmp/project-models");
+    await vi.advanceTimersByTimeAsync(500);
+    await Promise.resolve();
+
+    expect((bridge as any).refreshCodexProfiles).toHaveBeenCalledTimes(1);
+    expect((bridge as any).refreshCodexModels).toHaveBeenCalledTimes(1);
+
+    bridge.close();
+    vi.useRealTimers();
+  });
+
   it("suppresses conversation_queue for clients that did not opt in", async () => {
     const bridge = new BridgeWebSocketServer({ server: httpServer });
     const ws = {

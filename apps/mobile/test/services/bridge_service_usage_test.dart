@@ -8,6 +8,24 @@ import 'package:ccpocket/services/bridge_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+class _RealHttpOverrides extends HttpOverrides {
+  // TestWidgetsFlutterBinding installs a fake HttpClient that always returns
+  // 400. This delegates to the dart:io default client for localhost probes.
+  @override
+  // ignore: unnecessary_overrides
+  HttpClient createHttpClient(SecurityContext? context) {
+    return super.createHttpClient(context);
+  }
+}
+
+Future<T> _runWithRealHttp<T>(Future<T> Function() body) {
+  final overrides = _RealHttpOverrides();
+  return HttpOverrides.runZoned(
+    body,
+    createHttpClient: overrides.createHttpClient,
+  );
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -1445,5 +1463,86 @@ void main() {
         bridge.dispose();
       },
     );
+
+    test('diagnoseConnection reports healthy websocket auth', () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      server.listen((request) async {
+        if (WebSocketTransformer.isUpgradeRequest(request)) {
+          final socket = await WebSocketTransformer.upgrade(request);
+          socket.listen((data) {
+            final message = jsonDecode(data as String) as Map<String, dynamic>;
+            if (message['type'] == 'health_check') {
+              socket.add(
+                jsonEncode({
+                  'type': 'system',
+                  'subtype': 'health_check',
+                  'requestId': message['requestId'],
+                }),
+              );
+            }
+          });
+          return;
+        }
+        if (request.uri.path == '/health') {
+          request.response
+            ..headers.contentType = ContentType.json
+            ..write(jsonEncode({'status': 'ok'}));
+        } else if (request.uri.path == '/version') {
+          request.response
+            ..headers.contentType = ContentType.json
+            ..write(jsonEncode({'version': '1.62.0', 'gitCommit': 'abc123'}));
+        } else {
+          request.response.statusCode = HttpStatus.notFound;
+        }
+        await request.response.close();
+      });
+
+      final diagnostic = await _runWithRealHttp(
+        () => BridgeService.diagnoseConnection('ws://127.0.0.1:${server.port}'),
+      );
+
+      expect(diagnostic.status, BridgeConnectionDiagnosticStatus.ok);
+      expect(diagnostic.health?['status'], 'ok');
+      expect(diagnostic.version?['gitCommit'], 'abc123');
+
+      await server.close(force: true);
+    });
+
+    test('diagnoseConnection reports invalid bridge token', () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      server.listen((request) async {
+        if (WebSocketTransformer.isUpgradeRequest(request)) {
+          final socket = await WebSocketTransformer.upgrade(request);
+          await socket.close(4001, 'Unauthorized');
+          return;
+        }
+        if (request.uri.path == '/health') {
+          request.response
+            ..headers.contentType = ContentType.json
+            ..write(jsonEncode({'status': 'ok'}));
+        } else if (request.uri.path == '/version') {
+          request.response
+            ..headers.contentType = ContentType.json
+            ..write(jsonEncode({'version': '1.62.0'}));
+        } else {
+          request.response.statusCode = HttpStatus.notFound;
+        }
+        await request.response.close();
+      });
+
+      final diagnostic = await _runWithRealHttp(
+        () => BridgeService.diagnoseConnection(
+          'ws://127.0.0.1:${server.port}',
+          apiKey: 'wrong',
+        ),
+      );
+
+      expect(
+        diagnostic.status,
+        BridgeConnectionDiagnosticStatus.websocketUnauthorized,
+      );
+
+      await server.close(force: true);
+    });
   });
 }

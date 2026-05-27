@@ -596,6 +596,7 @@ export class BridgeWebSocketServer {
   private static readonly RECENT_SESSIONS_CACHE_MAX_KEYS = 32;
   private static readonly RECENT_SESSIONS_PREWARM_DELAY_MS = 100;
   private static readonly WS_HEARTBEAT_INTERVAL_MS = 25_000;
+  private static readonly CODEX_METADATA_REFRESH_TTL_MS = 5 * 60_000;
 
   private wss: WebSocketServer;
   private sessionManager: SessionManager;
@@ -619,6 +620,7 @@ export class BridgeWebSocketServer {
   private codexProfiles: string[] = [];
   private defaultCodexProfile: string | undefined;
   private codexProfilesRequest: Promise<void> | null = null;
+  private codexMetadataLastRefreshAt = 0;
   private claudeModels: string[] = FALLBACK_CLAUDE_MODELS;
   private claudeModelEfforts: Record<string, ClaudeEffortLevel[]> = {
     ...FALLBACK_CLAUDE_MODEL_EFFORTS,
@@ -5815,11 +5817,23 @@ export class BridgeWebSocketServer {
   }
 
   private scheduleCodexMetadataRefresh(projectPath?: string): void {
+    const now = Date.now();
+    if (
+      this.codexMetadataLastRefreshAt > 0 &&
+      now - this.codexMetadataLastRefreshAt <
+        BridgeWebSocketServer.CODEX_METADATA_REFRESH_TTL_MS
+    ) {
+      return;
+    }
     if (this.codexMetadataRefreshTimer) return;
     this.codexMetadataRefreshTimer = setTimeout(() => {
       this.codexMetadataRefreshTimer = null;
-      void this.refreshCodexProfiles(projectPath);
-      void this.refreshCodexModels(projectPath);
+      void Promise.allSettled([
+        this.refreshCodexProfiles(projectPath),
+        this.refreshCodexModels(projectPath),
+      ]).then(() => {
+        this.codexMetadataLastRefreshAt = Date.now();
+      });
     }, 500);
     this.codexMetadataRefreshTimer.unref?.();
   }

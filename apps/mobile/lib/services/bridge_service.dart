@@ -15,6 +15,46 @@ import '../utils/codex_plan_update.dart';
 import 'bridge_service_base.dart';
 import 'session_runtime_store.dart';
 
+enum BridgeConnectionDiagnosticStatus {
+  ok,
+  invalidUrl,
+  healthUnreachable,
+  websocketUnauthorized,
+  websocketUnreachable,
+  websocketTimeout,
+}
+
+class BridgeConnectionDiagnostic {
+  const BridgeConnectionDiagnostic({
+    required this.status,
+    this.health,
+    this.version,
+    this.detail,
+  });
+
+  final BridgeConnectionDiagnosticStatus status;
+  final Map<String, dynamic>? health;
+  final Map<String, dynamic>? version;
+  final String? detail;
+
+  bool get canConnect => status == BridgeConnectionDiagnosticStatus.ok;
+
+  String get userMessage {
+    return switch (status) {
+      BridgeConnectionDiagnosticStatus.invalidUrl => 'Bridge URL is invalid.',
+      BridgeConnectionDiagnosticStatus.healthUnreachable =>
+        'Bridge server is unreachable.',
+      BridgeConnectionDiagnosticStatus.websocketUnauthorized =>
+        'Bridge API token is missing or invalid.',
+      BridgeConnectionDiagnosticStatus.websocketUnreachable =>
+        'Bridge WebSocket is unreachable.',
+      BridgeConnectionDiagnosticStatus.websocketTimeout =>
+        'Bridge WebSocket did not respond in time.',
+      BridgeConnectionDiagnosticStatus.ok => 'Bridge connection is healthy.',
+    };
+  }
+}
+
 class BridgeService implements BridgeServiceBase {
   static const int _initialPastHistoryLimit = 120;
   static const int _pastHistoryCacheMaxSessions = 30;
@@ -626,8 +666,22 @@ class BridgeService implements BridgeServiceBase {
         },
         onDone: () {
           if (epoch != _connectionEpoch) return;
+          final closeCode = channel.closeCode;
+          final closeReason = channel.closeReason;
           _cancelHealthCheckTimer();
           _channel = null;
+          if (closeCode == 4001) {
+            _setBridgeConnectionState(BridgeConnectionState.disconnected);
+            _messageController.add(
+              ErrorMessage(
+                message: closeReason?.isNotEmpty == true
+                    ? 'Bridge authentication failed: $closeReason'
+                    : 'Bridge API token is missing or invalid.',
+                errorCode: 'bridge_unauthorized',
+              ),
+            );
+            return;
+          }
           if (!_intentionalDisconnect) {
             _setBridgeConnectionState(BridgeConnectionState.disconnected);
             _requeueInFlightInputMessages();
@@ -840,7 +894,10 @@ class BridgeService implements BridgeServiceBase {
     if (_reconnectTimer?.isActive == true) return;
 
     _reconnectAttempt++;
-    final delay = min(pow(2, _reconnectAttempt).toInt(), _maxReconnectDelay);
+    final delay = min(
+      max(1, pow(2, _reconnectAttempt - 1).toInt()),
+      _maxReconnectDelay,
+    );
     _setBridgeConnectionState(BridgeConnectionState.reconnecting);
     _reconnectTimer = Timer(Duration(seconds: delay), () {
       if (_lastUrl != null && !_intentionalDisconnect) {
@@ -2361,17 +2418,37 @@ class BridgeService implements BridgeServiceBase {
     }
   }
 
+  static Uri? _httpBaseUriForWsUrl(String wsUrl) {
+    final uri = Uri.tryParse(wsUrl);
+    if (uri == null || uri.host.isEmpty) return null;
+    final scheme = uri.scheme == 'wss' ? 'https' : 'http';
+    return Uri(
+      scheme: scheme,
+      host: uri.host,
+      port: uri.hasPort ? uri.port : null,
+    );
+  }
+
+  static Uri? _wsUriWithToken(String wsUrl, String? apiKey) {
+    final uri = Uri.tryParse(wsUrl);
+    if (uri == null || uri.host.isEmpty) return null;
+    final trimmedApiKey = apiKey?.trim() ?? '';
+    if (trimmedApiKey.isEmpty || uri.queryParameters.containsKey('token')) {
+      return uri;
+    }
+    return uri.replace(
+      queryParameters: {...uri.queryParameters, 'token': trimmedApiKey},
+    );
+  }
+
   /// Check if the Bridge server is reachable via /health endpoint.
   /// Returns the health JSON on success, null on failure.
   static Future<Map<String, dynamic>?> checkHealth(String wsUrl) async {
     try {
-      final uri = Uri.tryParse(wsUrl);
-      if (uri == null) return null;
-      final scheme = uri.scheme == 'wss' ? 'https' : 'http';
-      final port = uri.hasPort ? ':${uri.port}' : '';
-      final healthUrl = '$scheme://${uri.host}$port/health';
+      final baseUri = _httpBaseUriForWsUrl(wsUrl);
+      if (baseUri == null) return null;
       final response = await http
-          .get(Uri.parse(healthUrl))
+          .get(baseUri.replace(path: '/health'))
           .timeout(const Duration(seconds: 3));
       if (response.statusCode == 200) {
         return jsonDecode(response.body) as Map<String, dynamic>;
@@ -2379,6 +2456,95 @@ class BridgeService implements BridgeServiceBase {
       return null;
     } catch (_) {
       return null;
+    }
+  }
+
+  static Future<Map<String, dynamic>?> checkVersion(String wsUrl) async {
+    try {
+      final baseUri = _httpBaseUriForWsUrl(wsUrl);
+      if (baseUri == null) return null;
+      final response = await http
+          .get(baseUri.replace(path: '/version'))
+          .timeout(const Duration(seconds: 2));
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Run a lightweight end-to-end connection probe:
+  /// HTTP health first, then WebSocket auth/readiness.
+  static Future<BridgeConnectionDiagnostic> diagnoseConnection(
+    String wsUrl, {
+    String? apiKey,
+    Duration socketTimeout = const Duration(seconds: 3),
+  }) async {
+    final wsUri = _wsUriWithToken(wsUrl, apiKey);
+    if (wsUri == null ||
+        (wsUri.scheme != 'ws' && wsUri.scheme != 'wss') ||
+        wsUri.host.isEmpty) {
+      return const BridgeConnectionDiagnostic(
+        status: BridgeConnectionDiagnosticStatus.invalidUrl,
+      );
+    }
+
+    final health = await checkHealth(wsUrl);
+    if (health == null) {
+      return const BridgeConnectionDiagnostic(
+        status: BridgeConnectionDiagnosticStatus.healthUnreachable,
+      );
+    }
+    final version = await checkVersion(wsUrl);
+
+    WebSocketChannel? probe;
+    try {
+      probe = WebSocketChannel.connect(wsUri);
+      await probe.ready.timeout(socketTimeout);
+      probe.sink.add(
+        ClientMessage.healthCheck(requestId: 'connection-probe').toJson(),
+      );
+      await probe.stream.first.timeout(socketTimeout);
+      return BridgeConnectionDiagnostic(
+        status: BridgeConnectionDiagnosticStatus.ok,
+        health: health,
+        version: version,
+      );
+    } on TimeoutException catch (error) {
+      if (probe?.closeCode == 4001) {
+        return BridgeConnectionDiagnostic(
+          status: BridgeConnectionDiagnosticStatus.websocketUnauthorized,
+          health: health,
+          version: version,
+          detail: probe?.closeReason,
+        );
+      }
+      return BridgeConnectionDiagnostic(
+        status: BridgeConnectionDiagnosticStatus.websocketTimeout,
+        health: health,
+        version: version,
+        detail: error.message,
+      );
+    } catch (error) {
+      if (probe?.closeCode == 4001) {
+        return BridgeConnectionDiagnostic(
+          status: BridgeConnectionDiagnosticStatus.websocketUnauthorized,
+          health: health,
+          version: version,
+          detail: probe?.closeReason,
+        );
+      }
+      return BridgeConnectionDiagnostic(
+        status: BridgeConnectionDiagnosticStatus.websocketUnreachable,
+        health: health,
+        version: version,
+        detail: error.toString(),
+      );
+    } finally {
+      final sink = probe?.sink;
+      if (sink != null) unawaited(sink.close());
     }
   }
 
@@ -2458,8 +2624,9 @@ class BridgeService implements BridgeServiceBase {
       }
     } else if (_connectionState == BridgeConnectionState.disconnected) {
       connect(_lastUrl!);
+    } else if (_connectionState == BridgeConnectionState.reconnecting) {
+      _reconnectImmediately();
     }
-    // If reconnecting, do nothing — already in progress.
   }
 
   void disconnect() {
