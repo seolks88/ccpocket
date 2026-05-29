@@ -371,6 +371,12 @@ class AppColors extends ThemeExtension<AppColors> {
   // Subtle text
   final Color subtleText;
 
+  // Mode / reasoning accents
+  final Color modeAcceptEdits; // "accept edits" / accept-all mode
+  final Color thinking; // agent reasoning text/icon (distinct from teal tools)
+  final Color thinkingBorder; // agent reasoning card border
+  final Color neutralChip; // neutral chip bg (line counts, "Stopped", etc.)
+
   // Code block
   final Color codeBackground;
   final Color codeBorder;
@@ -419,6 +425,10 @@ class AppColors extends ThemeExtension<AppColors> {
     required this.statusPlan,
     required this.statusPlanGlow,
     required this.subtleText,
+    required this.modeAcceptEdits,
+    required this.thinking,
+    required this.thinkingBorder,
+    required this.neutralChip,
     required this.codeBackground,
     required this.codeBorder,
     required this.toolResultBackground,
@@ -464,6 +474,10 @@ class AppColors extends ThemeExtension<AppColors> {
     statusPlan: Color(0xFF1F8F4E), // structured plan green
     statusPlanGlow: Color(0xFF7BD89A), // lighter green for glow
     subtleText: Color(0xFF6B5E54), // warm stone (WCAG AA)
+    modeAcceptEdits: Color(0xFF6D28D9), // Violet 700 (AA on light cards)
+    thinking: Color(0xFF5B53A6), // muted indigo (reasoning)
+    thinkingBorder: Color(0xFFCBC6EB), // soft indigo border
+    neutralChip: Color(0xFFE4E4E7), // Zinc 200
     codeBackground: Color(0xFFF5F0EB), // warm cream
     codeBorder: Color(0xFF99D5CF), // Teal accent border
     toolResultBackground: Color(0xFFF5F0EB),
@@ -504,11 +518,15 @@ class AppColors extends ThemeExtension<AppColors> {
     statusRunning: Color(0xFF4DA3FF), // electric working blue
     statusApproval: Color(0xFFFDBA74), // Orange 300
     statusCompacting: Color(0xFFA78BFA), // Violet 400
-    statusIdle: Color(0xFF6E6E6E), // neutral grey
+    statusIdle: Color(0xFF8A8A8A), // neutral grey (AA as small text on dark)
     statusOnline: Color(0xFF4ADE80), // green for online/running indicators
     statusPlan: Color(0xFF57C779), // natural plan green
     statusPlanGlow: Color(0xFF9AE6B4), // lifted green glow
     subtleText: Color(0xFFB8B5B0), // neutral-warm stone
+    modeAcceptEdits: Color(0xFFC4A0FF), // soft violet (AA on dark)
+    thinking: Color(0xFFB4ADE0), // soft lavender (reasoning)
+    thinkingBorder: Color(0xFF36314F), // muted indigo border
+    neutralChip: Color(0xFF262626), // Neutral 800
     codeBackground: Color(0xFF1E1E1E), // neutral lifted
     codeBorder: Color(0xFF3D3D3D), // match outlineVariant
     toolResultBackground: Color(0xFF1E1E1E),
@@ -554,6 +572,10 @@ class AppColors extends ThemeExtension<AppColors> {
     Color? statusPlan,
     Color? statusPlanGlow,
     Color? subtleText,
+    Color? modeAcceptEdits,
+    Color? thinking,
+    Color? thinkingBorder,
+    Color? neutralChip,
     Color? codeBackground,
     Color? codeBorder,
     Color? toolResultBackground,
@@ -598,6 +620,10 @@ class AppColors extends ThemeExtension<AppColors> {
       statusPlan: statusPlan ?? this.statusPlan,
       statusPlanGlow: statusPlanGlow ?? this.statusPlanGlow,
       subtleText: subtleText ?? this.subtleText,
+      modeAcceptEdits: modeAcceptEdits ?? this.modeAcceptEdits,
+      thinking: thinking ?? this.thinking,
+      thinkingBorder: thinkingBorder ?? this.thinkingBorder,
+      neutralChip: neutralChip ?? this.neutralChip,
       codeBackground: codeBackground ?? this.codeBackground,
       codeBorder: codeBorder ?? this.codeBorder,
       toolResultBackground: toolResultBackground ?? this.toolResultBackground,
@@ -677,6 +703,10 @@ class AppColors extends ThemeExtension<AppColors> {
       statusPlan: Color.lerp(statusPlan, other.statusPlan, t)!,
       statusPlanGlow: Color.lerp(statusPlanGlow, other.statusPlanGlow, t)!,
       subtleText: Color.lerp(subtleText, other.subtleText, t)!,
+      modeAcceptEdits: Color.lerp(modeAcceptEdits, other.modeAcceptEdits, t)!,
+      thinking: Color.lerp(thinking, other.thinking, t)!,
+      thinkingBorder: Color.lerp(thinkingBorder, other.thinkingBorder, t)!,
+      neutralChip: Color.lerp(neutralChip, other.neutralChip, t)!,
       codeBackground: Color.lerp(codeBackground, other.codeBackground, t)!,
       codeBorder: Color.lerp(codeBorder, other.codeBorder, t)!,
       toolResultBackground: Color.lerp(
