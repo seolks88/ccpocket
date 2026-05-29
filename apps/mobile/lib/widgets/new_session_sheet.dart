@@ -3594,10 +3594,10 @@ class _SheetActions extends StatelessWidget {
                 elevation: 0,
               ),
               onPressed: canStart ? onStart : null,
-              child: Text(
-                'Start with ${provider.label}',
-                style: Theme.of(context).textTheme.labelLarge,
-              ),
+              // No explicit text color: let FilledButton's foregroundColor
+              // (provider accent when enabled, theme-dimmed when disabled)
+              // govern. The FilledButtonTheme already supplies labelLarge/w600.
+              child: Text('Start with ${provider.label}'),
             ),
           ),
         ],
