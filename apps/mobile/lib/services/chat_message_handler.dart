@@ -345,6 +345,19 @@ class ChatMessageHandler {
         if (errorCode == 'git_not_available' && _gitTipShown) {
           return const ChatStateUpdate();
         }
+        // A transient input can race ahead of session restore after bridge
+        // restart/reconnect. The chat screen will reattach to the real session,
+        // so avoid inserting this global bridge error into the conversation.
+        if (errorCode == 'no_active_session' ||
+            message == "No active session. Send 'start' first.") {
+          logger.warning('[handler] suppressed transient no-active-session');
+          return const ChatStateUpdate();
+        }
+        if (errorCode == 'session_not_found' ||
+            RegExp(r'^Session [A-Za-z0-9_-]+ not found$').hasMatch(message)) {
+          logger.warning('[handler] suppressed transient session-not-found');
+          return const ChatStateUpdate();
+        }
         // New Bridge (≥ 1.23.0): includes errorCode + original message type
         if (errorCode == 'unsupported_message') {
           return _handleUnsupportedMessage(message);
@@ -629,10 +642,15 @@ class ChatMessageHandler {
           ),
         );
       } else {
-        // Don't add internal metadata messages as visible entries
-        if (m is! SystemMessage ||
-            (m.subtype != 'supported_commands' &&
-                m.subtype != 'session_created')) {
+        // Don't add internal metadata messages as visible entries. Codex keeps
+        // its init summary visible; Claude Code treats init/session metadata as
+        // chrome state, not chat output.
+        final isHiddenSystemMessage =
+            m is SystemMessage &&
+            (m.subtype == 'supported_commands' ||
+                m.subtype == 'session_created' ||
+                (m.subtype == 'init' && m.provider != Provider.codex.value));
+        if (!isHiddenSystemMessage) {
           entries.add(ServerChatEntry(m, timestamp: lastKnownTs));
         }
         // Restore slash commands from history (init, supported_commands, or
@@ -922,9 +940,9 @@ class ChatMessageHandler {
         msg.tipCode == 'git_not_available') {
       _gitTipShown = true;
     }
-    // Add init and tip as visible chat entries; session_created and
-    // supported_commands are internal metadata messages.
-    final addEntry = subtype == 'init' || subtype == 'tip';
+    // Add Codex init and tips as visible chat entries; Claude init,
+    // session_created, and supported_commands are internal metadata messages.
+    final addEntry = subtype == 'tip' || (subtype == 'init' && isCodex);
     return ChatStateUpdate(
       entriesToAdd: addEntry ? [ServerChatEntry(msg)] : [],
       permissionMode: permissionMode,

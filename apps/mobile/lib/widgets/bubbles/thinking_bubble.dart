@@ -66,10 +66,15 @@ class _ThinkingBubbleState extends State<ThinkingBubble>
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final thinkingColor = cs.tertiary;
-    final preview = widget.thinking.length > 80
-        ? '${widget.thinking.substring(0, 80)}...'
-        : widget.thinking;
-    final lineCount = '\n'.allMatches(widget.thinking).length + 1;
+    final trimmedThinking = widget.thinking.trim();
+    final preview = trimmedThinking.length > 80
+        ? '${trimmedThinking.substring(0, 80)}...'
+        : trimmedThinking;
+    final lineCount = trimmedThinking.isEmpty
+        ? 0
+        : '\n'.allMatches(trimmedThinking).length + 1;
+    final lineLabel = lineCount == 1 ? '1 line' : '$lineCount lines';
+    final showPreview = preview.isNotEmpty;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -130,7 +135,7 @@ class _ThinkingBubbleState extends State<ThinkingBubble>
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
-                        '$lineCount lines',
+                        lineLabel,
                         style: TextStyle(fontSize: 10, color: thinkingColor),
                       ),
                     ),
@@ -142,7 +147,7 @@ class _ThinkingBubbleState extends State<ThinkingBubble>
                     ),
                   ],
                 ),
-                if (!_expanded) ...[
+                if (!_expanded && showPreview) ...[
                   const SizedBox(height: 6),
                   Text(
                     preview,

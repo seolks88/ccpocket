@@ -127,6 +127,50 @@ void main() {
     });
   });
 
+  group('ErrorMessage handling', () {
+    test('suppresses transient no-active-session errors', () {
+      final update = handler.handle(
+        const ErrorMessage(
+          message: "No active session. Send 'start' first.",
+          errorCode: 'no_active_session',
+        ),
+        isBackground: false,
+      );
+
+      expect(update.entriesToAdd, isEmpty);
+    });
+
+    test('suppresses legacy transient no-active-session errors', () {
+      final update = handler.handle(
+        const ErrorMessage(message: "No active session. Send 'start' first."),
+        isBackground: false,
+      );
+
+      expect(update.entriesToAdd, isEmpty);
+    });
+
+    test('suppresses transient stale-session errors', () {
+      final update = handler.handle(
+        const ErrorMessage(
+          message: 'Session 74498215 not found',
+          errorCode: 'session_not_found',
+        ),
+        isBackground: false,
+      );
+
+      expect(update.entriesToAdd, isEmpty);
+    });
+
+    test('suppresses legacy transient stale-session errors', () {
+      final update = handler.handle(
+        const ErrorMessage(message: 'Session 74498215 not found'),
+        isBackground: false,
+      );
+
+      expect(update.entriesToAdd, isEmpty);
+    });
+  });
+
   group('AssistantMessage handling', () {
     test('triggers collapse tool results', () {
       final update = handler.handle(
@@ -709,14 +753,33 @@ void main() {
   });
 
   group('SystemMessage slash command handling', () {
-    test('init with slashCommands populates commands and adds entry', () {
+    test(
+      'claude init with slashCommands populates commands without chat entry',
+      () {
+        final update = handler.handle(
+          const SystemMessage(
+            subtype: 'init',
+            slashCommands: ['compact', 'review', 'test-flutter'],
+            skills: ['test-flutter'],
+          ),
+          isBackground: false,
+        );
+        expect(update.slashCommands, isNotNull);
+        expect(update.slashCommands!.length, 3);
+        expect(update.entriesToAdd, isEmpty);
+      },
+    );
+
+    test('codex init with slashCommands populates commands and adds entry', () {
       final update = handler.handle(
         const SystemMessage(
           subtype: 'init',
+          provider: 'codex',
           slashCommands: ['compact', 'review', 'test-flutter'],
           skills: ['test-flutter'],
         ),
         isBackground: false,
+        isCodex: true,
       );
       expect(update.slashCommands, isNotNull);
       expect(update.slashCommands!.length, 3);

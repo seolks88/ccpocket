@@ -2061,16 +2061,35 @@ export class BridgeWebSocketServer {
       }
 
       case "input": {
-        const session = this.resolveSession(msg.sessionId);
+        const requestedSessionId = msg.sessionId;
+        const clientMessageId = msg.clientMessageId;
+        const session = this.resolveSession(requestedSessionId);
         if (!session) {
+          if (requestedSessionId && clientMessageId) {
+            this.send(ws, {
+              type: "input_rejected",
+              sessionId: requestedSessionId,
+              clientMessageId,
+              reason: "session_not_found",
+            });
+            return;
+          }
+          if (requestedSessionId) {
+            this.send(ws, {
+              type: "error",
+              message: `Session ${requestedSessionId} not found`,
+              errorCode: "session_not_found",
+            });
+            return;
+          }
           this.send(ws, {
             type: "error",
             message: "No active session. Send 'start' first.",
+            errorCode: "no_active_session",
           });
           return;
         }
         const text = msg.text;
-        const clientMessageId = msg.clientMessageId;
         const baseSeq = msg.baseSeq;
         const codexSkills = msg.skills ?? (msg.skill ? [msg.skill] : []);
         const codexMentions = msg.mentions ?? [];
@@ -3629,6 +3648,7 @@ export class BridgeWebSocketServer {
           this.send(ws, {
             type: "error",
             message: `Session ${msg.sessionId} not found`,
+            errorCode: "session_not_found",
           });
         }
         break;
@@ -3724,6 +3744,7 @@ export class BridgeWebSocketServer {
           this.send(ws, {
             type: "error",
             message: `Session ${msg.sessionId} not found`,
+            errorCode: "session_not_found",
           });
         }
         break;
@@ -3795,6 +3816,7 @@ export class BridgeWebSocketServer {
           this.send(ws, {
             type: "error",
             message: `Session ${msg.sessionId} not found`,
+            errorCode: "session_not_found",
           });
         }
         break;
@@ -3828,6 +3850,7 @@ export class BridgeWebSocketServer {
           this.send(ws, {
             type: "error",
             message: `Session ${msg.sessionId} not found`,
+            errorCode: "session_not_found",
           });
         }
         break;
@@ -3839,6 +3862,7 @@ export class BridgeWebSocketServer {
           this.send(ws, {
             type: "error",
             message: `Session ${msg.sessionId} not found`,
+            errorCode: "session_not_found",
           });
           return;
         }

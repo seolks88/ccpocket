@@ -2899,6 +2899,85 @@ describe("BridgeWebSocketServer resume/get_history flow", () => {
     bridge.close();
   });
 
+  it("labels input without an active session as a transient no-active-session error", async () => {
+    const bridge = new BridgeWebSocketServer({ server: httpServer });
+    const ws = {
+      readyState: OPEN_STATE,
+      send: vi.fn(),
+    } as any;
+
+    await (bridge as any).handleClientMessage(
+      {
+        type: "input",
+        text: "hello",
+      },
+      ws,
+    );
+
+    const last = JSON.parse(ws.send.mock.calls.at(-1)?.[0] as string);
+    expect(last).toEqual({
+      type: "error",
+      message: "No active session. Send 'start' first.",
+      errorCode: "no_active_session",
+    });
+
+    bridge.close();
+  });
+
+  it("rejects input for a stale session without rendering a global error", async () => {
+    const bridge = new BridgeWebSocketServer({ server: httpServer });
+    const ws = {
+      readyState: OPEN_STATE,
+      send: vi.fn(),
+    } as any;
+
+    await (bridge as any).handleClientMessage(
+      {
+        type: "input",
+        sessionId: "stale-session",
+        clientMessageId: "cm-stale",
+        text: "/workflows",
+      },
+      ws,
+    );
+
+    const last = JSON.parse(ws.send.mock.calls.at(-1)?.[0] as string);
+    expect(last).toEqual({
+      type: "input_rejected",
+      sessionId: "stale-session",
+      clientMessageId: "cm-stale",
+      reason: "session_not_found",
+    });
+
+    bridge.close();
+  });
+
+  it("labels stale get_history_delta session lookups as session-not-found errors", async () => {
+    const bridge = new BridgeWebSocketServer({ server: httpServer });
+    const ws = {
+      readyState: OPEN_STATE,
+      send: vi.fn(),
+    } as any;
+
+    await (bridge as any).handleClientMessage(
+      {
+        type: "get_history_delta",
+        sessionId: "missing-session",
+        sinceSeq: 0,
+      },
+      ws,
+    );
+
+    const last = JSON.parse(ws.send.mock.calls.at(-1)?.[0] as string);
+    expect(last).toEqual({
+      type: "error",
+      message: "Session missing-session not found",
+      errorCode: "session_not_found",
+    });
+
+    bridge.close();
+  });
+
   it("claude busy input is acked as queued and interrupts current turn", async () => {
     const bridge = new BridgeWebSocketServer({ server: httpServer });
     const ws = {
