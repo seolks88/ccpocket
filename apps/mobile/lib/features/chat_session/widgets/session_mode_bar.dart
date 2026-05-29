@@ -7,9 +7,26 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../models/messages.dart';
 import '../../../services/bridge_service.dart';
+import '../../../theme/app_spacing.dart';
 import '../../../theme/app_theme.dart';
 import '../state/chat_session_state.dart';
 import '../state/chat_session_cubit.dart';
+
+/// Total rendered height of the floating [SessionModeBar], derived from its
+/// fixed geometry so a scroll view behind it can reserve a matching top inset
+/// (the bar is positioned over the chat list, so without this the first
+/// conversation lines scroll underneath it and get clipped).
+///
+/// Breakdown: chip hit area ([AppSizes.minTouchTarget]) + inner container
+/// vertical padding ([_kBarContainerPaddingV] * 2) + outer vertical padding
+/// ([_kBarOuterPaddingV] * 2).
+const double kSessionModeBarHeight =
+    AppSizes.minTouchTarget +
+    (_kBarContainerPaddingV * 2) +
+    (_kBarOuterPaddingV * 2);
+
+const double _kBarContainerPaddingV = 2;
+const double _kBarOuterPaddingV = 6;
 
 class SessionModeBar extends StatelessWidget {
   final Future<void> Function()? onBeforeRestart;
@@ -38,7 +55,10 @@ class SessionModeBar extends StatelessWidget {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+          padding: const EdgeInsets.symmetric(
+            horizontal: 2,
+            vertical: _kBarContainerPaddingV,
+          ),
           decoration: BoxDecoration(
             color: isDark
                 ? cs.surface.withValues(alpha: 0.6)
@@ -236,7 +256,10 @@ class SessionModeBar extends StatelessWidget {
       ),
     );
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 12,
+        vertical: _kBarOuterPaddingV,
+      ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: _PulsingModeBarSurface(
@@ -1211,36 +1234,12 @@ class PermissionModeChip extends StatelessWidget {
       PermissionMode.bypassPermissions => (Icons.flash_on, 'Bypass', cs.error),
     };
 
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(10),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 13, color: fg),
-              const SizedBox(width: 3),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: fg,
-                ),
-              ),
-              Icon(
-                Icons.arrow_drop_down,
-                size: 14,
-                color: fg.withValues(alpha: 0.5),
-              ),
-            ],
-          ),
-        ),
-      ),
+    return _SessionChip(
+      icon: icon,
+      label: label,
+      color: fg,
+      tooltip: 'Permission mode: $label',
+      onTap: onTap,
     );
   }
 }
@@ -1263,40 +1262,13 @@ class ThinkingEffortChip extends StatelessWidget {
         : cs.primary;
     final label = _reasoningEffortDisplayLabel(currentEffort);
 
-    return Tooltip(
-      message:
+    return _SessionChip(
+      icon: _reasoningEffortIcon(currentEffort),
+      label: label,
+      color: fg,
+      tooltip:
           'Codex mode: $label (${currentEffort.label}). Applies from the next message.',
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(10),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(_reasoningEffortIcon(currentEffort), size: 13, color: fg),
-                const SizedBox(width: 3),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: fg,
-                  ),
-                ),
-                Icon(
-                  Icons.arrow_drop_down,
-                  size: 14,
-                  color: fg.withValues(alpha: 0.5),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+      onTap: onTap,
     );
   }
 }
@@ -1318,44 +1290,13 @@ class ServiceTierChip extends StatelessWidget {
     final fg = isDefault ? cs.onSurfaceVariant : cs.primary;
     final label = isDefault ? 'Tier' : _serviceTierFallbackName(serviceTier!);
 
-    return Tooltip(
-      message:
+    return _SessionChip(
+      icon: isDefault ? Icons.tune : Icons.flash_on_outlined,
+      label: label,
+      color: fg,
+      tooltip:
           'Service tier: ${isDefault ? 'Default' : '$label ($serviceTier)'}. Applies from the next message.',
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(10),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  isDefault ? Icons.tune : Icons.flash_on_outlined,
-                  size: 13,
-                  color: fg,
-                ),
-                const SizedBox(width: 3),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: fg,
-                  ),
-                ),
-                Icon(
-                  Icons.arrow_drop_down,
-                  size: 14,
-                  color: fg.withValues(alpha: 0.5),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+      onTap: onTap,
     );
   }
 }
@@ -1797,6 +1738,7 @@ class ClaudeFastModeChip extends StatelessWidget {
       tooltip:
           'Claude Opus fast mode: ${enabled ? 'requested' : 'off'}${actualState == null ? '' : ', Claude reports $actualState'}${enabled && normalizedActual == 'off' ? '. Extra usage or usage credits are disabled.' : ''}',
       showChevron: false,
+      tinted: enabled,
       onTap: onTap,
     );
   }
@@ -1871,6 +1813,13 @@ class _ClaudeUsageRow extends StatelessWidget {
   }
 }
 
+/// Canonical mode-bar chip primitive.
+///
+/// The painted pill stays visually compact, but the InkWell hit area is forced
+/// to at least [AppSizes.minTouchTarget] tall so every chip is comfortably
+/// tappable one-handed. Toggle-style chips (no chevron) pass [tinted] so an
+/// active state reads as a filled background rather than relying on the
+/// presence/absence of a chevron alone.
 class _SessionChip extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -1879,6 +1828,10 @@ class _SessionChip extends StatelessWidget {
   final VoidCallback onTap;
   final bool showChevron;
 
+  /// When true, the compact pill gets a tinted [color] background so the chip
+  /// reads as an active toggle (used for chevron-less toggles like Fast/Plan).
+  final bool tinted;
+
   const _SessionChip({
     required this.icon,
     required this.label,
@@ -1886,10 +1839,50 @@ class _SessionChip extends StatelessWidget {
     required this.tooltip,
     required this.onTap,
     this.showChevron = true,
+    this.tinted = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final pill = Container(
+      // Visually compact: padding stays small so the painted pill does not
+      // grow even though the hit area below is 44px tall.
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: tinted
+          ? BoxDecoration(
+              color: color.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: color.withValues(alpha: 0.32)),
+            )
+          : null,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: AppIconSize.chip, color: color),
+          const SizedBox(width: 3),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 92),
+            child: Text(
+              label,
+              overflow: TextOverflow.ellipsis,
+              softWrap: false,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: color,
+              ),
+            ),
+          ),
+          if (showChevron)
+            Icon(
+              Icons.arrow_drop_down,
+              size: AppIconSize.chip,
+              color: color.withValues(alpha: 0.5),
+            ),
+        ],
+      ),
+    );
+
     return Tooltip(
       message: tooltip,
       child: Material(
@@ -1898,33 +1891,14 @@ class _SessionChip extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, size: 13, color: color),
-                const SizedBox(width: 3),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 92),
-                  child: Text(
-                    label,
-                    overflow: TextOverflow.ellipsis,
-                    softWrap: false,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: color,
-                    ),
-                  ),
-                ),
-                if (showChevron)
-                  Icon(
-                    Icons.arrow_drop_down,
-                    size: 14,
-                    color: color.withValues(alpha: 0.5),
-                  ),
-              ],
+          // Force a >=44px tap/ripple area without enlarging the pill.
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              minHeight: AppSizes.minTouchTarget,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              child: Center(widthFactor: 1, child: pill),
             ),
           ),
         ),
@@ -1982,36 +1956,14 @@ class ExecutionModeChip extends StatelessWidget {
             ExecutionMode.fullAccess => (Icons.flash_on, 'Full', cs.error),
           };
 
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(10),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 13, color: fg),
-              const SizedBox(width: 3),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: fg,
-                ),
-              ),
-              Icon(
-                Icons.arrow_drop_down,
-                size: 14,
-                color: fg.withValues(alpha: 0.5),
-              ),
-            ],
-          ),
-        ),
-      ),
+    return _SessionChip(
+      icon: icon,
+      label: label,
+      color: fg,
+      tooltip: provider == Provider.codex
+          ? 'Codex permissions: $label'
+          : 'Execution mode: $label',
+      onTap: onTap,
     );
   }
 }
@@ -2077,31 +2029,14 @@ class PlanModeChip extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final fg = enabled ? appColors.statusPlan : cs.onSurfaceVariant;
 
-    final chip = Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(10),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.assignment_outlined, size: 13, color: fg),
-              const SizedBox(width: 3),
-              Text(
-                enabled ? 'Plan On' : 'Plan Off',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: fg,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+    final chip = _SessionChip(
+      icon: Icons.assignment_outlined,
+      label: enabled ? 'Plan On' : 'Plan Off',
+      color: fg,
+      tooltip: 'Plan mode: ${enabled ? 'on' : 'off'}',
+      showChevron: false,
+      tinted: enabled,
+      onTap: onTap,
     );
 
     if (!activeGlow) return chip;
@@ -2139,36 +2074,18 @@ class SandboxModeChip extends StatelessWidget {
             : (Icons.warning_amber, 'No SB', cs.error),
     };
 
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(10),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 13, color: fg),
-              const SizedBox(width: 3),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: fg,
-                ),
-              ),
-              Icon(
-                Icons.arrow_drop_down,
-                size: 14,
-                color: fg.withValues(alpha: 0.5),
-              ),
-            ],
-          ),
-        ),
-      ),
+    // Pair the risky "sandbox off" state with a tinted background so the
+    // warning is not signalled by colour alone (the warning glyph + red text
+    // are reinforced by a filled chip).
+    final isRisky = currentMode == SandboxMode.off && !isClaude;
+
+    return _SessionChip(
+      icon: icon,
+      label: label,
+      color: fg,
+      tooltip: 'Sandbox: $label',
+      tinted: isRisky,
+      onTap: onTap,
     );
   }
 }

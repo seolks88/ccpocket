@@ -12,6 +12,7 @@ import '../../message_images/message_images_screen.dart';
 import '../state/chat_session_cubit.dart';
 import '../state/streaming_state.dart';
 import '../state/streaming_state_cubit.dart';
+import 'session_mode_bar.dart' show kSessionModeBarHeight;
 
 @visibleForTesting
 bool shouldShowForkForAssistant(List<ChatEntry> entries, int entryIndex) {
@@ -48,6 +49,13 @@ class ChatMessageList extends StatefulWidget {
   final void Function(AssistantServerMessage)? onForkMessage;
   final ValueNotifier<int>? collapseToolResults;
   final double bottomPadding;
+
+  /// Top inset reserved for the floating [SessionModeBar] that is positioned
+  /// over this list. Defaults to the bar's known rendered height so the first
+  /// conversation lines never scroll underneath it and get clipped. Callers
+  /// that measure the overlay can pass the real value here instead.
+  final double topPadding;
+
   final bool isCodex;
   final ValueChanged<String>? onFilePeekOpened;
 
@@ -69,6 +77,7 @@ class ChatMessageList extends StatefulWidget {
     required this.collapseToolResults,
     this.scrollToUserEntry,
     this.bottomPadding = 8,
+    this.topPadding = kSessionModeBarHeight,
     this.projectPath,
     this.isCodex = false,
     this.onFilePeekOpened,
@@ -199,7 +208,12 @@ class _ChatMessageListState extends State<ChatMessageList> {
       child: ListView.builder(
         controller: widget.scrollController,
         reverse: true,
-        padding: EdgeInsets.only(top: 36, bottom: widget.bottomPadding),
+        // Reserve space for the floating SessionModeBar overlaid on top of this
+        // list so the first conversation lines are never clipped behind it.
+        padding: EdgeInsets.only(
+          top: widget.topPadding,
+          bottom: widget.bottomPadding,
+        ),
         itemCount: totalCount,
         itemBuilder: (context, index) {
           // index 0 = newest entry (bottom of chat)
