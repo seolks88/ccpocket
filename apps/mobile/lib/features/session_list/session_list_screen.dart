@@ -753,6 +753,9 @@ class _SessionListScreenState extends State<SessionListScreen>
         ultracode: result.provider == Provider.claude
             ? _claudeUltracodeValue(result.claudeEffort)
             : null,
+        fastMode: result.provider == Provider.claude
+            ? result.claudeFastMode
+            : null,
         maxTurns: result.provider == Provider.claude
             ? result.claudeMaxTurns
             : null,
@@ -1069,6 +1072,7 @@ class _SessionListScreenState extends State<SessionListScreen>
         'claudeEffort': params.claudeEffort!.value,
       if (params.claudeFallbackModel != null)
         'claudeFallbackModel': params.claudeFallbackModel,
+      'claudeFastMode': params.claudeFastMode,
       if (params.claudeForkSession != null)
         'claudeForkSession': params.claudeForkSession,
       if (params.claudePersistSession != null)
@@ -1162,6 +1166,7 @@ class _SessionListScreenState extends State<SessionListScreen>
         sessionSettings?['claudeEffort'] as String?,
       ),
       claudeFallbackModel: sessionSettings?['claudeFallbackModel'] as String?,
+      claudeFastMode: sessionSettings?['claudeFastMode'] as bool? ?? false,
       claudeForkSession: sessionSettings?['claudeForkSession'] as bool?,
       claudePersistSession: sessionSettings?['claudePersistSession'] as bool?,
     );
@@ -1454,6 +1459,10 @@ class _SessionListScreenState extends State<SessionListScreen>
     final fallbackModel =
         sessionSettings?['claudeFallbackModel'] as String? ??
         claudeDefaults?.claudeFallbackModel;
+    final fastMode =
+        sessionSettings?['claudeFastMode'] as bool? ??
+        claudeDefaults?.claudeFastMode ??
+        false;
     final forkSession =
         sessionSettings?['claudeForkSession'] as bool? ??
         claudeDefaults?.claudeForkSession;
@@ -1530,6 +1539,7 @@ class _SessionListScreenState extends State<SessionListScreen>
       maxTurns: !isCodex ? claudeDefaults?.claudeMaxTurns : null,
       maxBudgetUsd: !isCodex ? claudeDefaults?.claudeMaxBudgetUsd : null,
       fallbackModel: !isCodex ? fallbackModel : null,
+      fastMode: !isCodex ? fastMode : null,
       forkSession: !isCodex ? forkSession : null,
       persistSession: !isCodex ? persistSession : null,
       profile: isCodex ? session.codexProfile : null,
@@ -1583,6 +1593,7 @@ class _SessionListScreenState extends State<SessionListScreen>
         'claudeEffort': ?rawClaudeEffort,
         'claudeModel': ?claudeModel,
         'claudeFallbackModel': ?fallbackModel,
+        'claudeFastMode': fastMode,
         'claudeForkSession': ?forkSession,
         'claudePersistSession': ?persistSession,
       };
@@ -1649,6 +1660,7 @@ class _SessionListScreenState extends State<SessionListScreen>
       maxTurns: !isCodex ? edited.claudeMaxTurns : null,
       maxBudgetUsd: !isCodex ? edited.claudeMaxBudgetUsd : null,
       fallbackModel: !isCodex ? edited.claudeFallbackModel : null,
+      fastMode: !isCodex ? edited.claudeFastMode : null,
       forkSession: !isCodex ? edited.claudeForkSession : null,
       persistSession: !isCodex ? edited.claudePersistSession : null,
       profile: isCodex ? edited.codexProfile : null,

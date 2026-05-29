@@ -646,6 +646,13 @@ class AppLocalizationsKo extends AppLocalizations {
   String get fallbackModel => '대체 모델';
 
   @override
+  String get claudeFastMode => '빠른 모드';
+
+  @override
+  String get claudeFastModeDescription =>
+      'Opus fast mode로 더 빠르게 응답합니다. 사용 크레딧이 부과될 수 있습니다.';
+
+  @override
   String get forkSessionOnResume => '재개 시 세션 포크';
 
   @override

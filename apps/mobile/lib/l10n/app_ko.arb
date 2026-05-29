@@ -234,6 +234,8 @@
   "maxBudgetHint": "예: 1.00",
   "maxBudgetError": "0 이상의 숫자여야 합니다",
   "fallbackModel": "대체 모델",
+  "claudeFastMode": "빠른 모드",
+  "claudeFastModeDescription": "Opus fast mode로 더 빠르게 응답합니다. 사용 크레딧이 부과될 수 있습니다.",
   "forkSessionOnResume": "재개 시 세션 포크",
   "persistSessionHistory": "세션 기록 유지",
   "model": "모델",

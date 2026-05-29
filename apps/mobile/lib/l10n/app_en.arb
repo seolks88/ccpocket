@@ -236,6 +236,8 @@
   "maxBudgetHint": "e.g. 1.00",
   "maxBudgetError": "Must be a number >= 0",
   "fallbackModel": "Fallback Model",
+  "claudeFastMode": "Fast Mode",
+  "claudeFastModeDescription": "Uses Opus fast mode for lower latency; usage credits may apply.",
   "forkSessionOnResume": "Fork Session on Resume",
   "persistSessionHistory": "Persist Session History",
   "model": "Model",

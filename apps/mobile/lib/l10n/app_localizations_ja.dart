@@ -647,6 +647,13 @@ class AppLocalizationsJa extends AppLocalizations {
   String get fallbackModel => 'フォールバックモデル';
 
   @override
+  String get claudeFastMode => 'Fast Mode';
+
+  @override
+  String get claudeFastModeDescription =>
+      'Opus の fast mode で低遅延にします。使用クレジットが発生する場合があります。';
+
+  @override
   String get forkSessionOnResume => '再開時にセッションを分岐';
 
   @override

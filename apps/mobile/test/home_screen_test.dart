@@ -511,6 +511,7 @@ void main() {
         claudeMaxTurns: 6,
         claudeMaxBudgetUsd: 0.75,
         claudeFallbackModel: 'claude-haiku-4-5',
+        claudeFastMode: true,
         claudeForkSession: true,
         claudePersistSession: false,
       );
@@ -527,6 +528,7 @@ void main() {
       expect(restored.claudeMaxTurns, isNull);
       expect(restored.claudeMaxBudgetUsd, isNull);
       expect(restored.claudeFallbackModel, 'claude-haiku-4-5');
+      expect(restored.claudeFastMode, isTrue);
       expect(restored.claudeForkSession, isTrue);
       expect(restored.claudePersistSession, isFalse);
     });

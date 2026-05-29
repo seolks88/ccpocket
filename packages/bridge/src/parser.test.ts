@@ -162,7 +162,7 @@ describe("parseClientMessage", () => {
 
   it("parses start with advanced Claude options", () => {
     const msg = parseClientMessage(
-      '{"type":"start","projectPath":"/p","model":"claude-sonnet","effort":"xhigh","maxTurns":5,"maxBudgetUsd":1.5,"fallbackModel":"claude-haiku","ultracode":true,"forkSession":true,"persistSession":false}',
+      '{"type":"start","projectPath":"/p","model":"claude-sonnet","effort":"xhigh","maxTurns":5,"maxBudgetUsd":1.5,"fallbackModel":"claude-haiku","ultracode":true,"fastMode":true,"forkSession":true,"persistSession":false}',
     );
     expect(msg).toEqual({
       type: "start",
@@ -173,6 +173,7 @@ describe("parseClientMessage", () => {
       maxBudgetUsd: 1.5,
       fallbackModel: "claude-haiku",
       ultracode: true,
+      fastMode: true,
       forkSession: true,
       persistSession: false,
     });
@@ -473,7 +474,7 @@ describe("parseClientMessage", () => {
 
   it("parses resume_session with advanced Claude options", () => {
     const msg = parseClientMessage(
-      '{"type":"resume_session","sessionId":"s3","projectPath":"/p","model":"claude-sonnet","effort":"medium","maxTurns":3,"maxBudgetUsd":0.8,"fallbackModel":"claude-haiku","ultracode":true,"forkSession":true,"persistSession":false}',
+      '{"type":"resume_session","sessionId":"s3","projectPath":"/p","model":"claude-sonnet","effort":"medium","maxTurns":3,"maxBudgetUsd":0.8,"fallbackModel":"claude-haiku","ultracode":true,"fastMode":true,"forkSession":true,"persistSession":false}',
     );
     expect(msg).toEqual({
       type: "resume_session",
@@ -485,6 +486,7 @@ describe("parseClientMessage", () => {
       maxBudgetUsd: 0.8,
       fallbackModel: "claude-haiku",
       ultracode: true,
+      fastMode: true,
       forkSession: true,
       persistSession: false,
     });
@@ -494,6 +496,14 @@ describe("parseClientMessage", () => {
     expect(
       parseClientMessage(
         '{"type":"resume_session","sessionId":"s3","projectPath":"/p","ultracode":"true"}',
+      ),
+    ).toBeNull();
+  });
+
+  it("rejects resume_session with invalid fastMode", () => {
+    expect(
+      parseClientMessage(
+        '{"type":"resume_session","sessionId":"s3","projectPath":"/p","fastMode":"true"}',
       ),
     ).toBeNull();
   });

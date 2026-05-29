@@ -658,6 +658,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get fallbackModel => 'Fallback Model';
 
   @override
+  String get claudeFastMode => 'Fast Mode';
+
+  @override
+  String get claudeFastModeDescription =>
+      'Uses Opus fast mode for lower latency; usage credits may apply.';
+
+  @override
   String get forkSessionOnResume => 'Fork Session on Resume';
 
   @override

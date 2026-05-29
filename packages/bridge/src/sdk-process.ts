@@ -305,6 +305,7 @@ export interface StartOptions {
   maxBudgetUsd?: number;
   fallbackModel?: string;
   ultracode?: boolean;
+  fastMode?: boolean;
   forkSession?: boolean;
   persistSession?: boolean;
   /** When resuming, only resume messages up to this UUID (for conversation rewind). */
@@ -665,6 +666,10 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
     }, 3000);
 
     const effort = options?.ultracode ? "xhigh" : options?.effort;
+    const settings = {
+      ...(options?.ultracode ? { ultracode: true } : {}),
+      ...(options?.fastMode ? { fastMode: true } : {}),
+    };
 
     this.queryInstance = query({
       prompt: this.createUserMessageStream(),
@@ -676,7 +681,7 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
         ...(options?.model ? { model: options.model } : {}),
         ...buildThinkingOptions(options?.model),
         ...(effort ? { effort } : {}),
-        ...(options?.ultracode ? { settings: { ultracode: true } } : {}),
+        ...(Object.keys(settings).length > 0 ? { settings } : {}),
         ...(options?.maxTurns != null ? { maxTurns: options.maxTurns } : {}),
         ...(options?.maxBudgetUsd != null
           ? { maxBudgetUsd: options.maxBudgetUsd }

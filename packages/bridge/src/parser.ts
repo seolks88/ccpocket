@@ -114,6 +114,7 @@ export type ClientMessage =
       maxBudgetUsd?: number;
       fallbackModel?: string;
       ultracode?: boolean;
+      fastMode?: boolean;
       forkSession?: boolean;
       persistSession?: boolean;
       profile?: string;
@@ -234,6 +235,7 @@ export type ClientMessage =
       maxBudgetUsd?: number;
       fallbackModel?: string;
       ultracode?: boolean;
+      fastMode?: boolean;
       forkSession?: boolean;
       persistSession?: boolean;
       profile?: string;
@@ -900,6 +902,8 @@ export function parseClientMessage(data: string): ClientMessage | null {
           return null;
         if (msg.ultracode !== undefined && typeof msg.ultracode !== "boolean")
           return null;
+        if (msg.fastMode !== undefined && typeof msg.fastMode !== "boolean")
+          return null;
         if (
           msg.forkSession !== undefined &&
           typeof msg.forkSession !== "boolean"
@@ -1239,6 +1243,8 @@ export function parseClientMessage(data: string): ClientMessage | null {
         )
           return null;
         if (msg.ultracode !== undefined && typeof msg.ultracode !== "boolean")
+          return null;
+        if (msg.fastMode !== undefined && typeof msg.fastMode !== "boolean")
           return null;
         if (
           msg.forkSession !== undefined &&

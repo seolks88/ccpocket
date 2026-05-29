@@ -47,6 +47,7 @@ class NewSessionParams {
   final int? claudeMaxTurns;
   final double? claudeMaxBudgetUsd;
   final String? claudeFallbackModel;
+  final bool claudeFastMode;
   final bool? claudeForkSession;
   final bool? claudePersistSession;
 
@@ -82,6 +83,7 @@ class NewSessionParams {
     this.claudeMaxTurns,
     this.claudeMaxBudgetUsd,
     this.claudeFallbackModel,
+    this.claudeFastMode = false,
     this.claudeForkSession,
     this.claudePersistSession,
   }) : claudePermissionMode = provider == Provider.claude
@@ -159,6 +161,7 @@ class NewSessionParams {
     int? claudeMaxTurns,
     double? claudeMaxBudgetUsd,
     String? claudeFallbackModel,
+    bool? claudeFastMode,
     bool? claudeForkSession,
     bool? claudePersistSession,
   }) {
@@ -201,6 +204,7 @@ class NewSessionParams {
       claudeMaxTurns: claudeMaxTurns ?? this.claudeMaxTurns,
       claudeMaxBudgetUsd: claudeMaxBudgetUsd ?? this.claudeMaxBudgetUsd,
       claudeFallbackModel: claudeFallbackModel ?? this.claudeFallbackModel,
+      claudeFastMode: claudeFastMode ?? this.claudeFastMode,
       claudeForkSession: claudeForkSession ?? this.claudeForkSession,
       claudePersistSession: claudePersistSession ?? this.claudePersistSession,
     );
@@ -361,6 +365,7 @@ Map<String, dynamic> sessionStartDefaultsToJson(NewSessionParams params) {
     // NOTE: claudeMaxTurns, claudeMaxBudgetUsd are session-specific
     // and intentionally NOT persisted.
     'claudeFallbackModel': params.claudeFallbackModel,
+    'claudeFastMode': params.claudeFastMode,
     'claudeForkSession': params.claudeForkSession,
     'claudePersistSession': params.claudePersistSession,
   };
@@ -410,6 +415,7 @@ NewSessionParams? sessionStartDefaultsFromJson(Map<String, dynamic> json) {
     claudeEffort: claudeEffortFromRaw(json['claudeEffort'] as String?),
     // claudeMaxTurns, claudeMaxBudgetUsd default to null
     claudeFallbackModel: json['claudeFallbackModel'] as String?,
+    claudeFastMode: json['claudeFastMode'] as bool? ?? false,
     claudeForkSession: json['claudeForkSession'] as bool?,
     claudePersistSession: json['claudePersistSession'] as bool?,
   );
@@ -552,6 +558,7 @@ class _NewSessionSheetContentState extends State<_NewSessionSheetContent> {
   String? _selectedClaudeModel;
   String? _selectedClaudeFallbackModel;
   ClaudeEffort _claudeEffort = ClaudeEffort.medium;
+  bool _claudeFastMode = false;
   bool _claudeForkSession = false;
   bool _claudePersistSession = true;
 
@@ -850,6 +857,7 @@ class _NewSessionSheetContentState extends State<_NewSessionSheetContent> {
         _claudeModelList.contains(p.claudeFallbackModel)
         ? p.claudeFallbackModel
         : null;
+    _claudeFastMode = p.claudeFastMode;
     _claudeForkSession = p.claudeForkSession ?? _claudeForkSession;
     _claudePersistSession = p.claudePersistSession ?? _claudePersistSession;
     _codexApprovalPolicyTouched = p.codexApprovalPolicyOverridden;
@@ -1126,6 +1134,7 @@ class _NewSessionSheetContentState extends State<_NewSessionSheetContent> {
       claudeMaxTurns: !isCodex ? claudeMaxTurns : null,
       claudeMaxBudgetUsd: !isCodex ? claudeMaxBudgetUsd : null,
       claudeFallbackModel: !isCodex ? _selectedClaudeFallbackModel : null,
+      claudeFastMode: !isCodex ? _claudeFastMode : false,
       claudeForkSession: !isCodex ? _claudeForkSession : null,
       claudePersistSession: !isCodex ? _claudePersistSession : null,
     );
@@ -1301,6 +1310,10 @@ class _NewSessionSheetContentState extends State<_NewSessionSheetContent> {
             selectedClaudeFallbackModel: _selectedClaudeFallbackModel,
             onClaudeFallbackModelChanged: (value) {
               setState(() => _selectedClaudeFallbackModel = value);
+            },
+            claudeFastMode: _claudeFastMode,
+            onClaudeFastModeChanged: (value) {
+              setState(() => _claudeFastMode = value);
             },
             claudeForkSession: _claudeForkSession,
             onClaudeForkSessionChanged: (value) {
@@ -2152,6 +2165,8 @@ class _OptionsSection extends StatelessWidget {
   final VoidCallback onMaxBudgetChanged;
   final String? selectedClaudeFallbackModel;
   final ValueChanged<String?> onClaudeFallbackModelChanged;
+  final bool claudeFastMode;
+  final ValueChanged<bool> onClaudeFastModeChanged;
   final bool claudeForkSession;
   final ValueChanged<bool> onClaudeForkSessionChanged;
   final bool claudePersistSession;
@@ -2208,6 +2223,8 @@ class _OptionsSection extends StatelessWidget {
     required this.onMaxBudgetChanged,
     required this.selectedClaudeFallbackModel,
     required this.onClaudeFallbackModelChanged,
+    required this.claudeFastMode,
+    required this.onClaudeFastModeChanged,
     required this.claudeForkSession,
     required this.onClaudeForkSessionChanged,
     required this.claudePersistSession,
@@ -2738,6 +2755,8 @@ class _OptionsSection extends StatelessWidget {
             onMaxBudgetChanged: onMaxBudgetChanged,
             selectedClaudeFallbackModel: selectedClaudeFallbackModel,
             onClaudeFallbackModelChanged: onClaudeFallbackModelChanged,
+            claudeFastMode: claudeFastMode,
+            onClaudeFastModeChanged: onClaudeFastModeChanged,
             claudeForkSession: claudeForkSession,
             onClaudeForkSessionChanged: onClaudeForkSessionChanged,
             claudePersistSession: claudePersistSession,
@@ -2905,6 +2924,8 @@ class _AdvancedOptions extends StatelessWidget {
   final VoidCallback onMaxBudgetChanged;
   final String? selectedClaudeFallbackModel;
   final ValueChanged<String?> onClaudeFallbackModelChanged;
+  final bool claudeFastMode;
+  final ValueChanged<bool> onClaudeFastModeChanged;
   final bool claudeForkSession;
   final ValueChanged<bool> onClaudeForkSessionChanged;
   final bool claudePersistSession;
@@ -2928,6 +2949,8 @@ class _AdvancedOptions extends StatelessWidget {
     required this.onMaxBudgetChanged,
     required this.selectedClaudeFallbackModel,
     required this.onClaudeFallbackModelChanged,
+    required this.claudeFastMode,
+    required this.onClaudeFastModeChanged,
     required this.claudeForkSession,
     required this.onClaudeForkSessionChanged,
     required this.claudePersistSession,
@@ -2969,6 +2992,8 @@ class _AdvancedOptions extends StatelessWidget {
                 onMaxBudgetChanged: onMaxBudgetChanged,
                 selectedClaudeFallbackModel: selectedClaudeFallbackModel,
                 onClaudeFallbackModelChanged: onClaudeFallbackModelChanged,
+                claudeFastMode: claudeFastMode,
+                onClaudeFastModeChanged: onClaudeFastModeChanged,
                 claudeForkSession: claudeForkSession,
                 onClaudeForkSessionChanged: onClaudeForkSessionChanged,
                 claudePersistSession: claudePersistSession,
@@ -3003,6 +3028,8 @@ class _ClaudeAdvancedOptions extends StatelessWidget {
   final VoidCallback onMaxBudgetChanged;
   final String? selectedClaudeFallbackModel;
   final ValueChanged<String?> onClaudeFallbackModelChanged;
+  final bool claudeFastMode;
+  final ValueChanged<bool> onClaudeFastModeChanged;
   final bool claudeForkSession;
   final ValueChanged<bool> onClaudeForkSessionChanged;
   final bool claudePersistSession;
@@ -3019,6 +3046,8 @@ class _ClaudeAdvancedOptions extends StatelessWidget {
     required this.onMaxBudgetChanged,
     required this.selectedClaudeFallbackModel,
     required this.onClaudeFallbackModelChanged,
+    required this.claudeFastMode,
+    required this.onClaudeFastModeChanged,
     required this.claudeForkSession,
     required this.onClaudeForkSessionChanged,
     required this.claudePersistSession,
@@ -3082,6 +3111,22 @@ class _ClaudeAdvancedOptions extends StatelessWidget {
         ),
       ),
       const SizedBox(height: 4),
+      SwitchListTile(
+        key: const ValueKey('dialog_claude_fast_mode'),
+        contentPadding: EdgeInsets.zero,
+        title: Text(l.claudeFastMode, style: const TextStyle(fontSize: 13)),
+        subtitle: Text(
+          l.claudeFastModeDescription,
+          style: TextStyle(
+            fontSize: 12,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+        value: claudeFastMode,
+        onChanged: (value) {
+          onClaudeFastModeChanged(value);
+        },
+      ),
       SwitchListTile(
         key: const ValueKey('dialog_claude_fork_session'),
         contentPadding: EdgeInsets.zero,

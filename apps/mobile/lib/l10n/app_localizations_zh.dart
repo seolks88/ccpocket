@@ -641,6 +641,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get fallbackModel => '回退模型';
 
   @override
+  String get claudeFastMode => '快速模式';
+
+  @override
+  String get claudeFastModeDescription =>
+      '使用 Opus fast mode 降低延迟；可能消耗 usage credits。';
+
+  @override
   String get forkSessionOnResume => '恢复时分叉会话';
 
   @override

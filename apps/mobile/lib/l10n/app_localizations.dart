@@ -1302,6 +1302,18 @@ abstract class AppLocalizations {
   /// **'フォールバックモデル'**
   String get fallbackModel;
 
+  /// No description provided for @claudeFastMode.
+  ///
+  /// In ja, this message translates to:
+  /// **'Fast Mode'**
+  String get claudeFastMode;
+
+  /// No description provided for @claudeFastModeDescription.
+  ///
+  /// In ja, this message translates to:
+  /// **'Opus の fast mode で低遅延にします。使用クレジットが発生する場合があります。'**
+  String get claudeFastModeDescription;
+
   /// No description provided for @forkSessionOnResume.
   ///
   /// In ja, this message translates to:

@@ -1824,6 +1824,7 @@ export class BridgeWebSocketServer {
                   maxBudgetUsd: msg.maxBudgetUsd,
                   fallbackModel: msg.fallbackModel,
                   ultracode: msg.ultracode,
+                  fastMode: msg.fastMode,
                   forkSession: msg.forkSession,
                   persistSession: msg.persistSession,
                   autoRename: msg.autoRename,
@@ -4012,6 +4013,7 @@ export class BridgeWebSocketServer {
                 maxBudgetUsd: msg.maxBudgetUsd,
                 fallbackModel: msg.fallbackModel,
                 ultracode: msg.ultracode,
+                fastMode: msg.fastMode,
                 forkSession: msg.forkSession,
                 persistSession: msg.persistSession,
                 ...(msg.sandboxMode

@@ -259,6 +259,8 @@
   "maxBudgetHint": "例: 1.00",
   "maxBudgetError": "0以上の数値を入力してください",
   "fallbackModel": "フォールバックモデル",
+  "claudeFastMode": "Fast Mode",
+  "claudeFastModeDescription": "Opus の fast mode で低遅延にします。使用クレジットが発生する場合があります。",
   "forkSessionOnResume": "再開時にセッションを分岐",
   "persistSessionHistory": "セッション履歴を保持",
   "model": "モデル",

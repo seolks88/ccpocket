@@ -294,6 +294,8 @@
   "maxBudgetHint": "例如：1.00",
   "maxBudgetError": "必须输入大于等于 0 的数字",
   "fallbackModel": "回退模型",
+  "claudeFastMode": "快速模式",
+  "claudeFastModeDescription": "使用 Opus fast mode 降低延迟；可能消耗 usage credits。",
   "forkSessionOnResume": "恢复时分叉会话",
   "persistSessionHistory": "保留会话历史",
   "model": "模型",
