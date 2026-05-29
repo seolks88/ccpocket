@@ -41,9 +41,30 @@ class MachineManagerService {
   static const _oldUrlHistoryKey = 'url_history';
   static const _secureKeyPrefix = 'machine_';
   static const _uuid = Uuid();
+  static const _personalDefaultMachines = [
+    Machine(
+      id: 'personal-macbook',
+      name: 'MacBook',
+      host: '100.84.200.62',
+      port: 8765,
+      isFavorite: true,
+      sshEnabled: true,
+      sshUsername: 'hon',
+    ),
+    Machine(
+      id: 'personal-mac-mini',
+      name: 'Mac mini',
+      host: '100.97.251.33',
+      port: 8765,
+      isFavorite: true,
+      sshEnabled: true,
+      sshUsername: 'kwangsooseol',
+    ),
+  ];
 
   final SharedPreferences _prefs;
   final FlutterSecureStorage _secureStorage;
+  final bool _seedPersonalDefaults;
 
   final _machinesController =
       StreamController<List<MachineWithStatus>>.broadcast();
@@ -56,7 +77,11 @@ class MachineManagerService {
   BridgeHttpBaseUrlResolver? _bridgeHttpBaseUrlResolver;
   Timer? _healthCheckTimer;
 
-  MachineManagerService(this._prefs, this._secureStorage);
+  MachineManagerService(
+    this._prefs,
+    this._secureStorage, {
+    bool seedPersonalDefaults = false,
+  }) : _seedPersonalDefaults = seedPersonalDefaults;
 
   void configureBridgeTunnelResolvers({
     BridgeWsUrlResolver? wsUrlResolver,
@@ -89,6 +114,9 @@ class MachineManagerService {
   Future<void> init() async {
     await _migrateIfNeeded();
     _machines = _loadFromPrefs();
+    if (_seedPersonalDefaults) {
+      await _ensurePersonalDefaultMachines();
+    }
     _sortMachines();
     _notifyListeners();
     // Start health check after loading
@@ -230,6 +258,43 @@ class MachineManagerService {
     final json = jsonEncode(_machines.map((m) => m.toJson()).toList());
     await _prefs.setString(_prefsKey, json);
   }
+
+  Future<void> _ensurePersonalDefaultMachines() async {
+    var changed = false;
+
+    for (final preset in _personalDefaultMachines) {
+      final existingIndex = _machines.indexWhere(
+        (m) => m.id == preset.id || m.uniqueKey == preset.uniqueKey,
+      );
+
+      if (existingIndex == -1) {
+        _machines.add(preset);
+        changed = true;
+        continue;
+      }
+
+      final existing = _machines[existingIndex];
+      final merged = existing.copyWith(
+        name: _isBlank(existing.name) ? preset.name : existing.name,
+        isFavorite: existing.isFavorite || preset.isFavorite,
+        sshEnabled: existing.sshEnabled || preset.sshEnabled,
+        sshUsername: _isBlank(existing.sshUsername)
+            ? preset.sshUsername
+            : existing.sshUsername,
+      );
+
+      if (merged != existing) {
+        _machines[existingIndex] = merged;
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      await _saveToPrefs();
+    }
+  }
+
+  bool _isBlank(String? value) => value == null || value.trim().isEmpty;
 
   /// Sort machines: favorites first, then by lastConnected DESC
   void _sortMachines() {

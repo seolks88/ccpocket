@@ -123,7 +123,11 @@ void main() async {
   // Initialize SharedPreferences and services
   final prefs = await SharedPreferences.getInstance();
   const secureStorage = FlutterSecureStorage();
-  final machineManagerService = MachineManagerService(prefs, secureStorage);
+  final machineManagerService = MachineManagerService(
+    prefs,
+    secureStorage,
+    seedPersonalDefaults: true,
+  );
   // SSH is only supported on native platforms (not web)
   final sshStartupService = kIsWeb
       ? null
