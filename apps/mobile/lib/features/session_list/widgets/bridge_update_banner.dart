@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../models/machine.dart';
+import '../../../theme/app_spacing.dart';
 
 /// Banner shown when the connected Bridge Server version is older than expected.
 ///
@@ -56,11 +57,23 @@ class BridgeUpdateBanner extends StatelessWidget {
                   ),
                 ),
                 if (onDismiss != null)
-                  GestureDetector(
+                  IconButton(
                     key: const ValueKey('bridge_update_banner_dismiss'),
-                    behavior: HitTestBehavior.opaque,
-                    onTap: onDismiss,
-                    child: Icon(Icons.close, size: 16, color: color),
+                    onPressed: onDismiss,
+                    icon: Icon(
+                      Icons.close,
+                      size: AppIconSize.inline,
+                      color: color,
+                    ),
+                    tooltip: MaterialLocalizations.of(
+                      context,
+                    ).closeButtonTooltip,
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 32,
+                      minHeight: 32,
+                    ),
                   ),
               ],
             ),

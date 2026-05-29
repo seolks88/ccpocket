@@ -192,6 +192,20 @@ class ToolResultBubbleState extends State<ToolResultBubble> {
     return false;
   }
 
+  /// Whether tapping/expanding this result would actually reveal anything
+  /// beyond the collapsed summary. False for zero-output and single-line
+  /// results whose full text is already shown inline -- those render as a
+  /// calm static row with no chevron and no tap target.
+  bool get _hasExpandableContent {
+    if (_isDiffContent) return true; // tap opens the diff/git screen
+    if (widget.message.images.isNotEmpty) return true; // expansion shows images
+    final content = widget.message.content;
+    if (content.split('\n').length > 1) return true; // multi-line to reveal
+    // Single line: only expandable if the collapsed summary truncates it
+    // (i.e. the summary is not the full content). Mirrors _buildSummary.
+    return content.length >= 40;
+  }
+
   String? _extractFilePath() {
     final content = widget.message.content;
     final match = RegExp(r'\+\+\+ b/(.+)').firstMatch(content);
@@ -242,11 +256,15 @@ class ToolResultBubbleState extends State<ToolResultBubble> {
     );
 
     if (_expansion == ToolResultExpansion.collapsed) {
+      final hasExpandableContent = _hasExpandableContent;
       return _CollapsedToolResult(
         toolName: widget.message.toolName,
         category: _category,
         summary: summary,
-        onTap: _onTap,
+        hasExpandableContent: hasExpandableContent,
+        isEmptyOutput: widget.message.content.trim().isEmpty &&
+            widget.message.images.isEmpty,
+        onTap: hasExpandableContent ? _onTap : null,
         onLongPress: () => _copyContent(context),
       );
     }
@@ -451,13 +469,25 @@ class _CollapsedToolResult extends StatelessWidget {
   final String? toolName;
   final ToolCategory category;
   final String summary;
-  final VoidCallback onTap;
+
+  /// Whether expanding would reveal anything beyond the inline summary.
+  /// When false, the row is static: no chevron and not tap-to-expand.
+  final bool hasExpandableContent;
+
+  /// Whether the tool produced no output at all (renders a muted placeholder
+  /// instead of a blank summary).
+  final bool isEmptyOutput;
+
+  /// Null when the row has nothing more to reveal (renders non-tappable).
+  final VoidCallback? onTap;
   final VoidCallback onLongPress;
 
   const _CollapsedToolResult({
     required this.toolName,
     required this.category,
     required this.summary,
+    required this.hasExpandableContent,
+    required this.isEmptyOutput,
     required this.onTap,
     required this.onLongPress,
   });
@@ -473,6 +503,8 @@ class _CollapsedToolResult extends StatelessWidget {
         vertical: 1,
       ),
       child: InkWell(
+        // Tap-to-expand only when there is genuinely more to reveal; long-press
+        // (copy) stays available so static rows are still copyable.
         onTap: onTap,
         onLongPress: onLongPress,
         child: Padding(
@@ -495,16 +527,28 @@ class _CollapsedToolResult extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              // Summary -- plain text, no badge
+              // Summary -- plain text, no badge. Empty output shows a muted
+              // placeholder so the row never looks like a blank/broken cell.
               Expanded(
                 child: Text(
-                  summary,
-                  style: TextStyle(fontSize: 11, color: appColors.subtleText),
+                  isEmptyOutput ? '(no output)' : summary,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: appColors.subtleText,
+                    fontStyle: isEmptyOutput
+                        ? FontStyle.italic
+                        : FontStyle.normal,
+                  ),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              // Chevron
-              Icon(Icons.chevron_right, size: 14, color: appColors.subtleText),
+              // Chevron -- only when expansion reveals more.
+              if (hasExpandableContent)
+                Icon(
+                  Icons.chevron_right,
+                  size: 14,
+                  color: appColors.subtleText,
+                ),
             ],
           ),
         ),

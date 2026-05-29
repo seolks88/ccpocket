@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_spacing.dart';
+
 /// A text widget that truncates to [maxLines] with a "more" link
 /// positioned inline at the bottom-right, maximising visible text.
 ///
@@ -76,8 +78,23 @@ class _ExpandableSummaryTextState extends State<ExpandableSummaryText> {
               Align(
                 alignment: Alignment.centerRight,
                 child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
                   onTap: () => setState(() => _expanded = false),
-                  child: Text('less', style: linkStyle),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      minHeight: AppSizes.minTouchTarget,
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: AppSpacing.sm,
+                        horizontal: AppSpacing.xs,
+                      ),
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: Text('less', style: linkStyle),
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -85,7 +102,10 @@ class _ExpandableSummaryTextState extends State<ExpandableSummaryText> {
         }
 
         // --- Collapsed with overflow: text + inline "more" at bottom-right ---
+        // Clip.none so the enlarged (transparent) "more" hit area can extend
+        // upward past the short text block without being clipped.
         return Stack(
+          clipBehavior: Clip.none,
           children: [
             // Main text clipped to maxLines (no ellipsis — the gradient
             // and "more" label handle the visual truncation cue).
@@ -96,20 +116,39 @@ class _ExpandableSummaryTextState extends State<ExpandableSummaryText> {
               overflow: TextOverflow.clip,
             ),
             // "more" label with gradient fade, pinned bottom-right.
+            // The visible gradient box is unchanged; the tap target is
+            // enlarged to >= AppSizes.minTouchTarget by extending the hit
+            // area upward into the (empty) space above the label.
             Positioned(
               right: 0,
               bottom: 0,
               child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
                 onTap: () => setState(() => _expanded = true),
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [bgColor.withValues(alpha: 0), bgColor, bgColor],
-                      stops: const [0.0, 0.3, 1.0],
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    minHeight: AppSizes.minTouchTarget,
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: AppSpacing.xs),
+                    child: Align(
+                      alignment: Alignment.bottomRight,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              bgColor.withValues(alpha: 0),
+                              bgColor,
+                              bgColor,
+                            ],
+                            stops: const [0.0, 0.3, 1.0],
+                          ),
+                        ),
+                        padding: const EdgeInsets.only(left: 32),
+                        child: Text('more', style: linkStyle),
+                      ),
                     ),
                   ),
-                  padding: const EdgeInsets.only(left: 32),
-                  child: Text('more', style: linkStyle),
                 ),
               ),
             ),

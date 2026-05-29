@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../../../services/app_update_service.dart';
+import '../../../theme/app_spacing.dart';
 
 /// Banner shown on the home screen when a newer macOS app version is available.
 ///
@@ -56,9 +57,17 @@ class AppUpdateBanner extends StatelessWidget {
           ),
           if (onDismiss != null) ...[
             const SizedBox(width: 8),
-            GestureDetector(
-              onTap: onDismiss,
-              child: Icon(Icons.close, size: 16, color: color),
+            IconButton(
+              onPressed: onDismiss,
+              icon: Icon(
+                Icons.close,
+                size: AppIconSize.inline,
+                color: color,
+              ),
+              tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
             ),
           ],
         ],

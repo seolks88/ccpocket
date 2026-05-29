@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/app_theme.dart';
 import '../google_search_text_selection.dart';
 
 /// Displays Claude's thinking content with a collapsible UI.
@@ -65,15 +66,26 @@ class _ThinkingBubbleState extends State<ThinkingBubble>
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final thinkingColor = cs.tertiary;
+    final appColors = Theme.of(context).extension<AppColors>()!;
     final trimmedThinking = widget.thinking.trim();
+
+    // Empty/whitespace thinking deltas should paint nothing unless we are
+    // actively streaming (where the animated indicator is still meaningful).
+    if (trimmedThinking.isEmpty && !widget.isStreaming) {
+      return const SizedBox.shrink();
+    }
+
+    final thinkingColor = appColors.thinking;
     final preview = trimmedThinking.length > 80
         ? '${trimmedThinking.substring(0, 80)}...'
         : trimmedThinking;
     final lineCount = trimmedThinking.isEmpty
         ? 0
         : '\n'.allMatches(trimmedThinking).length + 1;
-    final lineLabel = lineCount == 1 ? '1 line' : '$lineCount lines';
+    // Only surface the line count when it adds information (>= 2 lines);
+    // never show "0 lines" or a redundant "1 line".
+    final lineLabel = '$lineCount lines';
+    final showLineCount = lineCount >= 2;
     final showPreview = preview.isNotEmpty;
 
     return Padding(
@@ -89,7 +101,7 @@ class _ThinkingBubbleState extends State<ThinkingBubble>
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: thinkingColor.withValues(alpha: 0.2),
+                color: appColors.thinkingBorder,
                 width: 1,
               ),
             ),
@@ -124,21 +136,23 @@ class _ThinkingBubbleState extends State<ThinkingBubble>
                         color: thinkingColor,
                       ),
                     ),
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 1,
+                    if (showLineCount) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 1,
+                        ),
+                        decoration: BoxDecoration(
+                          color: thinkingColor.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          lineLabel,
+                          style: TextStyle(fontSize: 10, color: thinkingColor),
+                        ),
                       ),
-                      decoration: BoxDecoration(
-                        color: thinkingColor.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        lineLabel,
-                        style: TextStyle(fontSize: 10, color: thinkingColor),
-                      ),
-                    ),
+                    ],
                     const Spacer(),
                     Icon(
                       _expanded ? Icons.expand_less : Icons.expand_more,

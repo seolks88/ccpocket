@@ -56,13 +56,20 @@ IconData getToolCategoryIcon(ToolCategory category) {
 }
 
 /// Category-aware color for the tool dot/icon.
+///
+/// Distinct color per category (using existing tokens only) so a stream of
+/// tool rows is pre-attentively scannable instead of a uniform teal wall:
+/// - read/search → teal (low-signal lookups, unchanged)
+/// - write       → diff-addition green (file mutations = highest signal)
+/// - bash        → neutral subtle text (reads as terminal/log)
+/// - other       → neutral subtle text
 Color getToolCategoryColor(ToolCategory category, AppColors appColors) {
   return switch (category) {
     ToolCategory.read => appColors.toolIcon,
-    ToolCategory.write => appColors.toolIcon,
-    ToolCategory.bash => appColors.toolIcon,
     ToolCategory.search => appColors.toolIcon,
-    ToolCategory.other => appColors.toolIcon,
+    ToolCategory.write => appColors.diffAdditionText,
+    ToolCategory.bash => appColors.subtleText,
+    ToolCategory.other => appColors.subtleText,
   };
 }
 

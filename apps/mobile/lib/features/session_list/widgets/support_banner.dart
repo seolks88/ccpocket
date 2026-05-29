@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../l10n/app_localizations.dart';
+import '../../../theme/app_spacing.dart';
 
 class SupportBanner extends StatelessWidget {
   const SupportBanner({super.key, required this.onTap, this.onDismiss});
@@ -58,11 +59,23 @@ class SupportBanner extends StatelessWidget {
                 ),
                 if (onDismiss != null) ...[
                   const SizedBox(width: 12),
-                  GestureDetector(
+                  IconButton(
                     key: const ValueKey('support_banner_dismiss'),
-                    behavior: HitTestBehavior.opaque,
-                    onTap: onDismiss,
-                    child: Icon(Icons.close, size: 16, color: color),
+                    onPressed: onDismiss,
+                    icon: Icon(
+                      Icons.close,
+                      size: AppIconSize.inline,
+                      color: color,
+                    ),
+                    tooltip: MaterialLocalizations.of(
+                      context,
+                    ).closeButtonTooltip,
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 32,
+                      minHeight: 32,
+                    ),
                   ),
                 ],
               ],

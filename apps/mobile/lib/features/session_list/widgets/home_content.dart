@@ -17,6 +17,7 @@ import '../../../services/draft_service.dart';
 import '../../../services/notification_service.dart';
 import '../../../services/revenuecat_service.dart';
 import '../../../services/support_banner_service.dart';
+import '../../../theme/app_spacing.dart';
 import '../../../theme/app_theme.dart';
 import '../../../theme/provider_style.dart';
 import '../../../router/app_router.dart';
@@ -474,6 +475,19 @@ class HomeContentState extends State<HomeContent> {
         : null;
     final appUpdateBanner = _buildAppUpdateBanner();
     final macOSNativeAppBanner = _buildMacOSNativeAppBanner();
+    // Cap promotional/update banners to a single one per load. Priority:
+    // bridge-update > app-update > macOS-native > support. The debug
+    // force-show escape hatch keeps support eligible above the bridge update.
+    // The reconnect banner is transient *state* (not promo) and stays separate.
+    final promoBanner = supportBannerService.shouldForceShowInDebug
+        ? (supportBanner ??
+              updateBanner ??
+              appUpdateBanner ??
+              macOSNativeAppBanner)
+        : (updateBanner ??
+              appUpdateBanner ??
+              macOSNativeAppBanner ??
+              supportBanner);
     final shell = WorkspaceShellScreen.maybeOf(context);
     final selectedSession = shell?.selectedSession;
     final selectedSessionId = selectedSession?.sessionId;
@@ -528,14 +542,16 @@ class HomeContentState extends State<HomeContent> {
         return ListView(
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(
+            12,
+            12,
+            12,
+            12 + AppSpacing.fabSafeBottom,
+          ),
           children: [
             if (isReconnecting) const SessionReconnectBanner(),
             ?connectedBridgeBanner,
-            ?updateBanner,
-            ?supportBanner,
-            ?appUpdateBanner,
-            ?macOSNativeAppBanner,
+            ?promoBanner,
             ?providerAuthStrip,
             SectionHeader(
               icon: Icons.history,
@@ -554,9 +570,7 @@ class HomeContentState extends State<HomeContent> {
         children: [
           if (isReconnecting) const SessionReconnectBanner(),
           ?connectedBridgeBanner,
-          ?updateBanner,
-          ?supportBanner,
-          ?macOSNativeAppBanner,
+          ?promoBanner,
           ?providerAuthStrip,
           const SizedBox(height: 80),
           SessionListEmptyState(onNewSession: widget.onNewSession),
@@ -568,13 +582,16 @@ class HomeContentState extends State<HomeContent> {
       key: const ValueKey('session_list'),
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.fromLTRB(
+        12,
+        12,
+        12,
+        12 + AppSpacing.fabSafeBottom,
+      ),
       children: [
         if (isReconnecting) const SessionReconnectBanner(),
         ?connectedBridgeBanner,
-        ?updateBanner,
-        ?supportBanner,
-        ?macOSNativeAppBanner,
+        ?promoBanner,
         ?providerAuthStrip,
         if (hasRunningSessions) ...[
           SectionHeader(

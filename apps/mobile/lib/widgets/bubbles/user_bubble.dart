@@ -120,7 +120,7 @@ class _StandardBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final appColors = Theme.of(context).extension<AppColors>()!;
+    final cs = Theme.of(context).colorScheme;
 
     return Align(
       alignment: Alignment.centerRight,
@@ -146,7 +146,7 @@ class _StandardBubble extends StatelessWidget {
                       AppSpacing.maxBubbleWidthFraction,
                 ),
                 decoration: BoxDecoration(
-                  color: appColors.userBubble,
+                  color: cs.primaryContainer,
                   borderRadius: AppSpacing.userBubbleBorderRadius,
                 ),
                 child: Column(
@@ -206,7 +206,7 @@ class _StandardBubble extends StatelessWidget {
                     if (displayText.isNotEmpty)
                       Text(
                         displayText,
-                        style: TextStyle(color: appColors.userBubbleText),
+                        style: TextStyle(color: cs.onPrimaryContainer),
                       ),
                   ],
                 ),
@@ -243,7 +243,7 @@ class _CommandBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final appColors = Theme.of(context).extension<AppColors>()!;
+    final cs = Theme.of(context).colorScheme;
     final hasArgs = command.args != null && command.args!.isNotEmpty;
 
     return Align(
@@ -270,7 +270,7 @@ class _CommandBubble extends StatelessWidget {
                       AppSpacing.maxBubbleWidthFraction,
                 ),
                 decoration: BoxDecoration(
-                  color: appColors.userBubble,
+                  color: cs.primaryContainer,
                   borderRadius: AppSpacing.userBubbleBorderRadius,
                 ),
                 child: Text.rich(
@@ -279,7 +279,7 @@ class _CommandBubble extends StatelessWidget {
                       TextSpan(
                         text: command.commandName,
                         style: TextStyle(
-                          color: appColors.userBubbleText,
+                          color: cs.onPrimaryContainer,
                           fontWeight: FontWeight.w600,
                           fontFamily: 'monospace',
                         ),
@@ -287,7 +287,7 @@ class _CommandBubble extends StatelessWidget {
                       if (hasArgs) ...[
                         TextSpan(
                           text: ' ${command.args}',
-                          style: TextStyle(color: appColors.userBubbleText),
+                          style: TextStyle(color: cs.onPrimaryContainer),
                         ),
                       ],
                     ],

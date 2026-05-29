@@ -1044,7 +1044,6 @@ void showPermissionModeMenu(
 }) {
   final currentMode = chatCubit.state.permissionMode;
   final l = AppLocalizations.of(context);
-  const purple = Color(0xFFBB86FC);
   final appColors = Theme.of(context).extension<AppColors>()!;
   final autoModeColor = Theme.of(context).brightness == Brightness.dark
       ? appColors.warningText
@@ -1065,7 +1064,7 @@ void showPermissionModeMenu(
         PermissionMode.acceptEdits: (
           icon: Icons.edit_note,
           description: l.permissionAcceptEditsDescription,
-          color: purple,
+          color: appColors.modeAcceptEdits,
         ),
         PermissionMode.plan: (
           icon: Icons.assignment_outlined,
@@ -1190,7 +1189,6 @@ class PermissionModeChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    const purple = Color(0xFFBB86FC);
     final plan = Theme.of(context).extension<AppColors>()!.statusPlan;
     final appColors = Theme.of(context).extension<AppColors>()!;
     final autoModeColor = Theme.of(context).brightness == Brightness.dark
@@ -1204,7 +1202,11 @@ class PermissionModeChip extends StatelessWidget {
         cs.onSurfaceVariant,
       ),
       PermissionMode.auto => (Icons.auto_mode_outlined, 'Auto', autoModeColor),
-      PermissionMode.acceptEdits => (Icons.edit_note, 'Edits', purple),
+      PermissionMode.acceptEdits => (
+        Icons.edit_note,
+        'Edits',
+        appColors.modeAcceptEdits,
+      ),
       PermissionMode.plan => (Icons.assignment_outlined, 'Plan', plan),
       PermissionMode.bypassPermissions => (Icons.flash_on, 'Bypass', cs.error),
     };
@@ -1954,7 +1956,7 @@ class ExecutionModeChip extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
 
     // Colors aligned with Claude Code CLI
-    const purple = Color(0xFFBB86FC);
+    final appColors = Theme.of(context).extension<AppColors>()!;
 
     final (IconData icon, String label, Color fg) = provider == Provider.codex
         ? _codexPermissionsChipStyle(
@@ -1972,7 +1974,11 @@ class ExecutionModeChip extends StatelessWidget {
               'Default',
               cs.onSurfaceVariant,
             ),
-            ExecutionMode.acceptEdits => (Icons.edit_note, 'Edits', purple),
+            ExecutionMode.acceptEdits => (
+              Icons.edit_note,
+              'Edits',
+              appColors.modeAcceptEdits,
+            ),
             ExecutionMode.fullAccess => (Icons.flash_on, 'Full', cs.error),
           };
 

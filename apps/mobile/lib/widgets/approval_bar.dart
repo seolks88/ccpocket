@@ -447,8 +447,8 @@ class _ApprovalButtons extends StatelessWidget {
             onPressed: onApproveAlways,
             style: OutlinedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 8),
-              foregroundColor: cs.error,
-              side: BorderSide(color: cs.error.withValues(alpha: 0.5)),
+              foregroundColor: cs.onSurfaceVariant,
+              side: BorderSide(color: cs.onSurfaceVariant.withValues(alpha: 0.5)),
             ),
             child: Text(
               isCodex || alwaysSub.isEmpty
