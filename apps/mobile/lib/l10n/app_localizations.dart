@@ -1680,12 +1680,6 @@ abstract class AppLocalizations {
   /// **'最も丁寧、最も遅い'**
   String get claudeEffortMaxDesc;
 
-  /// No description provided for @claudeEffortUltracodeDesc.
-  ///
-  /// In ja, this message translates to:
-  /// **'X High。必要に応じて workflow を自動使用'**
-  String get claudeEffortUltracodeDesc;
-
   /// No description provided for @reasoningEffortNoneDesc.
   ///
   /// In ja, this message translates to:

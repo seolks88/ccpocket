@@ -835,9 +835,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get claudeEffortMaxDesc => '最深入，最慢';
 
   @override
-  String get claudeEffortUltracodeDesc => 'X High；需要时自动使用 workflow';
-
-  @override
   String get reasoningEffortNoneDesc => '无推理';
 
   @override

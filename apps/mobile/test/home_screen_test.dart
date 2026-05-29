@@ -533,6 +533,18 @@ void main() {
       expect(restored.claudePersistSession, isFalse);
     });
 
+    test('maps legacy Claude workflow effort to X High', () {
+      final restored = sessionStartDefaultsFromJson({
+        'projectPath': '/tmp/project-b',
+        'provider': Provider.claude.value,
+        'permissionMode': PermissionMode.defaultMode.value,
+        'claudeEffort': 'ultracode',
+      });
+
+      expect(restored, isNotNull);
+      expect(restored!.claudeEffort, ClaudeEffort.xhigh);
+    });
+
     test('migrates deprecated codex defaults to the fallback first model', () {
       final restored = sessionStartDefaultsFromJson({
         'projectPath': '/tmp/project-d',

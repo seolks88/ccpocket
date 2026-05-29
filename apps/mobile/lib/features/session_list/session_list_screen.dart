@@ -40,11 +40,7 @@ import 'workspace_shell_screen.dart';
 
 // ---- Testable helpers (top-level) ----
 
-String? _claudeEffortValue(ClaudeEffort? effort) =>
-    effort == ClaudeEffort.ultracode ? ClaudeEffort.xhigh.value : effort?.value;
-
-bool? _claudeUltracodeValue(ClaudeEffort? effort) =>
-    effort == ClaudeEffort.ultracode ? true : null;
+String? _claudeEffortValue(ClaudeEffort? effort) => effort?.value;
 
 /// Project name → session count, preserving first-seen order.
 Map<String, int> projectCounts(List<RecentSession> sessions) {
@@ -750,9 +746,6 @@ class _SessionListScreenState extends State<SessionListScreen>
         effort: result.provider == Provider.claude
             ? _claudeEffortValue(result.claudeEffort)
             : null,
-        ultracode: result.provider == Provider.claude
-            ? _claudeUltracodeValue(result.claudeEffort)
-            : null,
         fastMode: result.provider == Provider.claude
             ? result.claudeFastMode
             : null,
@@ -1452,7 +1445,6 @@ class _SessionListScreenState extends State<SessionListScreen>
     final effort = claudeEffort == null
         ? rawClaudeEffort
         : _claudeEffortValue(claudeEffort);
-    final ultracode = _claudeUltracodeValue(claudeEffort);
     final claudeModel =
         sessionSettings?['claudeModel'] as String? ??
         claudeDefaults?.claudeModel;
@@ -1535,7 +1527,6 @@ class _SessionListScreenState extends State<SessionListScreen>
               permissionMode: permissionMode,
             ),
       effort: !isCodex ? effort : null,
-      ultracode: !isCodex ? ultracode : null,
       maxTurns: !isCodex ? claudeDefaults?.claudeMaxTurns : null,
       maxBudgetUsd: !isCodex ? claudeDefaults?.claudeMaxBudgetUsd : null,
       fallbackModel: !isCodex ? fallbackModel : null,
@@ -1656,7 +1647,6 @@ class _SessionListScreenState extends State<SessionListScreen>
           : null,
       planMode: isCodex && useCodexProfile ? null : edited.planMode,
       effort: !isCodex ? _claudeEffortValue(edited.claudeEffort) : null,
-      ultracode: !isCodex ? _claudeUltracodeValue(edited.claudeEffort) : null,
       maxTurns: !isCodex ? edited.claudeMaxTurns : null,
       maxBudgetUsd: !isCodex ? edited.claudeMaxBudgetUsd : null,
       fallbackModel: !isCodex ? edited.claudeFallbackModel : null,

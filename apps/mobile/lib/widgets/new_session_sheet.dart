@@ -292,8 +292,10 @@ ExecutionMode _executionModeFromRawWithDefault(
   approvalPolicy: approvalPolicy,
 );
 
-ClaudeEffort? claudeEffortFromRaw(String? raw) =>
-    enumByValue(ClaudeEffort.values, raw, (v) => v.value);
+ClaudeEffort? claudeEffortFromRaw(String? raw) {
+  if (raw == 'ultracode') return ClaudeEffort.xhigh;
+  return enumByValue(ClaudeEffort.values, raw, (v) => v.value);
+}
 
 const _legacyClaudeEfforts = <ClaudeEffort>[
   ClaudeEffort.low,
@@ -301,27 +303,16 @@ const _legacyClaudeEfforts = <ClaudeEffort>[
   ClaudeEffort.high,
   ClaudeEffort.xhigh,
   ClaudeEffort.max,
-  ClaudeEffort.ultracode,
 ];
-
-List<ClaudeEffort> _appendClaudeCodeWorkflowEffort(List<ClaudeEffort> efforts) {
-  if (!efforts.contains(ClaudeEffort.xhigh) ||
-      efforts.contains(ClaudeEffort.ultracode)) {
-    return efforts;
-  }
-  return [...efforts, ClaudeEffort.ultracode];
-}
 
 Map<String, List<ClaudeEffort>> _normalizeClaudeModelEfforts(
   Map<String, List<String>> raw,
 ) {
   return raw.map((model, values) {
-    final efforts = _appendClaudeCodeWorkflowEffort(
-      values
-          .map(claudeEffortFromRaw)
-          .whereType<ClaudeEffort>()
-          .toList(growable: false),
-    );
+    final efforts = values
+        .map(claudeEffortFromRaw)
+        .whereType<ClaudeEffort>()
+        .toList(growable: false);
     return MapEntry(model, efforts);
   });
 }
@@ -333,9 +324,7 @@ List<ClaudeEffort> _claudeEffortsForModel(
   if (model != null && modelEfforts.containsKey(model)) {
     return modelEfforts[model] ?? const [];
   }
-  return modelEfforts.isEmpty
-      ? _legacyClaudeEfforts
-      : _appendClaudeCodeWorkflowEffort(ClaudeEffort.values);
+  return modelEfforts.isEmpty ? _legacyClaudeEfforts : ClaudeEffort.values;
 }
 
 /// Serialize [NewSessionParams] to JSON for SharedPreferences.
@@ -2860,7 +2849,6 @@ String _claudeEffortDescription(ClaudeEffort effort, AppLocalizations l) {
     ClaudeEffort.high => l.claudeEffortHighDesc,
     ClaudeEffort.xhigh => l.claudeEffortXHighDesc,
     ClaudeEffort.max => l.claudeEffortMaxDesc,
-    ClaudeEffort.ultracode => l.claudeEffortUltracodeDesc,
   };
 }
 

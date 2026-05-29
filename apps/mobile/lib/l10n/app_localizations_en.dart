@@ -866,10 +866,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get claudeEffortMaxDesc => 'Most thorough, slowest';
 
   @override
-  String get claudeEffortUltracodeDesc =>
-      'X High; Claude may use workflow automatically';
-
-  @override
   String get reasoningEffortNoneDesc => 'No reasoning';
 
   @override

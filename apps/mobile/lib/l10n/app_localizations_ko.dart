@@ -842,9 +842,6 @@ class AppLocalizationsKo extends AppLocalizations {
   String get claudeEffortMaxDesc => '가장 철저하지만 가장 느림';
 
   @override
-  String get claudeEffortUltracodeDesc => 'X High; 필요하면 workflow 자동 사용';
-
-  @override
   String get reasoningEffortNoneDesc => '추론 없음';
 
   @override

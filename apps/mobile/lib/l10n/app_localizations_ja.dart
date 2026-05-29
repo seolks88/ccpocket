@@ -843,9 +843,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get claudeEffortMaxDesc => '最も丁寧、最も遅い';
 
   @override
-  String get claudeEffortUltracodeDesc => 'X High。必要に応じて workflow を自動使用';
-
-  @override
   String get reasoningEffortNoneDesc => '推論なし';
 
   @override

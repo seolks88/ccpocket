@@ -302,7 +302,6 @@
   "claudeEffortHighDesc": "More thorough analysis",
   "claudeEffortXHighDesc": "Extended reasoning for complex work",
   "claudeEffortMaxDesc": "Most thorough, slowest",
-  "claudeEffortUltracodeDesc": "X High; Claude may use workflow automatically",
 
   "reasoningEffortNoneDesc": "No reasoning",
   "reasoningEffortMinimalDesc": "Fastest, least analysis",
