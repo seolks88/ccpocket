@@ -530,6 +530,7 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
   private queryInstance: Query | null = null;
   private _status: ProcessStatus = "idle";
   private _sessionId: string | null = null;
+  private inputSessionId: string | null = null;
   private pendingPermissions = new Map<string, PendingPermission>();
   private _permissionMode: PermissionMode | undefined;
   get permissionMode(): PermissionMode | undefined {
@@ -670,6 +671,7 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
       ...(options?.ultracode ? { ultracode: true } : {}),
       ...(options?.fastMode ? { fastMode: true } : {}),
     };
+    this.inputSessionId = options?.sessionId ?? null;
 
     this.queryInstance = query({
       prompt: this.createUserMessageStream(),
@@ -762,6 +764,7 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
     }
     this.pendingPermissions.clear();
     this.userMessageResolve = null;
+    this.inputSessionId = null;
     this.toolCallsSinceLastResult = 0;
     this.fileEditsSinceLastResult = 0;
 
@@ -809,7 +812,7 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
     this.userMessageResolve = null;
     resolve({
       type: "user",
-      session_id: this._sessionId ?? "",
+      session_id: this.inputSessionId ?? this._sessionId ?? "",
       message: {
         role: "user",
         content: [{ type: "text", text }],
@@ -865,7 +868,7 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
 
     resolve({
       type: "user",
-      session_id: this._sessionId ?? "",
+      session_id: this.inputSessionId ?? this._sessionId ?? "",
       message: {
         role: "user",
         content,
@@ -1161,7 +1164,7 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
         content.push({ type: "text", text });
         yield {
           type: "user",
-          session_id: this._sessionId ?? "",
+          session_id: this.inputSessionId ?? this._sessionId ?? "",
           message: {
             role: "user",
             content,
@@ -1219,6 +1222,7 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
           this.initTimeoutId = null;
         }
         this._sessionId = message.session_id;
+        this.inputSessionId = message.session_id;
         const initModel = (message as Record<string, unknown>).model;
         if (typeof initModel === "string" && initModel) {
           this._model = initModel;

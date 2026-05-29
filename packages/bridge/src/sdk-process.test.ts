@@ -751,3 +751,23 @@ describe("SdkProcess.approveAlways", () => {
     expect(proc.permissionMode).toBe("acceptEdits");
   });
 });
+
+describe("SdkProcess.sendInput", () => {
+  it("uses the resume session id before SDK init arrives", () => {
+    const proc = new SdkProcess();
+    const resolve = vi.fn();
+
+    (proc as any).inputSessionId = "resume-session";
+    (proc as any).userMessageResolve = resolve;
+
+    const queued = proc.sendInput("continue");
+
+    expect(queued).toBe(false);
+    expect(resolve).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "user",
+        session_id: "resume-session",
+      }),
+    );
+  });
+});
