@@ -242,43 +242,68 @@ class _DefaultLayout extends StatelessWidget {
   ) {
     final planInput = plainTextMode ? null : codexPlanUpdateInputFromText(text);
     if (planInput != null) {
+      // Embedded (non-prose) widget — must NOT be wrapped in the prose bubble.
       return TodoWriteWidget(input: planInput);
     }
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-        vertical: AppSpacing.bubbleMarginV,
-        horizontal: AppSpacing.bubbleMarginH,
-      ),
-      child: plainTextMode
-          ? SelectableText(
-              text,
-              style: Theme.of(context).textTheme.bodyMedium,
-              contextMenuBuilder: googleSearchSelectableTextContextMenuBuilder,
-            )
-          : GoogleSearchSelectionArea(
-              child: suppressMarkdownScrollbarIndicators(
-                context,
-                child: MarkdownBody(
-                  data: text,
-                  selectable: !googleSearchSelectionMenuEnabled,
-                  styleSheet: buildMarkdownStyle(context),
-                  onTapLink: handleMarkdownLink,
-                  inlineSyntaxes: [
-                    if (onFileTap != null) ...[
-                      FilePathSyntax(knownPathSuffixes: fileSuffixes),
-                      BareFilePathSyntax(knownPathSuffixes: fileSuffixes),
-                    ],
-                    ...colorCodeInlineSyntaxes,
+    final appColors = Theme.of(context).extension<AppColors>()!;
+    final body = plainTextMode
+        ? SelectableText(
+            text,
+            style: Theme.of(context).textTheme.bodyMedium,
+            contextMenuBuilder: googleSearchSelectableTextContextMenuBuilder,
+          )
+        : GoogleSearchSelectionArea(
+            child: suppressMarkdownScrollbarIndicators(
+              context,
+              child: MarkdownBody(
+                data: text,
+                selectable: !googleSearchSelectionMenuEnabled,
+                styleSheet: buildMarkdownStyle(context),
+                onTapLink: handleMarkdownLink,
+                inlineSyntaxes: [
+                  if (onFileTap != null) ...[
+                    FilePathSyntax(knownPathSuffixes: fileSuffixes),
+                    BareFilePathSyntax(knownPathSuffixes: fileSuffixes),
                   ],
-                  builders: {
-                    if (onFileTap != null)
-                      'filePath': FilePathBuilder(onTap: onFileTap),
-                    ...markdownBuilders,
-                  },
-                ),
+                  ...colorCodeInlineSyntaxes,
+                ],
+                builders: {
+                  if (onFileTap != null)
+                    'filePath': FilePathBuilder(onTap: onFileTap),
+                  ...markdownBuilders,
+                },
               ),
             ),
+          );
+
+    // Give the assistant's prose its own calm, left-anchored speech bubble so
+    // the answer reads as a distinct conversation turn (parity with the user
+    // bubble) instead of loose body text. Only the prose/markdown body is
+    // wrapped — embedded tool/diff/plan widgets are separate switch branches
+    // and stay outside this container.
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(
+          vertical: AppSpacing.bubbleMarginV,
+          horizontal: AppSpacing.bubbleMarginH,
+        ),
+        padding: const EdgeInsets.symmetric(
+          vertical: AppSpacing.bubblePaddingV,
+          horizontal: AppSpacing.bubblePaddingH,
+        ),
+        constraints: BoxConstraints(
+          maxWidth:
+              MediaQuery.of(context).size.width *
+              AppSpacing.maxBubbleWidthFraction,
+        ),
+        decoration: BoxDecoration(
+          color: appColors.assistantBubble,
+          borderRadius: AppSpacing.assistantBubbleBorderRadius,
+        ),
+        child: body,
+      ),
     );
   }
 }
