@@ -4,6 +4,10 @@ import '../../models/messages.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 
+/// Side length of the subagent glyph chip. Sized so the [AppIconSize.chip]
+/// glyph sits inside a touch-friendly square without claiming a full row.
+const _subagentIconSize = 20.0;
+
 /// Displays a summary of tool uses from a subagent (Task tool).
 ///
 /// This bubble replaces multiple tool_result messages with a compressed
@@ -28,20 +32,21 @@ class ToolUseSummaryBubble extends StatelessWidget {
         children: [
           // Subagent icon
           Container(
-            width: 20,
-            height: 20,
+            width: _subagentIconSize,
+            height: _subagentIconSize,
+            // Optical nudge so the glyph aligns with the first text line.
             margin: const EdgeInsets.only(top: 2),
             decoration: BoxDecoration(
               color: colorScheme.surfaceContainerHigh,
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(AppSpacing.xs),
             ),
             child: Icon(
               Icons.smart_toy_outlined,
-              size: 14,
+              size: AppIconSize.chip,
               color: appColors.subtleText,
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: AppSpacing.sm),
           // Summary text
           Expanded(
             child: Text(

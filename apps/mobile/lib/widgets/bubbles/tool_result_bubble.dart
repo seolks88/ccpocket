@@ -8,12 +8,54 @@ import 'package:auto_route/auto_route.dart';
 import '../../router/app_router.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/code_text_style.dart';
 import '../../utils/tool_categories.dart';
 import '../google_search_text_selection.dart';
 import 'image_preview.dart';
 
 /// Three-level expansion state for tool result content.
 enum ToolResultExpansion { collapsed, preview, expanded }
+
+/// Glanceable outcome of a tool call, used to give failures real salience in
+/// the stream (color + glyph, never color alone).
+///
+/// The wire `ToolResultMessage` carries no explicit `is_error` flag (the bridge
+/// folds failures into the result text), so this is inferred from the content
+/// with a conservative marker heuristic. False negatives degrade gracefully to
+/// a normal row; we never style a success as an error.
+enum ToolResultStatus { ok, error, empty }
+
+/// Leading substrings that reliably indicate a failed tool result across the
+/// Claude CLI / Codex bridges (matched case-insensitively against the trimmed
+/// content). Kept intentionally narrow to avoid false positives on normal
+/// output that merely mentions the word "error".
+const _errorContentMarkers = <String>[
+  'error:',
+  'error ',
+  'error\n',
+  '<tool_use_error>',
+  'tool execution failed',
+  'command failed',
+  'execution failed',
+  'traceback (most recent call last)',
+  'exception:',
+  'fatal:',
+  'permission denied',
+  'no such file or directory',
+];
+
+/// True when [content] looks like a failed tool result.
+bool _looksLikeToolError(String content) {
+  final trimmed = content.trimLeft();
+  if (trimmed.isEmpty) return false;
+  final lower = trimmed.toLowerCase();
+  // Bare "Error" (whole content) or any of the leading markers.
+  if (lower == 'error') return true;
+  for (final marker in _errorContentMarkers) {
+    if (lower.startsWith(marker)) return true;
+  }
+  return false;
+}
 
 const _imageGenerationToolName = 'ImageGeneration';
 
@@ -142,6 +184,19 @@ class ToolResultBubbleState extends State<ToolResultBubble> {
     widget.message.toolName ?? '',
   );
 
+  /// Glanceable outcome of this result (error / empty / ok). Errors must read
+  /// differently from successes; empty output gets a calm muted placeholder.
+  ToolResultStatus get _status {
+    final hasContent = widget.message.content.trim().isNotEmpty;
+    if (!hasContent && widget.message.images.isEmpty) {
+      return ToolResultStatus.empty;
+    }
+    if (_looksLikeToolError(widget.message.content)) {
+      return ToolResultStatus.error;
+    }
+    return ToolResultStatus.ok;
+  }
+
   String _buildSummary(String content, String? toolName, AppLocalizations l) {
     final lines = content.split('\n');
     final lineCount = lines.length;
@@ -255,15 +310,16 @@ class ToolResultBubbleState extends State<ToolResultBubble> {
       l,
     );
 
+    final status = _status;
+
     if (_expansion == ToolResultExpansion.collapsed) {
       final hasExpandableContent = _hasExpandableContent;
       return _CollapsedToolResult(
         toolName: widget.message.toolName,
         category: _category,
         summary: summary,
+        status: status,
         hasExpandableContent: hasExpandableContent,
-        isEmptyOutput: widget.message.content.trim().isEmpty &&
-            widget.message.images.isEmpty,
         onTap: hasExpandableContent ? _onTap : null,
         onLongPress: () => _copyContent(context),
       );
@@ -273,6 +329,7 @@ class ToolResultBubbleState extends State<ToolResultBubble> {
       httpBaseUrl: widget.httpBaseUrl,
       category: _category,
       summary: summary,
+      status: status,
       expansion: _expansion,
       onTap: _onTap,
       onLongPress: () => _copyContent(context),
@@ -396,11 +453,8 @@ class _ImageGenerationResultCardState
                 const SizedBox(height: 4),
                 SelectableText(
                   widget.message.content,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontFamily: 'monospace',
+                  style: codeTextSettingsOf(context).style(
                     color: appColors.toolResultTextExpanded,
-                    height: 1.4,
                   ),
                   contextMenuBuilder:
                       googleSearchSelectableTextContextMenuBuilder,
@@ -464,19 +518,123 @@ String? _readPrefixedLine(String content, String key) {
   return null;
 }
 
-/// Collapsed: inline log row -- no card background.
+/// Resolved per-status visuals for a tool-result row, so the collapsed row,
+/// the expanded card, and any accents all read from one place (one concept,
+/// one component, one token). Errors get a distinct glyph AND color so the
+/// state is never carried by color alone.
+class _ToolStatusVisuals {
+  final IconData icon;
+
+  /// Tint for the leading glyph + tool name + the call->result accent rule.
+  final Color accent;
+
+  /// Whether the summary should read as a muted placeholder ("(no output)").
+  final bool muted;
+
+  /// Drives the error tint/border on the row and card.
+  final bool isError;
+
+  const _ToolStatusVisuals({
+    required this.icon,
+    required this.accent,
+    required this.muted,
+    required this.isError,
+  });
+
+  factory _ToolStatusVisuals.resolve(
+    ToolResultStatus status,
+    ToolCategory category,
+    AppColors appColors,
+  ) {
+    return switch (status) {
+      ToolResultStatus.error => _ToolStatusVisuals(
+        icon: Icons.error_outline,
+        accent: appColors.errorText,
+        muted: false,
+        isError: true,
+      ),
+      ToolResultStatus.empty => _ToolStatusVisuals(
+        icon: getToolCategoryIcon(category),
+        accent: appColors.subtleText,
+        muted: true,
+        isError: false,
+      ),
+      ToolResultStatus.ok => _ToolStatusVisuals(
+        icon: getToolCategoryIcon(category),
+        accent: getToolCategoryColor(category, appColors),
+        muted: false,
+        isError: false,
+      ),
+    };
+  }
+}
+
+/// Shared header used by both the collapsed row and the expanded card so the
+/// "icon + tool name + summary + trailing" recipe stays identical and any
+/// future tweak lands once. Behaviour-free: pure layout.
+class _ToolRowHeader extends StatelessWidget {
+  final _ToolStatusVisuals visuals;
+  final String name;
+  final String summaryText;
+  final double iconSize;
+  final Widget? trailing;
+
+  const _ToolRowHeader({
+    required this.visuals,
+    required this.name,
+    required this.summaryText,
+    required this.iconSize,
+    this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final appColors = Theme.of(context).extension<AppColors>()!;
+    final textTheme = Theme.of(context).textTheme;
+    final isError = visuals.isError;
+
+    return Row(
+      children: [
+        Icon(visuals.icon, size: iconSize, color: visuals.accent),
+        const SizedBox(width: AppSpacing.sm),
+        Text(
+          name,
+          style: textTheme.labelMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+            // Tint the name on failure so the call reads as failed even when
+            // the glyph scrolls past the eye.
+            color: isError ? appColors.errorText : null,
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: Text(
+            summaryText,
+            style: textTheme.labelSmall?.copyWith(
+              color: isError ? appColors.errorText : appColors.subtleText,
+              fontStyle: visuals.muted ? FontStyle.italic : FontStyle.normal,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        ?trailing,
+      ],
+    );
+  }
+}
+
+/// Collapsed: inline log row. A >=44px hit area, a glyph-backed status tint,
+/// and a thin left accent rule that visually ties the result to the call that
+/// produced it (call -> result reads as a pair).
 class _CollapsedToolResult extends StatelessWidget {
   final String? toolName;
   final ToolCategory category;
   final String summary;
+  final ToolResultStatus status;
 
   /// Whether expanding would reveal anything beyond the inline summary.
   /// When false, the row is static: no chevron and not tap-to-expand.
   final bool hasExpandableContent;
-
-  /// Whether the tool produced no output at all (renders a muted placeholder
-  /// instead of a blank summary).
-  final bool isEmptyOutput;
 
   /// Null when the row has nothing more to reveal (renders non-tappable).
   final VoidCallback? onTap;
@@ -486,8 +644,8 @@ class _CollapsedToolResult extends StatelessWidget {
     required this.toolName,
     required this.category,
     required this.summary,
+    required this.status,
     required this.hasExpandableContent,
-    required this.isEmptyOutput,
     required this.onTap,
     required this.onLongPress,
   });
@@ -496,10 +654,13 @@ class _CollapsedToolResult extends StatelessWidget {
   Widget build(BuildContext context) {
     final appColors = Theme.of(context).extension<AppColors>()!;
     final l = AppLocalizations.of(context);
+    final visuals = _ToolStatusVisuals.resolve(status, category, appColors);
+    final isError = status == ToolResultStatus.error;
 
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.bubbleMarginH,
+        // Tighter vertical rhythm pulls the result up toward its call.
         vertical: 1,
       ),
       child: InkWell(
@@ -507,49 +668,59 @@ class _CollapsedToolResult extends StatelessWidget {
         // (copy) stays available so static rows are still copyable.
         onTap: onTap,
         onLongPress: onLongPress,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 2),
-          child: Row(
-            children: [
-              // Category icon
-              Icon(
-                getToolCategoryIcon(category),
-                size: 12,
-                color: getToolCategoryColor(category, appColors),
-              ),
-              const SizedBox(width: 6),
-              // Tool name
-              Text(
-                toolName ?? l.toolResult,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(width: 8),
-              // Summary -- plain text, no badge. Empty output shows a muted
-              // placeholder so the row never looks like a blank/broken cell.
-              Expanded(
-                child: Text(
-                  isEmptyOutput ? '(no output)' : summary,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: appColors.subtleText,
-                    fontStyle: isEmptyOutput
-                        ? FontStyle.italic
-                        : FontStyle.normal,
+        borderRadius: BorderRadius.circular(AppSpacing.codeRadius),
+        child: ConstrainedBox(
+          // The painted row stays compact, but the hit area meets the 44px
+          // minimum so adjacent rows are not mis-tapped.
+          constraints: const BoxConstraints(
+            minHeight: AppSizes.minTouchTarget,
+          ),
+          child: Container(
+            // Failures get a subtle tint + border so they pop out of an
+            // otherwise-neutral stream; successes stay chrome-free.
+            decoration: isError
+                ? BoxDecoration(
+                    color: appColors.errorBubble,
+                    borderRadius: BorderRadius.circular(AppSpacing.codeRadius),
+                    border: Border.all(color: appColors.errorBubbleBorder),
+                  )
+                : null,
+            padding: EdgeInsets.symmetric(
+              horizontal: isError ? AppSpacing.sm : 0,
+              vertical: AppSpacing.xs,
+            ),
+            child: Row(
+              children: [
+                // Left accent rule: shared hue with the status glyph ties the
+                // result to its call.
+                Container(
+                  width: 2,
+                  height: 16,
+                  margin: const EdgeInsets.only(right: AppSpacing.sm),
+                  decoration: BoxDecoration(
+                    color: visuals.accent.withValues(alpha: 0.6),
+                    borderRadius: BorderRadius.circular(1),
                   ),
-                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              // Chevron -- only when expansion reveals more.
-              if (hasExpandableContent)
-                Icon(
-                  Icons.chevron_right,
-                  size: 14,
-                  color: appColors.subtleText,
+                Expanded(
+                  child: _ToolRowHeader(
+                    visuals: visuals,
+                    name: toolName ?? l.toolResult,
+                    summaryText: status == ToolResultStatus.empty
+                        ? '(no output)'
+                        : summary,
+                    iconSize: AppIconSize.chip,
+                    trailing: hasExpandableContent
+                        ? Icon(
+                            Icons.chevron_right,
+                            size: AppIconSize.chip,
+                            color: appColors.subtleText,
+                          )
+                        : null,
+                  ),
                 ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -557,12 +728,16 @@ class _CollapsedToolResult extends StatelessWidget {
   }
 }
 
-/// Preview / Expanded: card with background + content.
+/// Preview / Expanded: one card recipe shared with the tool-use card --
+/// [AppSpacing.cardRadius] + a fill + [AppColors.toolBubbleBorder] (error
+/// variants on failure). Monospace bodies route through CodeTextSettings so
+/// they honour the user's configured code font + size.
 class _ExpandedToolResult extends StatelessWidget {
   final ToolResultMessage message;
   final String? httpBaseUrl;
   final ToolCategory category;
   final String summary;
+  final ToolResultStatus status;
   final ToolResultExpansion expansion;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
@@ -574,6 +749,7 @@ class _ExpandedToolResult extends StatelessWidget {
     required this.httpBaseUrl,
     required this.category,
     required this.summary,
+    required this.status,
     required this.expansion,
     required this.onTap,
     required this.onLongPress,
@@ -583,6 +759,8 @@ class _ExpandedToolResult extends StatelessWidget {
   Widget build(BuildContext context) {
     final appColors = Theme.of(context).extension<AppColors>()!;
     final l = AppLocalizations.of(context);
+    final visuals = _ToolStatusVisuals.resolve(status, category, appColors);
+    final isError = status == ToolResultStatus.error;
     final content = message.content;
     final toolName = message.toolName;
     final lines = content.split('\n');
@@ -591,24 +769,32 @@ class _ExpandedToolResult extends StatelessWidget {
         ? lines.take(_previewLines).join('\n')
         : content;
 
+    final codeSettings = codeTextSettingsOf(context);
     final chevronIcon = expansion == ToolResultExpansion.preview
         ? Icons.expand_more
         : Icons.expand_less;
 
     return Container(
       margin: const EdgeInsets.symmetric(
-        vertical: 2,
+        vertical: AppSpacing.bubbleMarginV,
         horizontal: AppSpacing.bubbleMarginH,
       ),
       child: InkWell(
         onTap: onTap,
         onLongPress: onLongPress,
-        borderRadius: BorderRadius.circular(AppSpacing.codeRadius),
+        borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
         child: Container(
-          padding: const EdgeInsets.all(10),
+          padding: const EdgeInsets.all(AppSpacing.md),
           decoration: BoxDecoration(
-            color: appColors.toolResultBackground,
-            borderRadius: BorderRadius.circular(AppSpacing.codeRadius),
+            color: isError
+                ? appColors.errorBubble
+                : appColors.toolResultBackground,
+            borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+            border: Border.all(
+              color: isError
+                  ? appColors.errorBubbleBorder
+                  : appColors.toolBubbleBorder,
+            ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -618,73 +804,52 @@ class _ExpandedToolResult extends StatelessWidget {
                   images: message.images,
                   httpBaseUrl: httpBaseUrl!,
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: AppSpacing.sm),
               ],
-              // Header row
-              Row(
-                children: [
-                  Icon(
-                    getToolCategoryIcon(category),
-                    size: 14,
-                    color: getToolCategoryColor(category, appColors),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    toolName ?? l.toolResult,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      summary,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: appColors.subtleText,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  Icon(chevronIcon, size: 16, color: appColors.subtleText),
-                ],
+              // Header row -- shared recipe with the collapsed row.
+              _ToolRowHeader(
+                visuals: visuals,
+                name: toolName ?? l.toolResult,
+                summaryText: summary,
+                iconSize: AppIconSize.chip,
+                trailing: Icon(
+                  chevronIcon,
+                  size: AppIconSize.inline,
+                  color: appColors.subtleText,
+                ),
               ),
               // Content
               if (expansion == ToolResultExpansion.preview) ...[
-                const SizedBox(height: 6),
+                const SizedBox(height: AppSpacing.xs),
                 Text(
                   previewText,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontFamily: 'monospace',
-                    color: appColors.toolResultText,
-                    height: 1.4,
+                  style: codeSettings.style(
+                    color: isError
+                        ? appColors.errorText
+                        : appColors.toolResultText,
                   ),
                   maxLines: _previewLines,
                   overflow: TextOverflow.ellipsis,
                 ),
                 if (hasMore)
                   Padding(
-                    padding: const EdgeInsets.only(top: 4),
+                    padding: const EdgeInsets.only(top: AppSpacing.xs),
                     child: Text(
                       '... ${lines.length - _previewLines} more lines',
-                      style: TextStyle(
-                        fontSize: 10,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
                         fontStyle: FontStyle.italic,
                         color: appColors.subtleText,
                       ),
                     ),
                   ),
               ] else if (expansion == ToolResultExpansion.expanded) ...[
-                const SizedBox(height: 6),
+                const SizedBox(height: AppSpacing.xs),
                 SelectableText(
                   content,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontFamily: 'monospace',
-                    color: appColors.toolResultTextExpanded,
-                    height: 1.4,
+                  style: codeSettings.style(
+                    color: isError
+                        ? appColors.errorText
+                        : appColors.toolResultTextExpanded,
                   ),
                   contextMenuBuilder:
                       googleSearchSelectableTextContextMenuBuilder,
