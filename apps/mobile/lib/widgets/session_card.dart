@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../l10n/app_localizations.dart';
 import '../models/messages.dart';
+import '../theme/app_spacing.dart';
 import '../theme/app_theme.dart';
 import '../theme/provider_style.dart';
 import '../utils/command_parser.dart';
@@ -120,7 +121,6 @@ class _RunningSessionCardState extends State<RunningSessionCard> {
     }
     final projectName = session.projectPath.split('/').last;
     final provider = providerFromRaw(session.provider);
-    final providerStyle = providerStyleFor(context, provider);
     final elapsed = _formatElapsed(session.lastActivityAt);
     final agentLabel = _formatAgentLabel(
       session.agentNickname,
@@ -131,7 +131,10 @@ class _RunningSessionCardState extends State<RunningSessionCard> {
     );
     final colorScheme = Theme.of(context).colorScheme;
     final card = Card(
-      margin: const EdgeInsets.symmetric(vertical: 3, horizontal: 0),
+      margin: const EdgeInsets.symmetric(
+        vertical: AppSpacing.xs,
+        horizontal: 0,
+      ),
       elevation: 0,
       color: colorScheme.surfaceContainerHigh,
       shape: RoundedRectangleBorder(
@@ -173,25 +176,26 @@ class _RunningSessionCardState extends State<RunningSessionCard> {
                     inPlanMode:
                         visualStatus.showPlanBadge && visualStatus.animate,
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: AppSpacing.xs + 2),
                   Text(
                     visualStatus.label,
-                    style: TextStyle(
-                      fontSize: 11,
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
                       fontWeight: isReadyUnseen
                           ? FontWeight.w800
-                          : FontWeight.w600,
+                          : FontWeight.w700,
                       color: statusColor,
                     ),
                   ),
                   if (visualStatus.detail != null) ...[
-                    const SizedBox(width: 6),
+                    const SizedBox(width: AppSpacing.xs + 2),
                     Flexible(
                       child: Text(
                         visualStatus.detail!,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: statusColor.withValues(alpha: 0.82),
+                        // Detail rendered in subtleText (not a faded status
+                        // color) to keep 11px text legible; meaning is carried
+                        // by the dot + colored label, not this line.
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: appColors.subtleText,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -303,76 +307,26 @@ class _RunningSessionCardState extends State<RunningSessionCard> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Title row: session name + project badge + elapsed
+                  // Title row: session name + project chip (neutral).
+                  // Provider identity is carried ONCE by the labeled
+                  // _ProviderBadge in the status bar above, so the chips here
+                  // stay neutral to avoid double-encoding the provider.
                   Row(
                     children: [
-                      // Left-aligned group: badge/name
+                      // Left-aligned group: name + project
                       Expanded(
                         child: Row(
                           children: [
                             if (session.name != null &&
                                 session.name!.isNotEmpty) ...[
-                              Flexible(
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.surfaceContainer,
-                                    borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.outlineVariant,
-                                      width: 0.5,
-                                    ),
-                                  ),
-                                  child: Text(
-                                    session.name!,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w500,
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.onSurfaceVariant,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
+                              Flexible(child: _NameChip(label: session.name!)),
+                              const SizedBox(width: AppSpacing.sm),
                             ],
                             Hero(
                               tag: 'project_name_${session.id}',
                               child: Material(
                                 color: Colors.transparent,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: providerStyle.background,
-                                    borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(
-                                      color: providerStyle.border,
-                                      width: 0.5,
-                                    ),
-                                  ),
-                                  child: Text(
-                                    projectName,
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w500,
-                                      fontSize: 12,
-                                      color: providerStyle.foreground,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
+                                child: _ProjectChip(label: projectName),
                               ),
                             ),
                           ],
@@ -381,20 +335,13 @@ class _RunningSessionCardState extends State<RunningSessionCard> {
                     ],
                   ),
                   if (agentLabel != null) ...[
-                    const SizedBox(height: 8),
+                    const SizedBox(height: AppSpacing.sm),
                     _AgentLabel(label: agentLabel),
                   ],
-                  // Last message
-                  if (displayMessage.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      displayMessage,
-                      style: const TextStyle(fontSize: 13),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                  const SizedBox(height: 4),
+                  // Last message — the visual anchor of the card.
+                  const SizedBox(height: AppSpacing.xs),
+                  _SessionMessage(text: displayMessage),
+                  const SizedBox(height: AppSpacing.xs),
                   if (isCodexSession)
                     CodexEnvironmentSummary(
                       leadingLabel:
@@ -420,66 +367,18 @@ class _RunningSessionCardState extends State<RunningSessionCard> {
                         executionMode: session.resolvedExecutionMode.value,
                         planMode: session.resolvedPlanMode,
                       ),
-                      style: TextStyle(
-                        fontSize: 11,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
                         color: appColors.subtleText,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                   // Meta Row: branch + worktree (left) + elapsed (right)
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Row(
-                          children: [
-                            if (session.gitBranch.isNotEmpty) ...[
-                              Icon(
-                                Icons.fork_right,
-                                size: 13,
-                                color: appColors.subtleText,
-                              ),
-                              const SizedBox(width: 2),
-                              Flexible(
-                                child: Text(
-                                  session.gitBranch,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: appColors.subtleText,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                            if (session.worktreePath != null) ...[
-                              const SizedBox(width: 12),
-                              Icon(
-                                Icons.account_tree_outlined,
-                                size: 12,
-                                color: appColors.subtleText,
-                              ),
-                              const SizedBox(width: 2),
-                              Text(
-                                'worktree',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: appColors.subtleText,
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        elapsed,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: appColors.subtleText,
-                        ),
-                      ),
-                    ],
+                  const SizedBox(height: AppSpacing.xs),
+                  _SessionMetaRow(
+                    branch: session.gitBranch,
+                    hasWorktree: session.worktreePath != null,
+                    trailingText: elapsed,
                   ),
                 ],
               ),
@@ -543,14 +442,13 @@ class _QueuedInputBadge extends StatelessWidget {
             children: [
               Icon(
                 Icons.chat_bubble_outline,
-                size: 12,
+                size: AppIconSize.chip - 2,
                 color: colorScheme.primary,
               ),
-              const SizedBox(width: 4),
+              const SizedBox(width: AppSpacing.xs),
               Text(
                 l.sessionCardQueuedInput,
-                style: TextStyle(
-                  fontSize: 10.5,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   fontWeight: FontWeight.w700,
                   color: colorScheme.onPrimaryContainer,
                 ),
@@ -574,15 +472,20 @@ class _RunningSessionStopButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final l = AppLocalizations.of(context);
+    // Destructive control: keep the painted icon compact (~20) but guarantee
+    // a full 44x44 hit area per AppSizes.minTouchTarget.
     return IconButton(
       key: const ValueKey('running_session_stop_button'),
       onPressed: onPressed,
       tooltip: l.stopSession,
       icon: const Icon(Icons.stop_circle_outlined),
-      iconSize: 18,
+      iconSize: AppIconSize.action,
       visualDensity: VisualDensity.compact,
       padding: EdgeInsets.zero,
-      constraints: const BoxConstraints.tightFor(width: 32, height: 28),
+      constraints: const BoxConstraints.tightFor(
+        width: AppSizes.minTouchTarget,
+        height: AppSizes.minTouchTarget,
+      ),
       style: IconButton.styleFrom(
         foregroundColor: colorScheme.error,
         backgroundColor: colorScheme.errorContainer.withValues(alpha: 0.26),
@@ -2406,12 +2309,14 @@ class _AgentLabel extends StatelessWidget {
     final color = Theme.of(context).colorScheme.onSurfaceVariant;
     return Row(
       children: [
-        Icon(Icons.smart_toy_outlined, size: 14, color: color),
-        const SizedBox(width: 4),
+        Icon(Icons.smart_toy_outlined, size: AppIconSize.chip, color: color),
+        const SizedBox(width: AppSpacing.xs),
         Flexible(
           child: Text(
             label,
-            style: TextStyle(fontSize: 12, color: color),
+            style: Theme.of(
+              context,
+            ).textTheme.labelMedium?.copyWith(color: color),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -2445,12 +2350,11 @@ class _ProviderBadge extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(style.icon, size: 12, color: style.foreground),
-              const SizedBox(width: 4),
+              Icon(style.icon, size: AppIconSize.chip - 2, color: style.foreground),
+              const SizedBox(width: AppSpacing.xs),
               Text(
                 label,
-                style: TextStyle(
-                  fontSize: 10.5,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   fontWeight: FontWeight.w800,
                   color: style.foreground,
                   height: 1,
@@ -2462,6 +2366,164 @@ class _ProviderBadge extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Neutral session-name chip. Shared by both card types so the "session name"
+/// concept renders identically. Intentionally neutral (never provider-tinted).
+class _NameChip extends StatelessWidget {
+  final String label;
+
+  const _NameChip({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.xs + 2,
+        vertical: 2,
+      ),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: colorScheme.outlineVariant, width: 0.5),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(
+          context,
+        ).textTheme.labelMedium?.copyWith(color: colorScheme.onSurfaceVariant),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+  }
+}
+
+/// Neutral project chip. Provider identity is carried ONCE by [_ProviderBadge],
+/// so the project chip is rendered neutral here to avoid double-encoding the
+/// provider via color.
+class _ProjectChip extends StatelessWidget {
+  final String label;
+
+  const _ProjectChip({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.xs + 2,
+        vertical: 2,
+      ),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: colorScheme.outlineVariant, width: 0.5),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(
+          context,
+        ).textTheme.labelMedium?.copyWith(color: colorScheme.onSurface),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+  }
+}
+
+/// The message preview — the visual anchor of a session card. Shared by both
+/// card types so the most-read line is styled identically. When [text] is
+/// empty, renders a designed muted-italic placeholder instead of a literal
+/// "(no description)" string styled like real content.
+class _SessionMessage extends StatelessWidget {
+  final String text;
+
+  const _SessionMessage({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final appColors = theme.extension<AppColors>()!;
+    final hasText = text.isNotEmpty;
+    return Text(
+      hasText ? text : AppLocalizations.of(context).noPromptHistoryYet,
+      style: hasText
+          ? theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurface,
+              height: 1.4,
+            )
+          : theme.textTheme.bodyMedium?.copyWith(
+              color: appColors.subtleText,
+              fontStyle: FontStyle.italic,
+              height: 1.4,
+            ),
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+    );
+  }
+}
+
+/// Shared metadata row: git branch (+ optional worktree marker) on the left,
+/// a trailing timestamp on the right. Demoted to subtleText so the eye lands
+/// on status -> message -> metadata.
+class _SessionMetaRow extends StatelessWidget {
+  final String branch;
+  final bool hasWorktree;
+  final String trailingText;
+
+  const _SessionMetaRow({
+    required this.branch,
+    this.hasWorktree = false,
+    required this.trailingText,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final appColors = Theme.of(context).extension<AppColors>()!;
+    final metaStyle = Theme.of(
+      context,
+    ).textTheme.labelSmall?.copyWith(color: appColors.subtleText);
+    return Row(
+      children: [
+        Expanded(
+          child: Row(
+            children: [
+              if (branch.isNotEmpty) ...[
+                Icon(
+                  Icons.fork_right,
+                  size: AppIconSize.chip,
+                  color: appColors.subtleText,
+                ),
+                const SizedBox(width: AppSpacing.xs / 2),
+                Flexible(
+                  child: Text(
+                    branch,
+                    style: metaStyle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+              if (hasWorktree) ...[
+                const SizedBox(width: AppSpacing.md),
+                Icon(
+                  Icons.account_tree_outlined,
+                  size: AppIconSize.chip - 2,
+                  color: appColors.subtleText,
+                ),
+                const SizedBox(width: AppSpacing.xs / 2),
+                Text('worktree', style: metaStyle),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Text(trailingText, style: metaStyle),
+      ],
     );
   }
 }
@@ -2496,7 +2558,6 @@ class RecentSessionCard extends StatelessWidget {
     final colorScheme = theme.colorScheme;
     final appColors = theme.extension<AppColors>()!;
     final provider = providerFromRaw(session.provider);
-    final providerStyle = providerStyleFor(context, provider);
     final isCodex = session.provider == 'codex';
     final agentLabel = _formatAgentLabel(
       session.agentNickname,
@@ -2505,7 +2566,10 @@ class RecentSessionCard extends StatelessWidget {
     final dateStr = _formatDateRange(session.created, session.modified);
 
     final card = Card(
-      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 0),
+      margin: const EdgeInsets.symmetric(
+        vertical: AppSpacing.xs,
+        horizontal: 0,
+      ),
       elevation: 0,
       color: colorScheme.surfaceContainerHigh,
       shape: RoundedRectangleBorder(
@@ -2535,64 +2599,19 @@ class RecentSessionCard extends StatelessWidget {
                       Expanded(
                         child: Row(
                           children: [
+                            // Provider identity is carried ONCE here by the
+                            // labeled badge; the name/project chips stay
+                            // neutral to avoid double-encoding the provider.
                             _ProviderBadge(provider: provider),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: AppSpacing.sm),
                             if (session.name != null &&
                                 session.name!.isNotEmpty) ...[
-                              Flexible(
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: colorScheme.surfaceContainer,
-                                    borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(
-                                      color: colorScheme.outlineVariant,
-                                      width: 0.5,
-                                    ),
-                                  ),
-                                  child: Text(
-                                    session.name!,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w500,
-                                      color: colorScheme.onSurfaceVariant,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
+                              Flexible(child: _NameChip(label: session.name!)),
+                              const SizedBox(width: AppSpacing.sm),
                             ],
                             if (!hideProjectBadge) ...[
                               Flexible(
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: providerStyle.background,
-                                    borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(
-                                      color: providerStyle.border,
-                                      width: 0.5,
-                                    ),
-                                  ),
-                                  child: Text(
-                                    session.projectName,
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w500,
-                                      fontSize: 12,
-                                      color: providerStyle.foreground,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                    maxLines: 1,
-                                  ),
-                                ),
+                                child: _ProjectChip(label: session.projectName),
                               ),
                             ],
                           ],
@@ -2601,29 +2620,31 @@ class RecentSessionCard extends StatelessWidget {
                     ],
                   ),
                   if (agentLabel != null) ...[
-                    const SizedBox(height: 8),
+                    const SizedBox(height: AppSpacing.sm),
                     _AgentLabel(label: agentLabel),
                   ],
-                  const SizedBox(height: 8),
+                  const SizedBox(height: AppSpacing.sm),
 
-                  // Body Content
-                  if (draftText != null && draftText!.isNotEmpty) ...[
+                  // Body Content — the message preview is the visual anchor.
+                  if (draftText != null && draftText!.isNotEmpty)
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Padding(
-                          padding: const EdgeInsets.only(top: 2, right: 6),
+                          padding: const EdgeInsets.only(
+                            top: 2,
+                            right: AppSpacing.xs + 2,
+                          ),
                           child: Icon(
                             Icons.edit_note,
-                            size: 16,
+                            size: AppIconSize.inline,
                             color: appColors.subtleText,
                           ),
                         ),
                         Expanded(
                           child: Text(
                             draftText!,
-                            style: TextStyle(
-                              fontSize: 14,
+                            style: theme.textTheme.bodyMedium?.copyWith(
                               fontStyle: FontStyle.italic,
                               color: appColors.subtleText,
                               height: 1.4,
@@ -2633,20 +2654,14 @@ class RecentSessionCard extends StatelessWidget {
                           ),
                         ),
                       ],
-                    ),
-                  ] else
-                    Text(
-                      _displayTextForMode(session, displayMode),
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: colorScheme.onSurface,
-                        height: 1.4,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                    )
+                  else
+                    _SessionMessage(
+                      text: _displayTextForMode(session, displayMode),
                     ),
 
                   if (isCodex) ...[
-                    const SizedBox(height: 6),
+                    const SizedBox(height: AppSpacing.xs + 2),
                     CodexEnvironmentSummary(
                       model: session.codexModel,
                       reasoningEffort: session.codexModelReasoningEffort,
@@ -2659,45 +2674,12 @@ class RecentSessionCard extends StatelessWidget {
                     ),
                   ],
 
-                  const SizedBox(height: 8),
+                  const SizedBox(height: AppSpacing.sm),
 
                   // Meta Row: branch (left) + date (right)
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Row(
-                          children: [
-                            if (session.gitBranch.isNotEmpty) ...[
-                              Icon(
-                                Icons.fork_right,
-                                size: 14,
-                                color: appColors.subtleText,
-                              ),
-                              const SizedBox(width: 4),
-                              Flexible(
-                                child: Text(
-                                  session.gitBranch,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: appColors.subtleText,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        dateStr,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: appColors.subtleText,
-                        ),
-                      ),
-                    ],
+                  _SessionMetaRow(
+                    branch: session.gitBranch,
+                    trailingText: dateStr,
                   ),
                 ],
               ),
@@ -2726,6 +2708,10 @@ class RecentSessionCard extends StatelessWidget {
     return AdaptiveContextMenuRegion(onOpen: onShowActions!, child: card);
   }
 
+  /// Returns the message text for the active display mode, or an empty string
+  /// when there is genuinely no content. The empty case is rendered by
+  /// [_SessionMessage] as a designed, muted placeholder rather than a literal
+  /// "(no description)" string styled like a real message.
   static String _displayTextForMode(
     RecentSession session,
     SessionDisplayMode mode,
@@ -2737,11 +2723,9 @@ class RecentSessionCard extends StatelessWidget {
             ? session.firstPrompt
             : session.displayText;
       case SessionDisplayMode.last:
-        final text = session.lastPrompt ?? session.firstPrompt;
-        raw = text.isNotEmpty ? text : '(no description)';
+        raw = session.lastPrompt ?? session.firstPrompt;
       case SessionDisplayMode.summary:
-        final text = session.summary ?? session.firstPrompt;
-        raw = text.isNotEmpty ? text : '(no description)';
+        raw = session.summary ?? session.firstPrompt;
     }
     return formatCommandText(raw);
   }
@@ -2826,7 +2810,7 @@ String _buildSettingsSummary({
     if (planMode) 'plan-on',
   ];
   if (model != null && model.isNotEmpty) {
-    return '${displayLabelForClaudeModel(model)}  ${parts.join("  ")}';
+    return [displayLabelForClaudeModel(model), ...parts].join(' · ');
   }
-  return parts.join('  ');
+  return parts.join(' · ');
 }
