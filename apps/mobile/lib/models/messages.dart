@@ -353,11 +353,53 @@ enum ClaudeEffort {
   high('high', 'High'),
   xhigh('xhigh', 'X High'),
   max('max', 'Max'),
-  ultracode('ultracode', 'Ultracode Workflow');
+  ultracode('ultracode', 'Auto Workflow');
 
   final String value;
   final String label;
   const ClaudeEffort(this.value, this.label);
+}
+
+String displayLabelForClaudeModel(String model) {
+  final value = model.trim();
+  return switch (value) {
+    'default' => 'Default',
+    'best' => 'Best available',
+    'opus' => 'Opus',
+    'opus[1m]' => 'Opus (1M context)',
+    'opusplan' => 'Opus Plan',
+    'sonnet' => 'Sonnet',
+    'sonnet[1m]' => 'Sonnet (1M context)',
+    'haiku' => 'Haiku',
+    'claude-opus-4-8' => 'Opus 4.8',
+    'claude-opus-4-8[1m]' => 'Opus 4.8 (1M context)',
+    'claude-opus-4-7' => 'Opus 4.7',
+    'claude-opus-4-7[1m]' => 'Opus 4.7 (1M context)',
+    'claude-opus-4-6' => 'Opus 4.6',
+    'claude-opus-4-6[1m]' => 'Opus 4.6 (1M context)',
+    'claude-opus-4-5-20251101' => 'Opus 4.5',
+    'claude-sonnet-4-6' => 'Sonnet 4.6',
+    'claude-haiku-4-6' => 'Haiku 4.6',
+    _ => value,
+  };
+}
+
+String descriptionForClaudeModel(String model) {
+  final value = model.trim();
+  if (value == 'default') return 'Claude Code decides from your account';
+  if (value == 'best') return 'Best Claude Code model available to you';
+  if (value == 'opusplan') return 'Opus alias optimized for planning';
+  if (value.endsWith('[1m]')) return 'Large 1M context variant';
+  if (value == 'opus' || value.startsWith('claude-opus-')) {
+    return 'Highest-capability Claude family';
+  }
+  if (value == 'sonnet' || value.startsWith('claude-sonnet-')) {
+    return 'Balanced speed and capability';
+  }
+  if (value == 'haiku' || value.startsWith('claude-haiku-')) {
+    return 'Fastest Claude family';
+  }
+  return value;
 }
 
 // ---- Sandbox mode (Claude & Codex) ----

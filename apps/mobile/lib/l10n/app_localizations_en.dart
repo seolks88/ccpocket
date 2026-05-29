@@ -860,7 +860,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get claudeEffortUltracodeDesc =>
-      'X High with dynamic workflow orchestration';
+      'X High; Claude may use workflow automatically';
 
   @override
   String get reasoningEffortNoneDesc => 'No reasoning';

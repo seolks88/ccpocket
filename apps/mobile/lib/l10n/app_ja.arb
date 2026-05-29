@@ -328,7 +328,7 @@
   "claudeEffortHighDesc": "より丁寧な分析",
   "claudeEffortXHighDesc": "複雑な作業向けの拡張推論",
   "claudeEffortMaxDesc": "最も丁寧、最も遅い",
-  "claudeEffortUltracodeDesc": "X High と dynamic workflow 編成",
+  "claudeEffortUltracodeDesc": "X High。必要に応じて workflow を自動使用",
 
   "reasoningEffortNoneDesc": "推論なし",
   "reasoningEffortMinimalDesc": "最速、分析は最小限",

@@ -351,6 +351,19 @@ void main() {
       expect(sessionList.defaultCodexProfile, 'ccpocket');
     });
 
+    test('formats Claude model labels for picker display', () {
+      expect(displayLabelForClaudeModel('claude-opus-4-8'), 'Opus 4.8');
+      expect(
+        displayLabelForClaudeModel('claude-opus-4-8[1m]'),
+        'Opus 4.8 (1M context)',
+      );
+      expect(displayLabelForClaudeModel('opusplan'), 'Opus Plan');
+      expect(
+        descriptionForClaudeModel('default'),
+        'Claude Code decides from your account',
+      );
+    });
+
     test('RecentSession parses resumeCwd for worktree resume target', () {
       final session = RecentSession.fromJson({
         'sessionId': 's2',

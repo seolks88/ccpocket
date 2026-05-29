@@ -455,17 +455,14 @@ void main() {
         createdAt: DateTime.now().toIso8601String(),
         lastActivityAt: DateTime.now().toIso8601String(),
         permissionMode: 'plan',
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-opus-4-8',
       );
 
       await tester.pumpWidget(
         _wrap(RunningSessionCard(session: session, onTap: () {})),
       );
 
-      expect(
-        find.text('claude-sonnet-4-20250514  default  plan-on'),
-        findsOneWidget,
-      );
+      expect(find.text('Opus 4.8  default  plan-on'), findsOneWidget);
     });
 
     testWidgets('shows bypass-all for claude bypassPermissions mode', (

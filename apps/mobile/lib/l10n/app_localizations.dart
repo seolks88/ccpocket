@@ -1671,7 +1671,7 @@ abstract class AppLocalizations {
   /// No description provided for @claudeEffortUltracodeDesc.
   ///
   /// In ja, this message translates to:
-  /// **'X High と dynamic workflow 編成'**
+  /// **'X High。必要に応じて workflow を自動使用'**
   String get claudeEffortUltracodeDesc;
 
   /// No description provided for @reasoningEffortNoneDesc.

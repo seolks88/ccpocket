@@ -2826,7 +2826,7 @@ String _buildSettingsSummary({
     if (planMode) 'plan-on',
   ];
   if (model != null && model.isNotEmpty) {
-    return '$model  ${parts.join("  ")}';
+    return '${displayLabelForClaudeModel(model)}  ${parts.join("  ")}';
   }
   return parts.join('  ');
 }

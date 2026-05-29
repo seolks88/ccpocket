@@ -2624,7 +2624,9 @@ class _OptionsSection extends StatelessWidget {
             label: l.model,
             icon: Icons.smart_toy_outlined,
             title: provider == Provider.claude
-                ? (selectedClaudeModel ?? claudeModels.firstOrNull ?? '')
+                ? displayLabelForClaudeModel(
+                    selectedClaudeModel ?? claudeModels.firstOrNull ?? '',
+                  )
                 : (selectedModel ?? codexModels.firstOrNull ?? ''),
             subtitle: '',
             onTap: () {
@@ -2643,8 +2645,12 @@ class _OptionsSection extends StatelessWidget {
                 modes: models,
                 currentMode: current ?? '',
                 iconFor: (_) => Icons.smart_toy_outlined,
-                labelFor: (m) => m,
-                descriptionFor: (_) => '',
+                labelFor: provider == Provider.claude
+                    ? displayLabelForClaudeModel
+                    : (m) => m,
+                descriptionFor: provider == Provider.claude
+                    ? descriptionForClaudeModel
+                    : (_) => '',
                 onSelected: (m) => onChanged(m),
               );
             },
