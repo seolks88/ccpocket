@@ -172,6 +172,26 @@ void main() {
       },
     );
 
+    test(
+      'ClientMessage.setClaudeSessionOptions serializes runtime controls',
+      () {
+        final msg = ClientMessage.setClaudeSessionOptions(
+          sessionId: 'claude-runtime',
+          model: 'claude-opus-4-8[1m]',
+          effort: 'xhigh',
+          fastMode: true,
+        );
+
+        expect(jsonDecode(msg.toJson()), {
+          'type': 'set_claude_session_options',
+          'sessionId': 'claude-runtime',
+          'model': 'claude-opus-4-8[1m]',
+          'effort': 'xhigh',
+          'fastMode': true,
+        });
+      },
+    );
+
     test('ClientMessage.input serializes strict ack metadata', () {
       final msg = ClientMessage.input(
         'hello',

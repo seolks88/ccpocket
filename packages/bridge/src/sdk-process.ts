@@ -337,11 +337,27 @@ export function sdkMessageToServerMessage(
     case "system": {
       const sys = msg as Record<string, unknown>;
       if (sys.subtype === "init") {
+        const apiKeySource =
+          typeof sys.apiKeySource === "string" ? sys.apiKeySource : undefined;
+        const fastModeState =
+          typeof sys.fast_mode_state === "string"
+            ? sys.fast_mode_state
+            : undefined;
+        const claudeCodeVersion =
+          typeof sys.claude_code_version === "string"
+            ? sys.claude_code_version
+            : undefined;
         return {
           type: "system",
           subtype: "init",
           sessionId: msg.session_id,
           model: sys.model as string,
+          ...(apiKeySource !== undefined ? { apiKeySource } : {}),
+          ...(apiKeySource !== undefined
+            ? { billingSource: billingSourceFromApiKeySource(apiKeySource) }
+            : {}),
+          ...(fastModeState !== undefined ? { fastModeState } : {}),
+          ...(claudeCodeVersion !== undefined ? { claudeCodeVersion } : {}),
           ...(sys.slash_commands
             ? { slashCommands: sys.slash_commands as string[] }
             : {}),
@@ -481,6 +497,13 @@ export function sdkMessageToServerMessage(
     default:
       return null;
   }
+}
+
+function billingSourceFromApiKeySource(apiKeySource: string): string {
+  const normalized = apiKeySource.trim().toLowerCase();
+  if (!normalized || normalized === "none") return "subscription";
+  if (normalized.includes("key") || normalized.includes("api")) return "api";
+  return normalized;
 }
 
 export interface SdkProcessEvents {

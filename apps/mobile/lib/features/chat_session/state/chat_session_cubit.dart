@@ -13,6 +13,46 @@ import '../../../services/chat_message_handler.dart';
 import 'chat_session_state.dart';
 import 'streaming_state_cubit.dart';
 
+class ClaudeSessionRuntimeSettings {
+  final String? model;
+  final ClaudeEffort effort;
+  final bool fastMode;
+  final String? apiKeySource;
+  final String? billingSource;
+  final String? fastModeState;
+  final String? claudeCodeVersion;
+
+  const ClaudeSessionRuntimeSettings({
+    this.model,
+    this.effort = ClaudeEffort.xhigh,
+    this.fastMode = false,
+    this.apiKeySource,
+    this.billingSource,
+    this.fastModeState,
+    this.claudeCodeVersion,
+  });
+
+  ClaudeSessionRuntimeSettings copyWith({
+    String? model,
+    ClaudeEffort? effort,
+    bool? fastMode,
+    String? apiKeySource,
+    String? billingSource,
+    String? fastModeState,
+    String? claudeCodeVersion,
+  }) {
+    return ClaudeSessionRuntimeSettings(
+      model: model ?? this.model,
+      effort: effort ?? this.effort,
+      fastMode: fastMode ?? this.fastMode,
+      apiKeySource: apiKeySource ?? this.apiKeySource,
+      billingSource: billingSource ?? this.billingSource,
+      fastModeState: fastModeState ?? this.fastModeState,
+      claudeCodeVersion: claudeCodeVersion ?? this.claudeCodeVersion,
+    );
+  }
+}
+
 /// Manages the state of a single chat session.
 ///
 /// Subscribes to [BridgeService.messagesForSession] and delegates message
@@ -54,9 +94,11 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
   SandboxMode? _pendingSandboxRollback;
   ReasoningEffort? _pendingModelReasoningEffortRollback;
   String? _pendingServiceTierRollback;
+  ClaudeSessionRuntimeSettings? _pendingClaudeOptionsRollback;
 
   final ValueNotifier<ReasoningEffort> modelReasoningEffortNotifier;
   final ValueNotifier<String?> serviceTierNotifier;
+  final ValueNotifier<ClaudeSessionRuntimeSettings> claudeSettingsNotifier;
 
   /// Whether this session is a Codex session.
   bool get isCodex => provider == Provider.codex;
@@ -70,6 +112,12 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
   ValueListenable<String?> get serviceTierListenable => serviceTierNotifier;
 
   String? get serviceTier => serviceTierNotifier.value;
+
+  ValueListenable<ClaudeSessionRuntimeSettings> get claudeSettingsListenable =>
+      claudeSettingsNotifier;
+
+  ClaudeSessionRuntimeSettings get claudeSettings =>
+      claudeSettingsNotifier.value;
 
   String _nextOptimisticCodexUserTurnUuid() {
     final userTurnCount = state.entries.whereType<UserChatEntry>().length;
@@ -106,6 +154,13 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
     CodexPermissionsMode? initialCodexPermissionsMode,
     ReasoningEffort? initialModelReasoningEffort,
     String? initialServiceTier,
+    String? initialClaudeModel,
+    ClaudeEffort? initialClaudeEffort,
+    bool? initialClaudeFastMode,
+    String? initialClaudeApiKeySource,
+    String? initialClaudeBillingSource,
+    String? initialClaudeFastModeState,
+    String? initialClaudeCodeVersion,
     String? initialProjectPath,
   }) : _bridge = bridge,
        _streamingCubit = streamingCubit,
@@ -113,6 +168,17 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
          initialModelReasoningEffort ?? ReasoningEffort.high,
        ),
        serviceTierNotifier = ValueNotifier(initialServiceTier),
+       claudeSettingsNotifier = ValueNotifier(
+         ClaudeSessionRuntimeSettings(
+           model: initialClaudeModel,
+           effort: initialClaudeEffort ?? ClaudeEffort.xhigh,
+           fastMode: initialClaudeFastMode ?? false,
+           apiKeySource: initialClaudeApiKeySource,
+           billingSource: initialClaudeBillingSource,
+           fastModeState: initialClaudeFastModeState,
+           claudeCodeVersion: initialClaudeCodeVersion,
+         ),
+       ),
        super(
          ChatSessionState(
            permissionMode: initialPermissionMode ?? PermissionMode.defaultMode,
@@ -663,6 +729,24 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
     } else if (update.serviceTier != null &&
         serviceTierNotifier.value != update.serviceTier) {
       serviceTierNotifier.value = update.serviceTier;
+    }
+    if (!isCodex &&
+        (update.claudeModel != null ||
+            update.claudeEffort != null ||
+            update.claudeFastMode != null ||
+            update.claudeApiKeySource != null ||
+            update.claudeBillingSource != null ||
+            update.claudeFastModeState != null ||
+            update.claudeCodeVersion != null)) {
+      claudeSettingsNotifier.value = claudeSettingsNotifier.value.copyWith(
+        model: update.claudeModel,
+        effort: update.claudeEffort,
+        fastMode: update.claudeFastMode,
+        apiKeySource: update.claudeApiKeySource,
+        billingSource: update.claudeBillingSource,
+        fastModeState: update.claudeFastModeState,
+        claudeCodeVersion: update.claudeCodeVersion,
+      );
     }
     if (isDeliveryPendingQueuedInput(current.queuedInput) &&
         current.queuedInput?.itemId != nextQueuedInput?.itemId) {
@@ -1644,6 +1728,58 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
     );
   }
 
+  /// Change Claude model, thinking effort, or fast mode by resuming the same
+  /// Claude conversation with updated startup options.
+  void setClaudeSessionOptions({
+    String? model,
+    ClaudeEffort? effort,
+    bool? fastMode,
+  }) {
+    if (isCodex) return;
+    final current = claudeSettingsNotifier.value;
+    final next = current.copyWith(
+      model: model,
+      effort: effort,
+      fastMode: fastMode,
+    );
+    if (next.model == current.model &&
+        next.effort == current.effort &&
+        next.fastMode == current.fastMode) {
+      return;
+    }
+
+    logger.info(
+      '[session:$sessionId] setClaudeOptions '
+      'model=${next.model ?? 'default'} effort=${next.effort.value} '
+      'fast=${next.fastMode}',
+    );
+    _pendingClaudeOptionsRollback = current;
+    claudeSettingsNotifier.value = next;
+    _bridge.patchSessionClaudeOptions(
+      sessionId,
+      model: next.model,
+      effort: next.effort.value,
+      fastMode: next.fastMode,
+    );
+    _bridge.send(
+      ClientMessage.setClaudeSessionOptions(
+        sessionId: sessionId,
+        model: next.model,
+        effort: next.effort.value,
+        fastMode: next.fastMode,
+      ),
+    );
+
+    final claudeSid = state.claudeSessionId;
+    if (claudeSid != null && claudeSid.isNotEmpty) {
+      _SessionSettingsHelper.save(claudeSid, {
+        if (next.model != null) 'claudeModel': next.model,
+        'claudeEffort': next.effort.value,
+        'claudeFastMode': next.fastMode,
+      });
+    }
+  }
+
   /// Change sandbox mode (Claude & Codex).
   /// Bridge destroys and resumes the session with new sandbox settings.
   void setSandboxMode(SandboxMode mode) {
@@ -1750,6 +1886,20 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
       serviceTierNotifier.value = previous;
       _bridge.patchSessionServiceTier(sessionId, previous);
     }
+
+    if (_isClaudeSessionOptionsFailure(msg)) {
+      final previous = _pendingClaudeOptionsRollback;
+      _pendingClaudeOptionsRollback = null;
+      if (previous != null) {
+        claudeSettingsNotifier.value = previous;
+        _bridge.patchSessionClaudeOptions(
+          sessionId,
+          model: previous.model,
+          effort: previous.effort.value,
+          fastMode: previous.fastMode,
+        );
+      }
+    }
   }
 
   bool _isPermissionModeFailure(ErrorMessage msg) {
@@ -1781,6 +1931,15 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
         (msg.errorCode == 'unsupported_message' &&
             msg.message == 'set_service_tier') ||
         msg.message.startsWith('Failed to set service tier:');
+  }
+
+  bool _isClaudeSessionOptionsFailure(ErrorMessage msg) {
+    return msg.errorCode == 'set_claude_session_options_rejected' ||
+        (msg.errorCode == 'unsupported_message' &&
+            msg.message == 'set_claude_session_options') ||
+        msg.message.startsWith(
+          'Failed to restart session for Claude option change:',
+        );
   }
 
   /// Stop the session.
@@ -1983,6 +2142,7 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
     _subscription?.cancel();
     modelReasoningEffortNotifier.dispose();
     serviceTierNotifier.dispose();
+    claudeSettingsNotifier.dispose();
     _sideEffectsController.close();
     return super.close();
   }

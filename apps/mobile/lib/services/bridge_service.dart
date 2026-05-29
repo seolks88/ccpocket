@@ -2249,12 +2249,33 @@ class BridgeService implements BridgeServiceBase {
     if (idx < 0) return;
     final current = _sessions[idx];
     final codexModel = sanitizeCodexModelName(message.model);
+    final isClaudeMessage =
+        message.provider == Provider.claude.value ||
+        current.provider == Provider.claude.value;
     _sessions = List.of(_sessions)
       ..[idx] = current.copyWith(
         permissionMode: message.permissionMode ?? current.permissionMode,
         executionMode: message.executionMode ?? current.executionMode,
         planMode: message.planMode ?? current.planMode,
-        model: message.provider == Provider.claude.value ? message.model : null,
+        model: isClaudeMessage ? (message.model ?? current.model) : null,
+        claudeEffort: isClaudeMessage
+            ? (message.effort ?? current.claudeEffort)
+            : current.claudeEffort,
+        claudeFastMode: isClaudeMessage
+            ? (message.fastMode ?? current.claudeFastMode)
+            : current.claudeFastMode,
+        claudeApiKeySource: isClaudeMessage
+            ? (message.apiKeySource ?? current.claudeApiKeySource)
+            : current.claudeApiKeySource,
+        claudeBillingSource: isClaudeMessage
+            ? (message.billingSource ?? current.claudeBillingSource)
+            : current.claudeBillingSource,
+        claudeFastModeState: isClaudeMessage
+            ? (message.fastModeState ?? current.claudeFastModeState)
+            : current.claudeFastModeState,
+        claudeCodeVersion: isClaudeMessage
+            ? (message.claudeCodeVersion ?? current.claudeCodeVersion)
+            : current.claudeCodeVersion,
         codexApprovalPolicy: resolveCodexApprovalPolicy(
           approvalPolicy: message.approvalPolicy ?? current.codexApprovalPolicy,
           executionMode: message.executionMode ?? current.executionMode,
@@ -2386,6 +2407,29 @@ class BridgeService implements BridgeServiceBase {
       ..[idx] = current.copyWith(
         codexServiceTier: serviceTier,
         clearCodexServiceTier: serviceTier == null,
+      );
+    _sessionListController.add(_sessions);
+  }
+
+  void patchSessionClaudeOptions(
+    String sessionId, {
+    String? model,
+    String? effort,
+    bool? fastMode,
+  }) {
+    final idx = _sessions.indexWhere((s) => s.id == sessionId);
+    if (idx < 0) return;
+    final current = _sessions[idx];
+    if (current.model == model &&
+        current.claudeEffort == effort &&
+        current.claudeFastMode == fastMode) {
+      return;
+    }
+    _sessions = List.of(_sessions)
+      ..[idx] = current.copyWith(
+        model: model ?? current.model,
+        claudeEffort: effort ?? current.claudeEffort,
+        claudeFastMode: fastMode ?? current.claudeFastMode,
       );
     _sessionListController.add(_sessions);
   }

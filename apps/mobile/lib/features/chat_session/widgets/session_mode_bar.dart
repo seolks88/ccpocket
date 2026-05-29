@@ -125,6 +125,81 @@ class SessionModeBar extends StatelessWidget {
                       onBeforeRestart: onBeforeRestart,
                     ),
                   ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: VerticalDivider(
+                      width: 1,
+                      thickness: 1,
+                      color: cs.outlineVariant.withValues(alpha: 0.4),
+                    ),
+                  ),
+                  ValueListenableBuilder<ClaudeSessionRuntimeSettings>(
+                    valueListenable: chatCubit.claudeSettingsListenable,
+                    builder: (context, settings, _) => ClaudeModelChip(
+                      model: settings.model,
+                      onTap: () => showClaudeModelMenu(
+                        context,
+                        chatCubit,
+                        onBeforeRestart: onBeforeRestart,
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: VerticalDivider(
+                      width: 1,
+                      thickness: 1,
+                      color: cs.outlineVariant.withValues(alpha: 0.4),
+                    ),
+                  ),
+                  ValueListenableBuilder<ClaudeSessionRuntimeSettings>(
+                    valueListenable: chatCubit.claudeSettingsListenable,
+                    builder: (context, settings, _) => ClaudeThinkingChip(
+                      effort: settings.effort,
+                      onTap: () => showClaudeEffortMenu(
+                        context,
+                        chatCubit,
+                        onBeforeRestart: onBeforeRestart,
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: VerticalDivider(
+                      width: 1,
+                      thickness: 1,
+                      color: cs.outlineVariant.withValues(alpha: 0.4),
+                    ),
+                  ),
+                  ValueListenableBuilder<ClaudeSessionRuntimeSettings>(
+                    valueListenable: chatCubit.claudeSettingsListenable,
+                    builder: (context, settings, _) => ClaudeFastModeChip(
+                      enabled: settings.fastMode,
+                      actualState: settings.fastModeState,
+                      onTap: () async {
+                        await onBeforeRestart?.call();
+                        HapticFeedback.lightImpact();
+                        chatCubit.setClaudeSessionOptions(
+                          fastMode: !settings.fastMode,
+                        );
+                      },
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: VerticalDivider(
+                      width: 1,
+                      thickness: 1,
+                      color: cs.outlineVariant.withValues(alpha: 0.4),
+                    ),
+                  ),
+                  ValueListenableBuilder<ClaudeSessionRuntimeSettings>(
+                    valueListenable: chatCubit.claudeSettingsListenable,
+                    builder: (context, settings, _) => ClaudeBillingChip(
+                      settings: settings,
+                      onTap: () => showClaudeBillingSheet(context, settings),
+                    ),
+                  ),
                 ],
                 if (!isCodex) ...[
                   Padding(
@@ -153,9 +228,12 @@ class SessionModeBar extends StatelessWidget {
     );
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      child: _PulsingModeBarSurface(
-        inPlanMode: inPlanMode && isActive,
-        child: bar,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: _PulsingModeBarSurface(
+          inPlanMode: inPlanMode && isActive,
+          child: bar,
+        ),
       ),
     );
   }
@@ -1262,6 +1340,547 @@ class ServiceTierChip extends StatelessWidget {
                   size: 14,
                   color: fg.withValues(alpha: 0.5),
                 ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+void showClaudeModelMenu(
+  BuildContext context,
+  ChatSessionCubit chatCubit, {
+  Future<void> Function()? onBeforeRestart,
+}) {
+  if (chatCubit.isCodex) return;
+  final settings = chatCubit.claudeSettings;
+  final currentModel = _effectiveClaudeModel(settings);
+  final models = _claudeModelsForSession(context, currentModel);
+  final currentEffort = settings.effort;
+
+  showModalBottomSheet(
+    context: context,
+    builder: (sheetContext) {
+      final sheetCs = Theme.of(sheetContext).colorScheme;
+      return SafeArea(
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Claude model',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: sheetCs.onSurface,
+                    ),
+                  ),
+                ),
+              ),
+              for (final model in models)
+                ListTile(
+                  leading: Icon(
+                    _claudeModelIcon(model),
+                    color: model == currentModel
+                        ? sheetCs.primary
+                        : sheetCs.onSurfaceVariant,
+                  ),
+                  title: Text(displayLabelForClaudeModel(model)),
+                  subtitle: Text(
+                    descriptionForClaudeModel(model),
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  trailing: model == currentModel
+                      ? Icon(Icons.check, color: sheetCs.primary, size: 20)
+                      : null,
+                  onTap: () async {
+                    Navigator.pop(sheetContext);
+                    if (model == currentModel) return;
+                    final allowedEfforts = _claudeEffortsForModel(
+                      context,
+                      model,
+                      currentEffort,
+                    );
+                    final nextEffort = allowedEfforts.contains(currentEffort)
+                        ? currentEffort
+                        : allowedEfforts.contains(ClaudeEffort.high)
+                        ? ClaudeEffort.high
+                        : allowedEfforts.first;
+                    await onBeforeRestart?.call();
+                    HapticFeedback.lightImpact();
+                    chatCubit.setClaudeSessionOptions(
+                      model: model,
+                      effort: nextEffort,
+                    );
+                  },
+                ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
+void showClaudeEffortMenu(
+  BuildContext context,
+  ChatSessionCubit chatCubit, {
+  Future<void> Function()? onBeforeRestart,
+}) {
+  if (chatCubit.isCodex) return;
+  final settings = chatCubit.claudeSettings;
+  final model = _effectiveClaudeModel(settings);
+  final currentEffort = settings.effort;
+  final efforts = _claudeEffortsForModel(context, model, currentEffort);
+
+  showModalBottomSheet(
+    context: context,
+    builder: (sheetContext) {
+      final sheetCs = Theme.of(sheetContext).colorScheme;
+      return SafeArea(
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Claude thinking',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: sheetCs.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Current: ${currentEffort.label}. Applies from the next message.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: sheetCs.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              for (final effort in efforts)
+                ListTile(
+                  leading: Icon(
+                    _claudeEffortIcon(effort),
+                    color: effort == currentEffort
+                        ? sheetCs.primary
+                        : sheetCs.onSurfaceVariant,
+                  ),
+                  title: Text(effort.label),
+                  subtitle: Text(
+                    _claudeEffortDescription(effort),
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  trailing: effort == currentEffort
+                      ? Icon(Icons.check, color: sheetCs.primary, size: 20)
+                      : null,
+                  onTap: () async {
+                    Navigator.pop(sheetContext);
+                    if (effort == currentEffort) return;
+                    await onBeforeRestart?.call();
+                    HapticFeedback.lightImpact();
+                    chatCubit.setClaudeSessionOptions(effort: effort);
+                  },
+                ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
+void showClaudeBillingSheet(
+  BuildContext context,
+  ClaudeSessionRuntimeSettings settings,
+) {
+  showModalBottomSheet(
+    context: context,
+    builder: (sheetContext) {
+      final sheetCs = Theme.of(sheetContext).colorScheme;
+      final source = _claudeBillingFullLabel(settings);
+      final fastState = settings.fastModeState?.isNotEmpty == true
+          ? settings.fastModeState!
+          : (settings.fastMode ? 'requested' : 'off');
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Claude usage',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: sheetCs.onSurface,
+                ),
+              ),
+              const SizedBox(height: 12),
+              _ClaudeUsageRow(
+                icon: Icons.account_circle_outlined,
+                label: 'Source',
+                value: source,
+              ),
+              _ClaudeUsageRow(
+                icon: Icons.bolt_outlined,
+                label: 'Fast mode',
+                value: fastState,
+              ),
+              _ClaudeUsageRow(
+                icon: Icons.smart_toy_outlined,
+                label: 'Model',
+                value: displayLabelForClaudeModel(
+                  _effectiveClaudeModel(settings),
+                ),
+              ),
+              if (settings.claudeCodeVersion?.isNotEmpty == true)
+                _ClaudeUsageRow(
+                  icon: Icons.terminal,
+                  label: 'Claude Code',
+                  value: settings.claudeCodeVersion!,
+                ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
+List<String> _claudeModelsForSession(BuildContext context, String current) {
+  const fallback = <String>[
+    'default',
+    'opus',
+    'opus[1m]',
+    'sonnet',
+    'haiku',
+    'claude-opus-4-8',
+    'claude-opus-4-8[1m]',
+  ];
+  final bridgeModels = context.read<BridgeService>().claudeModels;
+  final seen = <String>{};
+  final out = <String>[];
+  for (final model in [current, ...bridgeModels, ...fallback]) {
+    final trimmed = model.trim();
+    if (trimmed.isEmpty || !seen.add(trimmed)) continue;
+    out.add(trimmed);
+  }
+  return out;
+}
+
+List<ClaudeEffort> _claudeEffortsForModel(
+  BuildContext context,
+  String model,
+  ClaudeEffort current,
+) {
+  final raw =
+      context.read<BridgeService>().claudeModelEfforts[model] ??
+      context.read<BridgeService>().claudeModelEfforts['default'] ??
+      const <String>[];
+  final seen = <ClaudeEffort>{};
+  final out = <ClaudeEffort>[];
+  for (final effort in [
+    current,
+    ...raw.map(parseClaudeEffortFromRaw).whereType<ClaudeEffort>(),
+    ClaudeEffort.low,
+    ClaudeEffort.medium,
+    ClaudeEffort.high,
+    ClaudeEffort.xhigh,
+    ClaudeEffort.max,
+  ]) {
+    if (seen.add(effort)) out.add(effort);
+  }
+  return out;
+}
+
+String _effectiveClaudeModel(ClaudeSessionRuntimeSettings settings) {
+  final model = settings.model?.trim();
+  return model == null || model.isEmpty ? 'default' : model;
+}
+
+IconData _claudeModelIcon(String model) {
+  final value = model.toLowerCase();
+  if (value.contains('opus')) return Icons.auto_awesome;
+  if (value.contains('haiku')) return Icons.bolt_outlined;
+  if (value.contains('sonnet')) return Icons.balance_outlined;
+  return Icons.smart_toy_outlined;
+}
+
+IconData _claudeEffortIcon(ClaudeEffort effort) => switch (effort) {
+  ClaudeEffort.low => Icons.speed,
+  ClaudeEffort.medium => Icons.lightbulb_outline,
+  ClaudeEffort.high => Icons.psychology,
+  ClaudeEffort.xhigh => Icons.auto_awesome,
+  ClaudeEffort.max => Icons.all_inclusive,
+};
+
+String _claudeEffortDescription(ClaudeEffort effort) => switch (effort) {
+  ClaudeEffort.low => 'Faster responses with lighter reasoning',
+  ClaudeEffort.medium => 'Balanced speed and reasoning',
+  ClaudeEffort.high => 'More careful analysis',
+  ClaudeEffort.xhigh => 'Extended reasoning for harder work',
+  ClaudeEffort.max => 'Most thorough, slowest option',
+};
+
+String _claudeBillingShortLabel(ClaudeSessionRuntimeSettings settings) {
+  final source = settings.billingSource?.trim().toLowerCase();
+  final apiKeySource = settings.apiKeySource?.trim().toLowerCase();
+  if (source == 'subscription' || apiKeySource == 'none') return 'Sub';
+  if (source == 'api' || (apiKeySource != null && apiKeySource.isNotEmpty)) {
+    return 'API';
+  }
+  return 'Usage';
+}
+
+String _claudeBillingFullLabel(ClaudeSessionRuntimeSettings settings) {
+  final source = settings.billingSource?.trim().toLowerCase();
+  final apiKeySource = settings.apiKeySource?.trim();
+  if (source == 'subscription' || apiKeySource == 'none') {
+    return 'Claude subscription';
+  }
+  if (source == 'api') {
+    return apiKeySource?.isNotEmpty == true
+        ? 'API key ($apiKeySource)'
+        : 'API key';
+  }
+  if (apiKeySource?.isNotEmpty == true) {
+    return 'Credential source: $apiKeySource';
+  }
+  return 'Waiting for Claude Code init';
+}
+
+class ClaudeModelChip extends StatelessWidget {
+  final String? model;
+  final VoidCallback onTap;
+
+  const ClaudeModelChip({super.key, required this.model, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final effective = model?.trim().isNotEmpty == true
+        ? model!.trim()
+        : 'default';
+    final label = displayLabelForClaudeModel(effective);
+    final compactLabel = label
+        .replaceAll('Claude ', '')
+        .replaceAll(' available', '')
+        .replaceAll(' context', '');
+
+    return _SessionChip(
+      icon: _claudeModelIcon(effective),
+      label: compactLabel,
+      color: cs.primary,
+      tooltip: 'Claude model: $label',
+      onTap: onTap,
+    );
+  }
+}
+
+class ClaudeThinkingChip extends StatelessWidget {
+  final ClaudeEffort effort;
+  final VoidCallback onTap;
+
+  const ClaudeThinkingChip({
+    super.key,
+    required this.effort,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return _SessionChip(
+      icon: _claudeEffortIcon(effort),
+      label: effort == ClaudeEffort.xhigh ? 'X High' : effort.label,
+      color: cs.primary,
+      tooltip: 'Claude thinking: ${effort.label}',
+      onTap: onTap,
+    );
+  }
+}
+
+class ClaudeFastModeChip extends StatelessWidget {
+  final bool enabled;
+  final String? actualState;
+  final VoidCallback onTap;
+
+  const ClaudeFastModeChip({
+    super.key,
+    required this.enabled,
+    this.actualState,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final appColors = Theme.of(context).extension<AppColors>()!;
+    final normalizedActual = actualState?.trim().toLowerCase();
+    final requestedButOff =
+        enabled && normalizedActual != null && normalizedActual != 'on';
+    final color = requestedButOff
+        ? appColors.warningText
+        : enabled
+        ? cs.primary
+        : cs.onSurfaceVariant;
+    final label = enabled ? (requestedButOff ? 'Fast?' : 'Fast') : 'Fast Off';
+
+    return _SessionChip(
+      icon: enabled ? Icons.bolt : Icons.bolt_outlined,
+      label: label,
+      color: color,
+      tooltip:
+          'Claude Opus fast mode: ${enabled ? 'requested' : 'off'}${actualState == null ? '' : ', actual $actualState'}',
+      showChevron: false,
+      onTap: onTap,
+    );
+  }
+}
+
+class ClaudeBillingChip extends StatelessWidget {
+  final ClaudeSessionRuntimeSettings settings;
+  final VoidCallback onTap;
+
+  const ClaudeBillingChip({
+    super.key,
+    required this.settings,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final label = _claudeBillingShortLabel(settings);
+    final color = label == 'API' ? cs.error : cs.onSurfaceVariant;
+
+    return _SessionChip(
+      icon: label == 'API' ? Icons.key : Icons.account_circle_outlined,
+      label: label,
+      color: color,
+      tooltip: _claudeBillingFullLabel(settings),
+      onTap: onTap,
+    );
+  }
+}
+
+class _ClaudeUsageRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+
+  const _ClaudeUsageRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 7),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: cs.onSurfaceVariant),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
+            ),
+          ),
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: cs.onSurface,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SessionChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final String tooltip;
+  final VoidCallback onTap;
+  final bool showChevron;
+
+  const _SessionChip({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.tooltip,
+    required this.onTap,
+    this.showChevron = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(10),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 13, color: color),
+                const SizedBox(width: 3),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 92),
+                  child: Text(
+                    label,
+                    overflow: TextOverflow.ellipsis,
+                    softWrap: false,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: color,
+                    ),
+                  ),
+                ),
+                if (showChevron)
+                  Icon(
+                    Icons.arrow_drop_down,
+                    size: 14,
+                    color: color.withValues(alpha: 0.5),
+                  ),
               ],
             ),
           ),

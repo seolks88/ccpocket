@@ -1021,6 +1021,32 @@ export class BridgeWebSocketServer {
           session.codexSettings.additionalWritableRoots;
       }
     }
+    if (provider === "claude" && session?.claudeSettings) {
+      const claudeSettings = session.claudeSettings;
+      if (session.process instanceof SdkProcess) {
+        msg.model = session.process.model ?? claudeSettings.model;
+      } else if (claudeSettings.model !== undefined) {
+        msg.model = claudeSettings.model;
+      }
+      if (claudeSettings.effort !== undefined) {
+        msg.effort = claudeSettings.effort;
+      }
+      if (claudeSettings.fastMode !== undefined) {
+        msg.fastMode = claudeSettings.fastMode;
+      }
+      if (claudeSettings.apiKeySource !== undefined) {
+        msg.apiKeySource = claudeSettings.apiKeySource;
+      }
+      if (claudeSettings.billingSource !== undefined) {
+        msg.billingSource = claudeSettings.billingSource;
+      }
+      if (claudeSettings.fastModeState !== undefined) {
+        msg.fastModeState = claudeSettings.fastModeState;
+      }
+      if (claudeSettings.claudeCodeVersion !== undefined) {
+        msg.claudeCodeVersion = claudeSettings.claudeCodeVersion;
+      }
+    }
 
     return msg;
   }
@@ -2915,6 +2941,138 @@ export class BridgeWebSocketServer {
         });
         console.log(
           `[ws] set_service_tier(codex): ${serviceTier ?? "default"}`,
+        );
+        break;
+      }
+
+      case "set_claude_session_options": {
+        const session = this.resolveSession(msg.sessionId);
+        if (!session) {
+          this.send(ws, {
+            type: "error",
+            message: "No active session.",
+            errorCode: "set_claude_session_options_rejected",
+          });
+          return;
+        }
+        if (session.provider !== "claude") {
+          this.send(ws, {
+            type: "error",
+            message:
+              "Claude session options can only be changed for Claude sessions.",
+            errorCode: "set_claude_session_options_rejected",
+          });
+          break;
+        }
+
+        const currentSettings = session.claudeSettings ?? {};
+        const process = session.process as SdkProcess;
+        const nextModel =
+          msg.model !== undefined
+            ? msg.model.trim()
+            : (currentSettings.model ?? process.model);
+        if (msg.model !== undefined && !nextModel) {
+          this.send(ws, {
+            type: "error",
+            message: "Claude model cannot be empty.",
+            errorCode: "set_claude_session_options_rejected",
+          });
+          break;
+        }
+        const nextEffort = msg.effort ?? currentSettings.effort;
+        const nextFastMode =
+          msg.fastMode ?? currentSettings.fastMode ?? false;
+
+        if (
+          nextModel === (currentSettings.model ?? process.model) &&
+          nextEffort === currentSettings.effort &&
+          nextFastMode === (currentSettings.fastMode ?? false)
+        ) {
+          break;
+        }
+
+        const oldSessionId = session.id;
+        const claudeSessionId = session.claudeSessionId ?? process.sessionId;
+        const projectPath = session.projectPath;
+        const worktreePath = session.worktreePath;
+        const worktreeBranch = session.worktreeBranch;
+        const sessionName = session.name;
+        const permissionMode = process.permissionMode;
+        const sandboxEnabled = session.sandboxEnabled;
+
+        this.sessionManager.destroy(oldSessionId);
+        console.log(
+          `[ws] Claude options change: destroyed session ${oldSessionId}`,
+        );
+
+        const {
+          sessionId: newId,
+          permissionMode: effectivePermissionMode,
+          executionMode: effectiveExecutionMode,
+          planMode: effectivePlanMode,
+          usedFallback: autoFallbackUsed,
+        } = this.createClaudeSessionWithFallback({
+          projectPath,
+          options: {
+            sessionId: claudeSessionId ?? undefined,
+            permissionMode,
+            model: nextModel,
+            effort: nextEffort as ClaudeEffortLevel | undefined,
+            fastMode: nextFastMode,
+            ...(sandboxEnabled != null ? { sandboxEnabled } : {}),
+          },
+          worktreeOptions: worktreePath
+            ? { existingWorktreePath: worktreePath, worktreeBranch }
+            : undefined,
+        });
+
+        const newSession = this.sessionManager.get(newId);
+        if (newSession && sessionName) newSession.name = sessionName;
+
+        void this.loadAndSetSessionName(
+          newSession,
+          "claude",
+          projectPath,
+          claudeSessionId ?? undefined,
+        ).then(() => {
+          this.broadcast(
+            this.buildSessionCreatedMessage({
+              sessionId: newId,
+              provider: "claude",
+              projectPath,
+              session: newSession,
+              permissionMode: effectivePermissionMode,
+              executionMode: effectiveExecutionMode,
+              planMode: effectivePlanMode,
+              sandboxMode:
+                sandboxEnabled == null
+                  ? undefined
+                  : sandboxEnabled
+                    ? "on"
+                    : "off",
+              sourceSessionId: oldSessionId,
+            }),
+          );
+          this.broadcastSessionList();
+          if (autoFallbackUsed) {
+            this.sendTip(
+              ws,
+              newId,
+              "auto_mode_fallback_default",
+              newSession,
+            );
+          }
+        });
+
+        this.debugEvents.set(newId, []);
+        this.recordDebugEvent(newId, {
+          direction: "internal" as const,
+          channel: "bridge" as const,
+          type: "claude_session_options_changed",
+          detail: `model=${nextModel ?? "default"} effort=${nextEffort ?? "default"} fastMode=${nextFastMode} claude=${claudeSessionId ?? "new"} oldSession=${oldSessionId}`,
+        });
+        console.log(
+          `[ws] Claude options change: created new session ${newId} (model=${nextModel ?? "default"}, effort=${nextEffort ?? "default"}, fastMode=${nextFastMode})`,
         );
         break;
       }
@@ -5672,8 +5830,21 @@ export class BridgeWebSocketServer {
         });
       }
     }
-    // Wrap the message with sessionId
-    const data = JSON.stringify({ ...msg, sessionId });
+    // Wrap with the Bridge runtime session id, preserving provider-native ids
+    // separately so clients can persist resume settings against the real
+    // Claude/Codex conversation id.
+    const providerSessionId =
+      (msg.type === "system" || msg.type === "result") &&
+      "sessionId" in msg &&
+      typeof msg.sessionId === "string" &&
+      msg.sessionId !== sessionId
+        ? msg.sessionId
+        : undefined;
+    const data = JSON.stringify({
+      ...msg,
+      ...(providerSessionId ? { claudeSessionId: providerSessionId } : {}),
+      sessionId,
+    });
     for (const client of this.wss.clients) {
       if (client === exclude) continue;
       if (client.readyState === WebSocket.OPEN) {
@@ -6961,6 +7132,25 @@ export class BridgeWebSocketServer {
       if (session.codexSettings.additionalWritableRoots !== undefined) {
         msg.additionalWritableRoots =
           session.codexSettings.additionalWritableRoots;
+      }
+    }
+    if (session.provider === "claude" && session.claudeSettings) {
+      if (session.claudeSettings.model !== undefined) {
+        msg.model = session.claudeSettings.model;
+      }
+      if (session.claudeSettings.effort !== undefined) {
+        msg.effort = session.claudeSettings.effort as
+          | "low"
+          | "medium"
+          | "high"
+          | "xhigh"
+          | "max";
+      }
+      if (session.claudeSettings.fastMode !== undefined) {
+        msg.fastMode = session.claudeSettings.fastMode;
+      }
+      if (session.sandboxEnabled !== undefined) {
+        msg.sandboxMode = session.sandboxEnabled ? "on" : "off";
       }
     }
 

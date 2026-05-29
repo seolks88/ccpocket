@@ -68,6 +68,35 @@ void main() {
       expect(info.codexModel, 'gpt-5.3-codex');
     });
 
+    test('parses Claude runtime settings from claudeSettings object', () {
+      final json = {
+        'id': 'claude1',
+        'provider': 'claude',
+        'projectPath': '/home/user/my-app',
+        'status': 'idle',
+        'createdAt': '',
+        'lastActivityAt': '',
+        'claudeSettings': {
+          'model': 'claude-opus-4-8[1m]',
+          'effort': 'xhigh',
+          'fastMode': true,
+          'apiKeySource': 'none',
+          'billingSource': 'subscription',
+          'fastModeState': 'off',
+          'claudeCodeVersion': '2.1.156',
+        },
+      };
+
+      final info = SessionInfo.fromJson(json);
+      expect(info.model, 'claude-opus-4-8[1m]');
+      expect(info.claudeEffort, 'xhigh');
+      expect(info.claudeFastMode, isTrue);
+      expect(info.claudeApiKeySource, 'none');
+      expect(info.claudeBillingSource, 'subscription');
+      expect(info.claudeFastModeState, 'off');
+      expect(info.claudeCodeVersion, '2.1.156');
+    });
+
     test('parses agent metadata', () {
       final json = {
         'id': 'codex-agent',

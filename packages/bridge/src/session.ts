@@ -77,6 +77,8 @@ export interface SessionInfo {
     webSearchMode?: string;
     additionalWritableRoots?: string[];
   };
+  /** Claude-specific settings and runtime metadata used to start/resume. */
+  claudeSettings?: ClaudeSessionSettings;
   /** Claude sandbox enabled state (for resume). */
   sandboxEnabled?: boolean;
   /** Codex-only pending input waiting for the next turn. */
@@ -151,6 +153,7 @@ export interface SessionSummary {
     webSearchMode?: string;
     additionalWritableRoots?: string[];
   };
+  claudeSettings?: ClaudeSessionSettings;
   agentNickname?: string;
   agentRole?: string;
   /** Claude sandbox enabled state. */
@@ -164,6 +167,16 @@ export interface SessionSummary {
 }
 
 const MAX_HISTORY_PER_SESSION = 100;
+
+export interface ClaudeSessionSettings {
+  model?: string;
+  effort?: string;
+  fastMode?: boolean;
+  apiKeySource?: string;
+  billingSource?: string;
+  fastModeState?: string;
+  claudeCodeVersion?: string;
+}
 
 export type GalleryImageCallback = (meta: GalleryImageMeta) => void;
 export type SessionUpdatedCallback = (sessionId: string) => void;
@@ -211,6 +224,41 @@ function sanitizeCodexModel(model: unknown): string | undefined {
   const normalized = model.trim();
   if (!normalized || normalized === "codex") return undefined;
   return normalized;
+}
+
+function sanitizeClaudeModel(model: unknown): string | undefined {
+  if (typeof model !== "string") return undefined;
+  const normalized = model.trim();
+  return normalized || undefined;
+}
+
+function mergeClaudeSettings(
+  current: SessionInfo["claudeSettings"],
+  msg: Extract<ServerMessage, { type: "system" }>,
+): SessionInfo["claudeSettings"] {
+  const model = sanitizeClaudeModel(msg.model);
+  const next = {
+    ...(current ?? {}),
+    ...(model !== undefined ? { model } : {}),
+    ...(msg.effort !== undefined ? { effort: msg.effort } : {}),
+    ...(msg.fastMode !== undefined ? { fastMode: msg.fastMode } : {}),
+    ...(msg.apiKeySource !== undefined
+      ? { apiKeySource: msg.apiKeySource }
+      : {}),
+    ...(msg.billingSource !== undefined
+      ? { billingSource: msg.billingSource }
+      : {}),
+    ...(msg.fastModeState !== undefined
+      ? { fastModeState: msg.fastModeState }
+      : {}),
+    ...(msg.claudeCodeVersion !== undefined
+      ? { claudeCodeVersion: msg.claudeCodeVersion }
+      : {}),
+  };
+
+  return Object.values(next).some((value) => value !== undefined)
+    ? next
+    : current;
 }
 
 function publicQueuedInput(item?: QueuedCodexInput): QueuedInputItem | undefined {
@@ -397,6 +445,12 @@ export class SessionManager {
             session.claudeSessionId = msg.sessionId;
             this.saveWorktreeMapping(session);
           }
+          if (msg.type === "system") {
+            session.claudeSettings = mergeClaudeSettings(
+              session.claudeSettings,
+              msg,
+            );
+          }
 
           // Cache tool_use names from assistant messages
           if (msg.type === "assistant" && Array.isArray(msg.message.content)) {
@@ -406,6 +460,15 @@ export class SessionManager {
                 toolUseNames.set(toolUse.id, toolUse.name);
               }
             }
+          }
+          const messageModel = sanitizeClaudeModel(
+            msg.type === "assistant" ? msg.message.model : undefined,
+          );
+          if (msg.type === "assistant" && messageModel) {
+            session.claudeSettings = {
+              ...(session.claudeSettings ?? {}),
+              model: messageModel,
+            };
           }
 
           // Enrich tool_result with toolName
@@ -620,6 +683,13 @@ export class SessionManager {
     if (effectiveProvider === "claude" && options?.sandboxEnabled != null) {
       session.sandboxEnabled = options.sandboxEnabled;
     }
+    if (effectiveProvider === "claude") {
+      session.claudeSettings = {
+        model: options?.model,
+        effort: options?.effort,
+        fastMode: options?.fastMode,
+      };
+    }
 
     if (effectiveProvider === "codex" && codexOptions) {
       session.codexSettings = {
@@ -777,8 +847,12 @@ export class SessionManager {
               : undefined,
         executionMode,
         planMode,
-        model: s.process instanceof SdkProcess ? s.process.model : undefined,
+        model:
+          s.process instanceof SdkProcess
+            ? (s.process.model ?? s.claudeSettings?.model)
+            : undefined,
         codexSettings: s.codexSettings,
+        claudeSettings: s.claudeSettings,
         agentNickname:
           s.process instanceof CodexProcess
             ? (s.process.agentNickname ?? undefined)

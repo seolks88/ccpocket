@@ -313,6 +313,31 @@ describe("buildThinkingOptions", () => {
 // ---- sdkMessageToServerMessage ----
 
 describe("sdkMessageToServerMessage", () => {
+  it("forwards Claude init auth and fast-mode metadata", () => {
+    const sdkMsg = {
+      type: "system" as const,
+      subtype: "init",
+      session_id: "test-session",
+      model: "claude-opus-4-8[1m]",
+      apiKeySource: "none",
+      fast_mode_state: "off",
+      claude_code_version: "2.1.156",
+    };
+
+    const serverMsg = sdkMessageToServerMessage(sdkMsg as any);
+
+    expect(serverMsg).toEqual({
+      type: "system",
+      subtype: "init",
+      sessionId: "test-session",
+      model: "claude-opus-4-8[1m]",
+      apiKeySource: "none",
+      billingSource: "subscription",
+      fastModeState: "off",
+      claudeCodeVersion: "2.1.156",
+    });
+  });
+
   describe("tool_use_summary handling", () => {
     it("converts SDKToolUseSummaryMessage to ServerMessage", () => {
       const sdkMsg = {

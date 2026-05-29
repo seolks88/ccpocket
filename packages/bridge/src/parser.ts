@@ -180,6 +180,13 @@ export type ClientMessage =
       serviceTier: string | null;
       sessionId?: string;
     }
+  | {
+      type: "set_claude_session_options";
+      sessionId?: string;
+      model?: string;
+      effort?: "low" | "medium" | "high" | "xhigh" | "max";
+      fastMode?: boolean;
+    }
   | { type: "set_sandbox_mode"; sandboxMode: string; sessionId?: string }
   | {
       type: "approve";
@@ -484,6 +491,12 @@ export type ServerMessage =
       sandboxMode?: string;
       modelReasoningEffort?: string;
       serviceTier?: string | null;
+      effort?: string;
+      fastMode?: boolean;
+      apiKeySource?: string;
+      billingSource?: string;
+      fastModeState?: string;
+      claudeCodeVersion?: string;
       networkAccessEnabled?: boolean;
       webSearchMode?: string;
       additionalWritableRoots?: string[];
@@ -1143,6 +1156,27 @@ export function parseClientMessage(data: string): ClientMessage | null {
         if (msg.serviceTier !== null && typeof msg.serviceTier !== "string")
           return null;
         if (msg.sessionId !== undefined && typeof msg.sessionId !== "string")
+          return null;
+        break;
+      case "set_claude_session_options":
+        if (msg.sessionId !== undefined && typeof msg.sessionId !== "string")
+          return null;
+        if (msg.model !== undefined && typeof msg.model !== "string")
+          return null;
+        if (
+          msg.effort !== undefined &&
+          !["low", "medium", "high", "xhigh", "max"].includes(
+            String(msg.effort),
+          )
+        )
+          return null;
+        if (msg.fastMode !== undefined && typeof msg.fastMode !== "boolean")
+          return null;
+        if (
+          msg.model === undefined &&
+          msg.effort === undefined &&
+          msg.fastMode === undefined
+        )
           return null;
         break;
       case "set_sandbox_mode":

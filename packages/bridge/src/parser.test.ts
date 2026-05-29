@@ -288,6 +288,25 @@ describe("parseClientMessage", () => {
     ).toBeNull();
   });
 
+  it("parses set_claude_session_options message", () => {
+    const msg = parseClientMessage(
+      '{"type":"set_claude_session_options","sessionId":"s1","model":"claude-opus-4-8","effort":"xhigh","fastMode":true}',
+    );
+    expect(msg).toEqual({
+      type: "set_claude_session_options",
+      sessionId: "s1",
+      model: "claude-opus-4-8",
+      effort: "xhigh",
+      fastMode: true,
+    });
+  });
+
+  it("rejects set_claude_session_options without changes", () => {
+    expect(
+      parseClientMessage('{"type":"set_claude_session_options","sessionId":"s1"}'),
+    ).toBeNull();
+  });
+
   it("rejects invalid approvalsReviewer", () => {
     expect(
       parseClientMessage(

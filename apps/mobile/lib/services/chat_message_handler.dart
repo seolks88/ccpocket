@@ -36,6 +36,13 @@ class ChatStateUpdate {
   final ReasoningEffort? modelReasoningEffort;
   final String? serviceTier;
   final bool clearServiceTier;
+  final String? claudeModel;
+  final ClaudeEffort? claudeEffort;
+  final bool? claudeFastMode;
+  final String? claudeApiKeySource;
+  final String? claudeBillingSource;
+  final String? claudeFastModeState;
+  final String? claudeCodeVersion;
   final bool? planMode;
   final List<ChatEntry> entriesToAdd;
   final List<ChatEntry> entriesToPrepend;
@@ -95,6 +102,13 @@ class ChatStateUpdate {
     this.modelReasoningEffort,
     this.serviceTier,
     this.clearServiceTier = false,
+    this.claudeModel,
+    this.claudeEffort,
+    this.claudeFastMode,
+    this.claudeApiKeySource,
+    this.claudeBillingSource,
+    this.claudeFastModeState,
+    this.claudeCodeVersion,
     this.planMode,
     this.entriesToAdd = const [],
     this.entriesToPrepend = const [],
@@ -146,6 +160,7 @@ const _unsupportedActions = <String, UnsupportedAction>{
   'steer_queued_input': UnsupportedAction.showUpdateHint,
   'set_model_reasoning_effort': UnsupportedAction.showUpdateHint,
   'set_service_tier': UnsupportedAction.showUpdateHint,
+  'set_claude_session_options': UnsupportedAction.showUpdateHint,
   'mutate_prompt_history': UnsupportedAction.showUpdateHint,
   'import_prompt_history_v1': UnsupportedAction.showUpdateHint,
   // Git Operations (Phase 1-3)
@@ -567,6 +582,13 @@ class ChatMessageHandler {
     QueuedInputItem? queuedInput;
     ReasoningEffort? modelReasoningEffort;
     String? serviceTier;
+    String? claudeModel;
+    ClaudeEffort? claudeEffort;
+    bool? claudeFastMode;
+    String? claudeApiKeySource;
+    String? claudeBillingSource;
+    String? claudeFastModeState;
+    String? claudeCodeVersion;
     bool clearServiceTier = false;
     var clearQueuedInput = false;
 
@@ -657,6 +679,21 @@ class ChatMessageHandler {
             m.modelReasoningEffort,
           );
         }
+        if (m is SystemMessage) {
+          if (m.model != null) claudeModel = m.model;
+          if (m.effort != null) {
+            claudeEffort = parseClaudeEffortFromRaw(m.effort);
+          }
+          if (m.fastMode != null) claudeFastMode = m.fastMode;
+          if (m.apiKeySource != null) claudeApiKeySource = m.apiKeySource;
+          if (m.billingSource != null) claudeBillingSource = m.billingSource;
+          if (m.fastModeState != null) {
+            claudeFastModeState = m.fastModeState;
+          }
+          if (m.claudeCodeVersion != null) {
+            claudeCodeVersion = m.claudeCodeVersion;
+          }
+        }
         if (m is SystemMessage &&
             (m.serviceTier != null || m.subtype == 'set_service_tier')) {
           serviceTier = m.serviceTier;
@@ -728,6 +765,13 @@ class ChatMessageHandler {
       modelReasoningEffort: modelReasoningEffort,
       serviceTier: serviceTier,
       clearServiceTier: clearServiceTier,
+      claudeModel: claudeModel,
+      claudeEffort: claudeEffort,
+      claudeFastMode: claudeFastMode,
+      claudeApiKeySource: claudeApiKeySource,
+      claudeBillingSource: claudeBillingSource,
+      claudeFastModeState: claudeFastModeState,
+      claudeCodeVersion: claudeCodeVersion,
       clearQueuedInput: clearQueuedInput,
     );
   }
@@ -781,6 +825,22 @@ class ChatMessageHandler {
     }
     if (msg is SystemMessage && msg.modelReasoningEffort != null) {
       modelReasoningEffort = _reasoningEffortFromRaw(msg.modelReasoningEffort);
+    }
+    String? claudeModel;
+    ClaudeEffort? claudeEffort;
+    bool? claudeFastMode;
+    String? claudeApiKeySource;
+    String? claudeBillingSource;
+    String? claudeFastModeState;
+    String? claudeCodeVersion;
+    if (msg is SystemMessage) {
+      claudeModel = msg.model;
+      claudeEffort = parseClaudeEffortFromRaw(msg.effort);
+      claudeFastMode = msg.fastMode;
+      claudeApiKeySource = msg.apiKeySource;
+      claudeBillingSource = msg.billingSource;
+      claudeFastModeState = msg.fastModeState;
+      claudeCodeVersion = msg.claudeCodeVersion;
     }
     if (msg is SystemMessage &&
         (msg.serviceTier != null || subtype == 'set_service_tier')) {
@@ -869,6 +929,13 @@ class ChatMessageHandler {
       modelReasoningEffort: modelReasoningEffort,
       serviceTier: serviceTier,
       clearServiceTier: clearServiceTier,
+      claudeModel: claudeModel,
+      claudeEffort: claudeEffort,
+      claudeFastMode: claudeFastMode,
+      claudeApiKeySource: claudeApiKeySource,
+      claudeBillingSource: claudeBillingSource,
+      claudeFastModeState: claudeFastModeState,
+      claudeCodeVersion: claudeCodeVersion,
       planMode: planMode,
       inPlanMode: inPlanMode,
       slashCommands: commands,

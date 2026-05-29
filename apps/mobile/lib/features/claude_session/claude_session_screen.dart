@@ -165,6 +165,13 @@ class _ClaudeSessionScreenState extends State<ClaudeSessionScreen> {
   List<String> _recentPeekedFiles = const [];
   PermissionMode? _permissionMode;
   SandboxMode? _sandboxMode;
+  String? _initialClaudeModel;
+  ClaudeEffort? _initialClaudeEffort;
+  bool? _initialClaudeFastMode;
+  String? _initialClaudeApiKeySource;
+  String? _initialClaudeBillingSource;
+  String? _initialClaudeFastModeState;
+  String? _initialClaudeCodeVersion;
   StreamSubscription<ServerMessage>? _pendingSub;
   StreamSubscription<ServerMessage>? _sessionSwitchSub;
   StreamSubscription<String>? _sessionStoppedSub;
@@ -267,6 +274,18 @@ class _ClaudeSessionScreenState extends State<ClaudeSessionScreen> {
       _permissionMode =
           permissionModeFromRaw(msg.permissionMode) ?? _permissionMode;
       _sandboxMode = sandboxModeFromRaw(msg.sandboxMode) ?? _sandboxMode;
+      _initialClaudeModel = msg.model ?? _initialClaudeModel;
+      _initialClaudeEffort =
+          parseClaudeEffortFromRaw(msg.effort) ?? _initialClaudeEffort;
+      _initialClaudeFastMode = msg.fastMode ?? _initialClaudeFastMode;
+      _initialClaudeApiKeySource =
+          msg.apiKeySource ?? _initialClaudeApiKeySource;
+      _initialClaudeBillingSource =
+          msg.billingSource ?? _initialClaudeBillingSource;
+      _initialClaudeFastModeState =
+          msg.fastModeState ?? _initialClaudeFastModeState;
+      _initialClaudeCodeVersion =
+          msg.claudeCodeVersion ?? _initialClaudeCodeVersion;
       _isPending = false;
     });
     _pendingSub?.cancel();
@@ -317,6 +336,18 @@ class _ClaudeSessionScreenState extends State<ClaudeSessionScreen> {
       _permissionMode =
           permissionModeFromRaw(msg.permissionMode) ?? _permissionMode;
       _sandboxMode = sandboxModeFromRaw(msg.sandboxMode) ?? _sandboxMode;
+      _initialClaudeModel = msg.model ?? _initialClaudeModel;
+      _initialClaudeEffort =
+          parseClaudeEffortFromRaw(msg.effort) ?? _initialClaudeEffort;
+      _initialClaudeFastMode = msg.fastMode ?? _initialClaudeFastMode;
+      _initialClaudeApiKeySource =
+          msg.apiKeySource ?? _initialClaudeApiKeySource;
+      _initialClaudeBillingSource =
+          msg.billingSource ?? _initialClaudeBillingSource;
+      _initialClaudeFastModeState =
+          msg.fastModeState ?? _initialClaudeFastModeState;
+      _initialClaudeCodeVersion =
+          msg.claudeCodeVersion ?? _initialClaudeCodeVersion;
       _explorerCurrentPath = explorerHistory.currentPath;
       _recentPeekedFiles = explorerHistory.recentPeekedFiles;
     });
@@ -346,6 +377,13 @@ class _ClaudeSessionScreenState extends State<ClaudeSessionScreen> {
       _isPending = widget.isPending;
       _permissionMode = permissionModeFromRaw(widget.initialPermissionMode);
       _sandboxMode = sandboxModeFromRaw(widget.initialSandboxMode);
+      _initialClaudeModel = null;
+      _initialClaudeEffort = null;
+      _initialClaudeFastMode = null;
+      _initialClaudeApiKeySource = null;
+      _initialClaudeBillingSource = null;
+      _initialClaudeFastModeState = null;
+      _initialClaudeCodeVersion = null;
       _explorerCurrentPath = explorerHistory.currentPath;
       _recentPeekedFiles = explorerHistory.recentPeekedFiles;
     });
@@ -410,6 +448,13 @@ class _ClaudeSessionScreenState extends State<ClaudeSessionScreen> {
       recentPeekedFiles: _recentPeekedFiles,
       permissionMode: _permissionMode,
       sandboxMode: _sandboxMode,
+      initialClaudeModel: _initialClaudeModel,
+      initialClaudeEffort: _initialClaudeEffort,
+      initialClaudeFastMode: _initialClaudeFastMode,
+      initialClaudeApiKeySource: _initialClaudeApiKeySource,
+      initialClaudeBillingSource: _initialClaudeBillingSource,
+      initialClaudeFastModeState: _initialClaudeFastModeState,
+      initialClaudeCodeVersion: _initialClaudeCodeVersion,
       onBackToSessions: widget.onBackToSessions,
       hideSessionBackButton: widget.hideSessionBackButton,
     );
@@ -426,6 +471,13 @@ class _ChatScreenProviders extends StatelessWidget {
   final List<String> recentPeekedFiles;
   final PermissionMode? permissionMode;
   final SandboxMode? sandboxMode;
+  final String? initialClaudeModel;
+  final ClaudeEffort? initialClaudeEffort;
+  final bool? initialClaudeFastMode;
+  final String? initialClaudeApiKeySource;
+  final String? initialClaudeBillingSource;
+  final String? initialClaudeFastModeState;
+  final String? initialClaudeCodeVersion;
   final VoidCallback? onBackToSessions;
   final bool hideSessionBackButton;
 
@@ -439,6 +491,13 @@ class _ChatScreenProviders extends StatelessWidget {
     this.recentPeekedFiles = const [],
     this.permissionMode,
     this.sandboxMode,
+    this.initialClaudeModel,
+    this.initialClaudeEffort,
+    this.initialClaudeFastMode,
+    this.initialClaudeApiKeySource,
+    this.initialClaudeBillingSource,
+    this.initialClaudeFastModeState,
+    this.initialClaudeCodeVersion,
     this.onBackToSessions,
     this.hideSessionBackButton = false,
   });
@@ -446,6 +505,13 @@ class _ChatScreenProviders extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bridge = context.read<BridgeService>();
+    SessionInfo? cachedSession;
+    for (final session in bridge.sessions) {
+      if (session.id == sessionId) {
+        cachedSession = session;
+        break;
+      }
+    }
     final streamingCubit = StreamingStateCubit();
     return MultiBlocProvider(
       providers: [
@@ -459,6 +525,22 @@ class _ChatScreenProviders extends StatelessWidget {
             initialRecentPeekedFiles: recentPeekedFiles,
             initialPermissionMode: permissionMode,
             initialSandboxMode: sandboxMode,
+            initialClaudeModel: initialClaudeModel ?? cachedSession?.model,
+            initialClaudeEffort:
+                parseClaudeEffortFromRaw(cachedSession?.claudeEffort) ??
+                initialClaudeEffort,
+            initialClaudeFastMode:
+                initialClaudeFastMode ?? cachedSession?.claudeFastMode,
+            initialClaudeApiKeySource:
+                initialClaudeApiKeySource ?? cachedSession?.claudeApiKeySource,
+            initialClaudeBillingSource:
+                initialClaudeBillingSource ??
+                cachedSession?.claudeBillingSource,
+            initialClaudeFastModeState:
+                initialClaudeFastModeState ??
+                cachedSession?.claudeFastModeState,
+            initialClaudeCodeVersion:
+                initialClaudeCodeVersion ?? cachedSession?.claudeCodeVersion,
             initialProjectPath: projectPath,
           ),
         ),

@@ -359,6 +359,15 @@ enum ClaudeEffort {
   const ClaudeEffort(this.value, this.label);
 }
 
+ClaudeEffort? parseClaudeEffortFromRaw(String? raw) {
+  if (raw == null || raw.isEmpty) return null;
+  if (raw == 'ultracode') return ClaudeEffort.xhigh;
+  for (final value in ClaudeEffort.values) {
+    if (value.value == raw) return value;
+  }
+  return null;
+}
+
 String displayLabelForClaudeModel(String model) {
   final value = model.trim();
   return switch (value) {
@@ -672,6 +681,12 @@ sealed class ServerMessage {
         sandboxMode: json['sandboxMode'] as String?,
         modelReasoningEffort: json['modelReasoningEffort'] as String?,
         serviceTier: json['serviceTier'] as String?,
+        effort: json['effort'] as String?,
+        fastMode: json['fastMode'] as bool?,
+        apiKeySource: json['apiKeySource'] as String?,
+        billingSource: json['billingSource'] as String?,
+        fastModeState: json['fastModeState'] as String?,
+        claudeCodeVersion: json['claudeCodeVersion'] as String?,
         networkAccessEnabled: json['networkAccessEnabled'] as bool?,
         webSearchMode: json['webSearchMode'] as String?,
         slashCommands:
@@ -1378,6 +1393,12 @@ class SystemMessage implements ServerMessage {
   final String? sandboxMode;
   final String? modelReasoningEffort;
   final String? serviceTier;
+  final String? effort;
+  final bool? fastMode;
+  final String? apiKeySource;
+  final String? billingSource;
+  final String? fastModeState;
+  final String? claudeCodeVersion;
   final bool? networkAccessEnabled;
   final String? webSearchMode;
   final List<String> slashCommands;
@@ -1409,6 +1430,12 @@ class SystemMessage implements ServerMessage {
     this.sandboxMode,
     this.modelReasoningEffort,
     this.serviceTier,
+    this.effort,
+    this.fastMode,
+    this.apiKeySource,
+    this.billingSource,
+    this.fastModeState,
+    this.claudeCodeVersion,
     this.networkAccessEnabled,
     this.webSearchMode,
     this.slashCommands = const [],
@@ -3428,6 +3455,12 @@ class SessionInfo {
   final String? executionMode;
   final bool planMode;
   final String? model;
+  final String? claudeEffort;
+  final bool? claudeFastMode;
+  final String? claudeApiKeySource;
+  final String? claudeBillingSource;
+  final String? claudeFastModeState;
+  final String? claudeCodeVersion;
   final String? codexApprovalPolicy;
   final String? codexApprovalsReviewer;
   final String? codexPermissionsMode;
@@ -3461,6 +3494,12 @@ class SessionInfo {
     this.executionMode,
     this.planMode = false,
     this.model,
+    this.claudeEffort,
+    this.claudeFastMode,
+    this.claudeApiKeySource,
+    this.claudeBillingSource,
+    this.claudeFastModeState,
+    this.claudeCodeVersion,
     this.codexApprovalPolicy,
     this.codexApprovalsReviewer,
     this.codexPermissionsMode,
@@ -3503,6 +3542,12 @@ class SessionInfo {
     String? executionMode,
     bool? planMode,
     String? model,
+    String? claudeEffort,
+    bool? claudeFastMode,
+    String? claudeApiKeySource,
+    String? claudeBillingSource,
+    String? claudeFastModeState,
+    String? claudeCodeVersion,
     String? codexApprovalPolicy,
     String? codexApprovalsReviewer,
     String? codexPermissionsMode,
@@ -3539,6 +3584,12 @@ class SessionInfo {
       executionMode: executionMode ?? this.executionMode,
       planMode: planMode ?? this.planMode,
       model: model ?? this.model,
+      claudeEffort: claudeEffort ?? this.claudeEffort,
+      claudeFastMode: claudeFastMode ?? this.claudeFastMode,
+      claudeApiKeySource: claudeApiKeySource ?? this.claudeApiKeySource,
+      claudeBillingSource: claudeBillingSource ?? this.claudeBillingSource,
+      claudeFastModeState: claudeFastModeState ?? this.claudeFastModeState,
+      claudeCodeVersion: claudeCodeVersion ?? this.claudeCodeVersion,
       codexApprovalPolicy: codexApprovalPolicy ?? this.codexApprovalPolicy,
       codexApprovalsReviewer:
           codexApprovalsReviewer ?? this.codexApprovalsReviewer,
@@ -3565,6 +3616,7 @@ class SessionInfo {
 
   factory SessionInfo.fromJson(Map<String, dynamic> json) {
     final codexSettings = json['codexSettings'] as Map<String, dynamic>?;
+    final claudeSettings = json['claudeSettings'] as Map<String, dynamic>?;
     final permJson = json['pendingPermission'] as Map<String, dynamic>?;
     final queueJson = json['queuedInput'] as Map<String, dynamic>?;
     return SessionInfo(
@@ -3594,7 +3646,13 @@ class SessionInfo {
         planMode: json['planMode'] as bool?,
         permissionMode: json['permissionMode'] as String?,
       ),
-      model: json['model'] as String?,
+      model: json['model'] as String? ?? claudeSettings?['model'] as String?,
+      claudeEffort: claudeSettings?['effort'] as String?,
+      claudeFastMode: claudeSettings?['fastMode'] as bool?,
+      claudeApiKeySource: claudeSettings?['apiKeySource'] as String?,
+      claudeBillingSource: claudeSettings?['billingSource'] as String?,
+      claudeFastModeState: claudeSettings?['fastModeState'] as String?,
+      claudeCodeVersion: claudeSettings?['claudeCodeVersion'] as String?,
       codexApprovalPolicy: resolveCodexApprovalPolicy(
         approvalPolicy: codexSettings?['approvalPolicy'] as String?,
         executionMode: json['executionMode'] as String?,
@@ -3874,6 +3932,21 @@ class ClientMessage {
       'type': 'set_service_tier',
       'serviceTier': serviceTier,
       'sessionId': ?sessionId,
+    });
+  }
+
+  factory ClientMessage.setClaudeSessionOptions({
+    String? sessionId,
+    String? model,
+    String? effort,
+    bool? fastMode,
+  }) {
+    return ClientMessage._(<String, dynamic>{
+      'type': 'set_claude_session_options',
+      'sessionId': ?sessionId,
+      'model': ?model,
+      'effort': ?effort,
+      'fastMode': ?fastMode,
     });
   }
 
