@@ -153,6 +153,9 @@ class _ApprovalHeader extends StatelessWidget {
       ),
       primaryTarget: isPlanApproval ? null : primaryTarget,
       detailLines: detailLines,
+      // Clamp detail lines in the bottom bar so a long agent-supplied reason
+      // can't grow the bar upward and push the action buttons off-reach.
+      detailMaxLines: 2,
       trailing: (isPlanApproval && onViewPlan != null)
           ? IconButton(
               key: const ValueKey('view_plan_header_button'),

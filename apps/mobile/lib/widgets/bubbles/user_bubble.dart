@@ -223,14 +223,17 @@ class _StandardBubble extends StatelessWidget {
 
 /// Body for a standard (non-command) user message.
 ///
-/// Short, normal chat text renders as plain selectable proportional text and is
-/// visually unchanged. Large or code-like payloads — injected context dumps
-/// (e.g. a leading "# Files mentioned" marker), fenced code blocks, or anything
-/// over [_lineThreshold] lines — are detected conservatively and rendered:
-///   * selectable (so the user can copy inline),
+/// Short, normal chat text renders as plain proportional text and is visually
+/// unchanged. Large or code-like payloads — injected context dumps (e.g. a
+/// leading "# Files mentioned" marker), fenced code blocks, or anything over
+/// [_lineThreshold] lines — are detected conservatively and rendered:
 ///   * in monospace via [codeTextSettingsOf] when the content is code-like, and
 ///   * collapsed behind a >=44px "Show more" affordance so a huge paste cannot
 ///     dominate the conversation.
+///
+/// Plain [Text] (not [SelectableText]) is used so the surrounding
+/// [AdaptiveContextMenuRegion] long-press menu (copy / rewind) and tap-to-retry
+/// on failed messages keep working; copy stays available via that menu.
 class _UserMessageBody extends StatefulWidget {
   final String text;
 
@@ -277,9 +280,10 @@ class _UserMessageBodyState extends State<_UserMessageBody> {
     final isLarge =
         isCodeLike || lines.length > _UserMessageBody._lineThreshold;
 
-    // Short, normal chat message: unchanged plain (but now selectable) text.
+    // Short, normal chat message: plain text — matches pre-refactor behavior so
+    // the bubble's long-press copy/rewind menu and tap-to-retry still fire.
     if (!isLarge) {
-      return SelectableText(
+      return Text(
         widget.text,
         style: TextStyle(color: cs.onPrimaryContainer),
       );
@@ -296,12 +300,11 @@ class _UserMessageBodyState extends State<_UserMessageBody> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SelectableText(
+        Text(
           widget.text,
           style: bodyStyle,
           maxLines: _expanded ? null : collapsedMaxLines,
-          // SelectableText has no `overflow`; maxLines clips and the affordance
-          // below communicates the truncation.
+          overflow: TextOverflow.ellipsis,
         ),
         if (hasMore)
           _ShowMoreToggle(

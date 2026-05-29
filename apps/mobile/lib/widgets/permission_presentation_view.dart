@@ -44,6 +44,11 @@ class PermissionPresentationView extends StatelessWidget {
   /// Optional tap handler for the whole header row (title + icon + trailing).
   final VoidCallback? onHeaderTap;
 
+  /// Max lines per secondary detail line. Null = unbounded (inline bubble can
+  /// grow freely). The bottom [ApprovalBar] passes a small value (2) so a long
+  /// agent-supplied reason cannot push the action buttons off-reach.
+  final int? detailMaxLines;
+
   const PermissionPresentationView({
     super.key,
     this.icon = Icons.shield_outlined,
@@ -54,6 +59,7 @@ class PermissionPresentationView extends StatelessWidget {
     this.detailLines = const [],
     this.trailing,
     this.onHeaderTap,
+    this.detailMaxLines,
   });
 
   @override
@@ -121,6 +127,10 @@ class PermissionPresentationView extends StatelessWidget {
                   Expanded(
                     child: Text(
                       line,
+                      maxLines: detailMaxLines,
+                      overflow: detailMaxLines != null
+                          ? TextOverflow.ellipsis
+                          : null,
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: appColors.subtleText,
                       ),
