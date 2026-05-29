@@ -107,7 +107,7 @@ enum ProcessStatus {
 // ---- Provider ----
 
 enum Provider {
-  claude('claude', 'Claude'),
+  claude('claude', 'Claude Code'),
   codex('codex', 'Codex');
 
   final String value;
@@ -352,7 +352,8 @@ enum ClaudeEffort {
   medium('medium', 'Medium'),
   high('high', 'High'),
   xhigh('xhigh', 'X High'),
-  max('max', 'Max');
+  max('max', 'Max'),
+  ultracode('ultracode', 'Ultracode');
 
   final String value;
   final String label;
@@ -552,6 +553,46 @@ class UsageInfo {
 
   bool get hasData => fiveHour != null || sevenDay != null;
   bool get hasError => error != null && !hasData;
+}
+
+class ProviderAuthStatusInfo {
+  final String provider;
+  final bool installed;
+  final bool authenticated;
+  final String? authMethod;
+  final String? subscriptionType;
+  final String? version;
+  final String? error;
+  final String? checkedAt;
+
+  const ProviderAuthStatusInfo({
+    required this.provider,
+    required this.installed,
+    required this.authenticated,
+    this.authMethod,
+    this.subscriptionType,
+    this.version,
+    this.error,
+    this.checkedAt,
+  });
+
+  factory ProviderAuthStatusInfo.fromJson(Map<String, dynamic> json) {
+    return ProviderAuthStatusInfo(
+      provider: json['provider'] as String? ?? '',
+      installed: json['installed'] as bool? ?? false,
+      authenticated: json['authenticated'] as bool? ?? false,
+      authMethod: json['authMethod'] as String?,
+      subscriptionType: json['subscriptionType'] as String?,
+      version: json['version'] as String?,
+      error: json['error'] as String?,
+      checkedAt: json['checkedAt'] as String?,
+    );
+  }
+
+  Provider get parsedProvider =>
+      provider == Provider.codex.value ? Provider.codex : Provider.claude;
+
+  String get providerLabel => parsedProvider.label;
 }
 
 // ---- Helpers ----
@@ -3593,6 +3634,7 @@ class ClientMessage {
     int? maxTurns,
     double? maxBudgetUsd,
     String? fallbackModel,
+    bool? ultracode,
     bool? forkSession,
     bool? persistSession,
     String? profile,
@@ -3624,6 +3666,7 @@ class ClientMessage {
       'maxTurns': ?maxTurns,
       'maxBudgetUsd': ?maxBudgetUsd,
       'fallbackModel': ?fallbackModel,
+      if (ultracode == true) 'ultracode': true,
       'forkSession': ?forkSession,
       'persistSession': ?persistSession,
       'profile': ?profile,
@@ -3939,6 +3982,7 @@ class ClientMessage {
     int? maxTurns,
     double? maxBudgetUsd,
     String? fallbackModel,
+    bool? ultracode,
     bool? forkSession,
     bool? persistSession,
     String? profile,
@@ -3965,6 +4009,7 @@ class ClientMessage {
       'maxTurns': ?maxTurns,
       'maxBudgetUsd': ?maxBudgetUsd,
       'fallbackModel': ?fallbackModel,
+      if (ultracode == true) 'ultracode': true,
       'forkSession': ?forkSession,
       'persistSession': ?persistSession,
       'profile': ?profile,

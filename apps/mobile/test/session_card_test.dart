@@ -167,6 +167,24 @@ void main() {
       expect(find.byIcon(Icons.fork_right), findsOneWidget);
     });
 
+    testWidgets('shows explicit provider badge', (tester) async {
+      final session = SessionInfo(
+        id: 'codex-provider-badge',
+        provider: 'codex',
+        projectPath: '/home/user/my-app',
+        status: 'running',
+        createdAt: DateTime.now().toIso8601String(),
+        lastActivityAt: DateTime.now().toIso8601String(),
+      );
+
+      await tester.pumpWidget(
+        _wrap(RunningSessionCard(session: session, onTap: () {})),
+      );
+
+      expect(find.byKey(const ValueKey('provider_badge_codex')), findsOne);
+      expect(find.text('Codex'), findsOneWidget);
+    });
+
     testWidgets('hides info row when gitBranch empty', (tester) async {
       final session = SessionInfo(
         id: 'test-id',
@@ -1037,6 +1055,27 @@ void main() {
   });
 
   group('RecentSessionCard', () {
+    testWidgets('shows Claude Code provider badge', (tester) async {
+      final session = RecentSession(
+        sessionId: 'recent-claude',
+        provider: 'claude',
+        summary: 'summary',
+        firstPrompt: 'prompt',
+        created: DateTime.now().toIso8601String(),
+        modified: DateTime.now().toIso8601String(),
+        gitBranch: 'main',
+        projectPath: '/home/user/my-app',
+        isSidechain: false,
+      );
+
+      await tester.pumpWidget(
+        _wrap(RecentSessionCard(session: session, onTap: () {})),
+      );
+
+      expect(find.byKey(const ValueKey('provider_badge_claude')), findsOne);
+      expect(find.text('Claude Code'), findsOneWidget);
+    });
+
     testWidgets('shows codex settings summary for codex provider', (
       tester,
     ) async {

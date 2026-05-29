@@ -300,6 +300,7 @@
   "claudeEffortHighDesc": "More thorough analysis",
   "claudeEffortXHighDesc": "Extended reasoning for complex work",
   "claudeEffortMaxDesc": "Most thorough, slowest",
+  "claudeEffortUltracodeDesc": "X High plus workflow orchestration",
 
   "reasoningEffortNoneDesc": "No reasoning",
   "reasoningEffortMinimalDesc": "Fastest, least analysis",
@@ -724,7 +725,7 @@
   "autoRenameClaudeSessions": "Auto Rename (Claude)",
   "autoRenameClaudeSessionsSubtitle": "Name Claude sessions automatically after the first agent response. Uses an additional Claude request when API key billing is active.",
   "newSessionTabCodex": "Codex",
-  "newSessionTabClaudeCode": "Claude",
+  "newSessionTabClaudeCode": "Claude Code",
   "usageResetAt": "Reset: {time}",
   "@usageResetAt": {
     "placeholders": {

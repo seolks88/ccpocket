@@ -115,6 +115,16 @@ interface RecentSessionsCacheEntry {
 // ---- Available model lists (delivered to clients via session_list) ----
 
 const FALLBACK_CLAUDE_MODELS: string[] = [
+  "default",
+  "best",
+  "opus",
+  "opus[1m]",
+  "opusplan",
+  "sonnet",
+  "sonnet[1m]",
+  "haiku",
+  "claude-opus-4-8",
+  "claude-opus-4-8[1m]",
   "claude-opus-4-7",
   "claude-opus-4-7[1m]",
   "claude-opus-4-6",
@@ -125,6 +135,16 @@ const FALLBACK_CLAUDE_MODELS: string[] = [
 ];
 
 const FALLBACK_CLAUDE_MODEL_EFFORTS: Record<string, ClaudeEffortLevel[]> = {
+  default: ["low", "medium", "high", "xhigh", "max"],
+  best: ["low", "medium", "high", "xhigh", "max"],
+  opus: ["low", "medium", "high", "xhigh", "max"],
+  "opus[1m]": ["low", "medium", "high", "xhigh", "max"],
+  opusplan: ["low", "medium", "high", "xhigh", "max"],
+  sonnet: ["low", "medium", "high", "max"],
+  "sonnet[1m]": ["low", "medium", "high", "max"],
+  haiku: [],
+  "claude-opus-4-8": ["low", "medium", "high", "xhigh", "max"],
+  "claude-opus-4-8[1m]": ["low", "medium", "high", "xhigh", "max"],
   "claude-opus-4-7": ["low", "medium", "high", "xhigh", "max"],
   "claude-opus-4-7[1m]": ["low", "medium", "high", "xhigh", "max"],
   "claude-opus-4-6": ["low", "medium", "high", "max"],
@@ -174,7 +194,11 @@ function countCodexUserTurnsInSession(session: SessionInfo): number {
   if (Array.isArray(session.pastMessages)) {
     for (const message of session.pastMessages) {
       if (!message || typeof message !== "object") continue;
-      const item = message as { role?: unknown; uuid?: unknown; isMeta?: unknown };
+      const item = message as {
+        role?: unknown;
+        uuid?: unknown;
+        isMeta?: unknown;
+      };
       if (item.role === "user" && item.isMeta !== true) {
         observe(typeof item.uuid === "string" ? item.uuid : undefined);
       }
@@ -223,7 +247,9 @@ function normalizeHistoryContent(
         id: typeof value.id === "string" ? value.id : undefined,
         name: typeof value.name === "string" ? value.name : undefined,
         input:
-          value.input && typeof value.input === "object" && !Array.isArray(value.input)
+          value.input &&
+          typeof value.input === "object" &&
+          !Array.isArray(value.input)
             ? (value.input as Record<string, unknown>)
             : undefined,
       });
@@ -253,7 +279,11 @@ function buildCodexHistoryPrefix(
       messages.push({ ...item });
       return;
     }
-    if (item.role === "assistant" && userOrdinal > 0 && userOrdinal <= targetOrdinal) {
+    if (
+      item.role === "assistant" &&
+      userOrdinal > 0 &&
+      userOrdinal <= targetOrdinal
+    ) {
       messages.push({ ...item });
     }
   };
@@ -293,8 +323,9 @@ function buildCodexHistoryPrefix(
 }
 
 function countCodexHistoryUserTurns(messages: SessionHistoryMessage[]): number {
-  return messages.filter((message) => message.role === "user" && !message.isMeta)
-    .length;
+  return messages.filter(
+    (message) => message.role === "user" && !message.isMeta,
+  ).length;
 }
 
 // ---- Codex mode mapping helpers ----
@@ -560,10 +591,16 @@ function sameStringArrayRecord(
 
 function sameServiceTierRecord(
   left: Readonly<
-    Record<string, readonly { id: string; name?: string; description?: string }[]>
+    Record<
+      string,
+      readonly { id: string; name?: string; description?: string }[]
+    >
   >,
   right: Readonly<
-    Record<string, readonly { id: string; name?: string; description?: string }[]>
+    Record<
+      string,
+      readonly { id: string; name?: string; description?: string }[]
+    >
   >,
 ) {
   const leftKeys = Object.keys(left).sort();
@@ -689,7 +726,8 @@ export class BridgeWebSocketServer {
         console.error("[ws] Failed to initialize recording store:", err);
       });
     }
-    void this.archiveStore.init()
+    void this.archiveStore
+      .init()
       .then(() => {
         this.scheduleRecentSessionsPrewarm();
       })
@@ -765,8 +803,8 @@ export class BridgeWebSocketServer {
    */
   private isPathAllowed(path: string): boolean {
     if (this.allowedDirs.length === 0) return true;
-    return this.allowedDirs.some(
-      (dir) => isPathWithinAllowedDirectory(path, dir, this.platform),
+    return this.allowedDirs.some((dir) =>
+      isPathWithinAllowedDirectory(path, dir, this.platform),
     );
   }
 
@@ -932,8 +970,7 @@ export class BridgeWebSocketServer {
       ...(apps ? { apps } : {}),
       ...(appMetadata
         ? {
-            appMetadata:
-              appMetadata as SystemServerMessage["appMetadata"],
+            appMetadata: appMetadata as SystemServerMessage["appMetadata"],
           }
         : {}),
       ...(plugins ? { plugins } : {}),
@@ -960,7 +997,8 @@ export class BridgeWebSocketServer {
         msg.approvalPolicy = session.codexSettings.approvalPolicy;
       }
       if (session.codexSettings.codexPermissionsMode !== undefined) {
-        msg.codexPermissionsMode = session.codexSettings.codexPermissionsMode as
+        msg.codexPermissionsMode = session.codexSettings
+          .codexPermissionsMode as
           | "default"
           | "autoReview"
           | "fullAccess"
@@ -1026,7 +1064,10 @@ export class BridgeWebSocketServer {
       });
       return;
     }
-    if (session.status !== "idle" || (codexProcess.status ?? session.status) !== "idle") {
+    if (
+      session.status !== "idle" ||
+      (codexProcess.status ?? session.status) !== "idle"
+    ) {
       this.send(ws, {
         type: "rewind_result",
         success: false,
@@ -1155,7 +1196,10 @@ export class BridgeWebSocketServer {
       });
       return;
     }
-    if (session.status !== "idle" || (codexProcess.status ?? session.status) !== "idle") {
+    if (
+      session.status !== "idle" ||
+      (codexProcess.status ?? session.status) !== "idle"
+    ) {
       this.send(ws, {
         type: "error",
         message: "Cannot fork while Codex is running",
@@ -1303,14 +1347,17 @@ export class BridgeWebSocketServer {
 
       const images =
         this.imageStore && paths.size > 0
-          ? await this.imageStore.registerImages([...paths], session.projectPath)
+          ? await this.imageStore.registerImages(
+              [...paths],
+              session.projectPath,
+            )
           : [];
       if (this.imageStore && Array.isArray(msg.imageBase64)) {
         for (const image of msg.imageBase64) {
           const rawImage = image as Record<string, unknown>;
           if (
-            typeof rawImage.data !== "string"
-            || typeof rawImage.mimeType !== "string"
+            typeof rawImage.data !== "string" ||
+            typeof rawImage.mimeType !== "string"
           ) {
             continue;
           }
@@ -1501,10 +1548,7 @@ export class BridgeWebSocketServer {
         usedFallback: false,
       };
     } catch (err) {
-      if (
-        initialMode !== "auto" ||
-        !isClaudeAutoModeUnavailableError(err)
-      ) {
+      if (initialMode !== "auto" || !isClaudeAutoModeUnavailableError(err)) {
         throw err;
       }
       const fallbackOptions = {
@@ -1616,7 +1660,9 @@ export class BridgeWebSocketServer {
       for (const ws of this.wss.clients) {
         if (ws.readyState !== WebSocket.OPEN) continue;
         if (this.clientHeartbeatAlive.get(ws) === false) {
-          console.warn("[ws] Client heartbeat missed; terminating stale client");
+          console.warn(
+            "[ws] Client heartbeat missed; terminating stale client",
+          );
           ws.terminate();
           continue;
         }
@@ -1765,87 +1811,87 @@ export class BridgeWebSocketServer {
             executionMode: effectiveExecutionMode,
             planMode: effectivePlanMode,
             usedFallback: autoFallbackUsed,
-          } =
-            provider === "claude"
-              ? this.createClaudeSessionWithFallback({
+          } = provider === "claude"
+            ? this.createClaudeSessionWithFallback({
+                projectPath,
+                options: {
+                  sessionId: msg.sessionId,
+                  continueMode: msg.continue,
+                  permissionMode: claudePermissionMode,
+                  model: msg.model,
+                  effort: msg.effort,
+                  maxTurns: msg.maxTurns,
+                  maxBudgetUsd: msg.maxBudgetUsd,
+                  fallbackModel: msg.fallbackModel,
+                  ultracode: msg.ultracode,
+                  forkSession: msg.forkSession,
+                  persistSession: msg.persistSession,
+                  autoRename: msg.autoRename,
+                  ...(msg.sandboxMode
+                    ? { sandboxEnabled: msg.sandboxMode === "on" }
+                    : {}),
+                },
+                worktreeOptions: {
+                  useWorktree: msg.useWorktree,
+                  worktreeBranch: msg.worktreeBranch,
+                  existingWorktreePath: msg.existingWorktreePath,
+                },
+              })
+            : {
+                sessionId: this.sessionManager.create(
                   projectPath,
-                  options: {
-                    sessionId: msg.sessionId,
-                    continueMode: msg.continue,
-                    permissionMode: claudePermissionMode,
-                    model: msg.model,
-                    effort: msg.effort,
-                    maxTurns: msg.maxTurns,
-                    maxBudgetUsd: msg.maxBudgetUsd,
-                    fallbackModel: msg.fallbackModel,
-                    forkSession: msg.forkSession,
-                    persistSession: msg.persistSession,
-                    autoRename: msg.autoRename,
-                    ...(msg.sandboxMode
-                      ? { sandboxEnabled: msg.sandboxMode === "on" }
-                      : {}),
-                  },
-                  worktreeOptions: {
+                  { autoRename: msg.autoRename },
+                  undefined,
+                  {
                     useWorktree: msg.useWorktree,
                     worktreeBranch: msg.worktreeBranch,
                     existingWorktreePath: msg.existingWorktreePath,
                   },
-                })
-              : {
-                  sessionId: this.sessionManager.create(
-                    projectPath,
-                    { autoRename: msg.autoRename },
-                    undefined,
-                    {
-                      useWorktree: msg.useWorktree,
-                      worktreeBranch: msg.worktreeBranch,
-                      existingWorktreePath: msg.existingWorktreePath,
-                    },
-                    provider,
-                    {
-                      profile: msg.profile,
-                      approvalPolicy: codexPermissionSettings
-                        ? codexPermissionSettings.approvalPolicy
-                        : (codexApprovalPolicy ??
-                          normalizeCodexApprovalPolicy(
-                            executionMode === "fullAccess"
-                              ? "never"
-                              : "on-request",
-                          )),
-                      approvalsReviewer: codexPermissionSettings
-                        ? codexPermissionSettings.approvalsReviewer
-                        : msg.approvalsReviewer,
-                      codexPermissionsMode:
-                        codexPermissionSettings?.codexPermissionsMode,
-                      sandboxMode: codexPermissionSettings
-                        ? codexPermissionSettings.sandboxMode
-                        : sandboxModeToInternal(msg.sandboxMode),
-                      model: msg.model,
-                      modelReasoningEffort:
-                        (msg.modelReasoningEffort as
-                          | "none"
-                          | "minimal"
-                          | "low"
-                          | "medium"
-                          | "high"
-                          | "xhigh") ?? undefined,
-                      serviceTier: msg.serviceTier,
-                      networkAccessEnabled: msg.networkAccessEnabled,
-                      webSearchMode:
-                        (msg.webSearchMode as "disabled" | "cached" | "live") ??
-                        undefined,
-                      additionalWritableRoots: additionalWritableRoots.roots,
-                      threadId: msg.sessionId,
-                      collaborationMode: planMode
-                        ? ("plan" as const)
-                        : ("default" as const),
-                    },
-                  ),
-                  permissionMode: claudePermissionMode,
-                  executionMode,
-                  planMode,
-                  usedFallback: false,
-                };
+                  provider,
+                  {
+                    profile: msg.profile,
+                    approvalPolicy: codexPermissionSettings
+                      ? codexPermissionSettings.approvalPolicy
+                      : (codexApprovalPolicy ??
+                        normalizeCodexApprovalPolicy(
+                          executionMode === "fullAccess"
+                            ? "never"
+                            : "on-request",
+                        )),
+                    approvalsReviewer: codexPermissionSettings
+                      ? codexPermissionSettings.approvalsReviewer
+                      : msg.approvalsReviewer,
+                    codexPermissionsMode:
+                      codexPermissionSettings?.codexPermissionsMode,
+                    sandboxMode: codexPermissionSettings
+                      ? codexPermissionSettings.sandboxMode
+                      : sandboxModeToInternal(msg.sandboxMode),
+                    model: msg.model,
+                    modelReasoningEffort:
+                      (msg.modelReasoningEffort as
+                        | "none"
+                        | "minimal"
+                        | "low"
+                        | "medium"
+                        | "high"
+                        | "xhigh") ?? undefined,
+                    serviceTier: msg.serviceTier,
+                    networkAccessEnabled: msg.networkAccessEnabled,
+                    webSearchMode:
+                      (msg.webSearchMode as "disabled" | "cached" | "live") ??
+                      undefined,
+                    additionalWritableRoots: additionalWritableRoots.roots,
+                    threadId: msg.sessionId,
+                    collaborationMode: planMode
+                      ? ("plan" as const)
+                      : ("default" as const),
+                  },
+                ),
+                permissionMode: claudePermissionMode,
+                executionMode,
+                planMode,
+                usedFallback: false,
+              };
           const createdSession = this.sessionManager.get(sessionId);
 
           // Load saved session name from CLI storage (for resumed sessions)
@@ -1872,7 +1918,9 @@ export class BridgeWebSocketServer {
                     : executionMode,
                 planMode: provider === "claude" ? effectivePlanMode : planMode,
                 sandboxMode: createdSession?.codexSettings?.sandboxMode
-                  ? sandboxModeToExternal(createdSession.codexSettings.sandboxMode)
+                  ? sandboxModeToExternal(
+                      createdSession.codexSettings.sandboxMode,
+                    )
                   : msg.sandboxMode,
                 codexPermissionsMode:
                   createdSession?.codexSettings?.codexPermissionsMode,
@@ -2741,10 +2789,7 @@ export class BridgeWebSocketServer {
         (session.process as SdkProcess)
           .setPermissionMode(msg.mode)
           .catch((err) => {
-            if (
-              msg.mode === "auto" &&
-              isClaudeAutoModeUnavailableError(err)
-            ) {
+            if (msg.mode === "auto" && isClaudeAutoModeUnavailableError(err)) {
               this.send(ws, {
                 type: "error",
                 message:
@@ -2867,7 +2912,9 @@ export class BridgeWebSocketServer {
           type: "service_tier_changed",
           detail: `serviceTier=${serviceTier ?? "default"} applied=next-turn`,
         });
-        console.log(`[ws] set_service_tier(codex): ${serviceTier ?? "default"}`);
+        console.log(
+          `[ws] set_service_tier(codex): ${serviceTier ?? "default"}`,
+        );
         break;
       }
 
@@ -3392,9 +3439,9 @@ export class BridgeWebSocketServer {
           if (
             cached &&
             (cached.slashCommands.length > 0 ||
-                cached.skills.length > 0 ||
-                cached.apps.length > 0 ||
-                cached.plugins.length > 0)
+              cached.skills.length > 0 ||
+              cached.apps.length > 0 ||
+              cached.plugins.length > 0)
           ) {
             this.send(ws, {
               type: "system",
@@ -3406,7 +3453,9 @@ export class BridgeWebSocketServer {
                 ? { skillMetadata: cached.skillMetadata }
                 : {}),
               apps: cached.apps,
-              ...(cached.appMetadata ? { appMetadata: cached.appMetadata } : {}),
+              ...(cached.appMetadata
+                ? { appMetadata: cached.appMetadata }
+                : {}),
               plugins: cached.plugins,
               ...(cached.pluginMetadata
                 ? { pluginMetadata: cached.pluginMetadata }
@@ -3434,10 +3483,12 @@ export class BridgeWebSocketServer {
             session.pastMessages &&
             session.pastMessages.length > 0
           ) {
-            const splitPastHistory =
-              await this.splitPastHistoryMessages(session, {
+            const splitPastHistory = await this.splitPastHistoryMessages(
+              session,
+              {
                 limit: msg.historyLimit,
-              });
+              },
+            );
             if (splitPastHistory.pastMessages.length > 0) {
               this.send(ws, {
                 type: "past_history",
@@ -3449,9 +3500,7 @@ export class BridgeWebSocketServer {
           }
           this.send(ws, {
             type:
-              result.kind === "snapshot"
-                ? "history_snapshot"
-                : "history_delta",
+              result.kind === "snapshot" ? "history_snapshot" : "history_delta",
             sessionId: msg.sessionId,
             fromSeq: result.fromSeq,
             toSeq: result.toSeq,
@@ -3604,7 +3653,7 @@ export class BridgeWebSocketServer {
               type: "error",
               message: `Failed to fetch usage: ${err}`,
             });
-        });
+          });
         break;
       }
 
@@ -3637,8 +3686,7 @@ export class BridgeWebSocketServer {
       }
 
       case "list_recent_sessions": {
-        const requestId =
-          (this.recentSessionsRequestIds.get(ws) ?? 0) + 1;
+        const requestId = (this.recentSessionsRequestIds.get(ws) ?? 0) + 1;
         this.recentSessionsRequestIds.set(ws, requestId);
         const cached = this.getCachedRecentSessions(msg);
         if (cached) {
@@ -3780,11 +3828,10 @@ export class BridgeWebSocketServer {
         // via get_history(sessionId) to avoid duplicate/missed replay races.
         if (provider === "codex") {
           const wtMapping = this.worktreeStore.get(sessionRefId);
-          const effectiveProjectPath =
-            resolvePlatformPath(
-              wtMapping?.projectPath ?? resumeProjectPath,
-              this.platform,
-            );
+          const effectiveProjectPath = resolvePlatformPath(
+            wtMapping?.projectPath ?? resumeProjectPath,
+            this.platform,
+          );
           const effectiveProfile = msg.profile
             ? await this.resolveCodexResumeProfile(
                 msg.profile,
@@ -3792,11 +3839,10 @@ export class BridgeWebSocketServer {
                 effectiveProjectPath,
               )
             : undefined;
-          const additionalWritableRoots =
-            this.normalizeAdditionalWritableRoots(
-              msg.additionalWritableRoots,
-              effectiveProjectPath,
-            );
+          const additionalWritableRoots = this.normalizeAdditionalWritableRoots(
+            msg.additionalWritableRoots,
+            effectiveProjectPath,
+          );
           if (additionalWritableRoots.deniedRoot) {
             this.send(
               ws,
@@ -3888,7 +3934,9 @@ export class BridgeWebSocketServer {
                 projectPath: effectiveProjectPath,
                 session: createdSession,
                 sandboxMode: createdSession?.codexSettings?.sandboxMode
-                  ? sandboxModeToExternal(createdSession.codexSettings.sandboxMode)
+                  ? sandboxModeToExternal(
+                      createdSession.codexSettings.sandboxMode,
+                    )
                   : undefined,
                 approvalsReviewer:
                   createdSession?.codexSettings?.approvalsReviewer,
@@ -3963,6 +4011,7 @@ export class BridgeWebSocketServer {
                 maxTurns: msg.maxTurns,
                 maxBudgetUsd: msg.maxBudgetUsd,
                 fallbackModel: msg.fallbackModel,
+                ultracode: msg.ultracode,
                 forkSession: msg.forkSession,
                 persistSession: msg.persistSession,
                 ...(msg.sandboxMode
@@ -4182,7 +4231,9 @@ export class BridgeWebSocketServer {
             const ext = extname(absPath).toLowerCase();
             if (BridgeWebSocketServer.FILE_PEEK_IMAGE_EXTENSIONS.has(ext)) {
               const mimeType = BridgeWebSocketServer.mimeTypeForExt(ext);
-              if (resolvedFileStat.size > BridgeWebSocketServer.MAX_IMAGE_SIZE) {
+              if (
+                resolvedFileStat.size > BridgeWebSocketServer.MAX_IMAGE_SIZE
+              ) {
                 this.send(ws, {
                   type: "file_content",
                   filePath: msg.filePath,
@@ -4280,9 +4331,7 @@ export class BridgeWebSocketServer {
         }
         void (async () => {
           try {
-            const files = await listProjectFilesAndDirectories(
-              msg.projectPath,
-            );
+            const files = await listProjectFilesAndDirectories(msg.projectPath);
             this.send(ws, { type: "file_list", files } as Record<
               string,
               unknown
@@ -4623,7 +4672,7 @@ export class BridgeWebSocketServer {
                         : session.codexSettings?.model,
                   });
                 })()
-              : msg.message ?? "";
+              : (msg.message ?? "");
           const result = gitCommit(msg.projectPath, message);
           this.send(ws, {
             type: "git_commit_result",
@@ -4956,8 +5005,12 @@ export class BridgeWebSocketServer {
         };
 
         if (session.provider === "codex") {
-          this.rewindCodexConversation(ws, msg.sessionId, msg.targetUuid, msg.mode)
-            .catch(handleError);
+          this.rewindCodexConversation(
+            ws,
+            msg.sessionId,
+            msg.targetUuid,
+            msg.mode,
+          ).catch(handleError);
           break;
         }
 
@@ -5070,14 +5123,16 @@ export class BridgeWebSocketServer {
       }
 
       case "fork": {
-        this.forkCodexSession(ws, msg.sessionId, msg.targetUuid).catch((err) => {
-          const errMsg = err instanceof Error ? err.message : String(err);
-          this.send(ws, {
-            type: "error",
-            message: errMsg,
-            errorCode: "fork_failed",
-          });
-        });
+        this.forkCodexSession(ws, msg.sessionId, msg.targetUuid).catch(
+          (err) => {
+            const errMsg = err instanceof Error ? err.message : String(err);
+            this.send(ws, {
+              type: "error",
+              message: errMsg,
+              errorCode: "fork_failed",
+            });
+          },
+        );
         break;
       }
 
@@ -5668,7 +5723,10 @@ export class BridgeWebSocketServer {
             previousReasoningEfforts,
             this.codexModelReasoningEfforts,
           ) ||
-          !sameServiceTierRecord(previousServiceTiers, this.codexModelServiceTiers)
+          !sameServiceTierRecord(
+            previousServiceTiers,
+            this.codexModelServiceTiers,
+          )
         ) {
           this.broadcastSessionList();
         }
@@ -5685,7 +5743,10 @@ export class BridgeWebSocketServer {
             previousReasoningEfforts,
             this.codexModelReasoningEfforts,
           ) ||
-          !sameServiceTierRecord(previousServiceTiers, this.codexModelServiceTiers)
+          !sameServiceTierRecord(
+            previousServiceTiers,
+            this.codexModelServiceTiers,
+          )
         ) {
           this.broadcastSessionList();
         }
@@ -5757,9 +5818,10 @@ export class BridgeWebSocketServer {
       if (typeof modelSource.listAvailableModelMetadata === "function") {
         return await modelSource.listAvailableModelMetadata();
       }
-      const models = typeof modelSource.listAvailableModels === "function"
-        ? await modelSource.listAvailableModels()
-        : [];
+      const models =
+        typeof modelSource.listAvailableModels === "function"
+          ? await modelSource.listAvailableModels()
+          : [];
       return models.map((model) => ({
         model,
         supportedReasoningEfforts: FALLBACK_CODEX_REASONING_EFFORTS,
@@ -6249,9 +6311,7 @@ export class BridgeWebSocketServer {
   ): boolean {
     const type = typeof msg.type === "string" ? msg.type : "";
     if (!OPT_IN_SERVER_MESSAGES.has(type)) return true;
-    return (
-      this.clientSupportedServerMessages.get(ws)?.has(type) ?? false
-    );
+    return this.clientSupportedServerMessages.get(ws)?.has(type) ?? false;
   }
 
   private hasInputConflictSince(sessionId: string, baseSeq: number): boolean {

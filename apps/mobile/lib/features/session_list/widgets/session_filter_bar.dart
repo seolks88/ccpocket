@@ -71,7 +71,7 @@ class SessionFilterBar extends StatelessWidget {
     final l = AppLocalizations.of(context);
     final label = switch (providerFilter) {
       ProviderFilter.all => l.allAiTools,
-      ProviderFilter.claude => 'Claude',
+      ProviderFilter.claude => Provider.claude.label,
       ProviderFilter.codex => 'Codex',
     };
 

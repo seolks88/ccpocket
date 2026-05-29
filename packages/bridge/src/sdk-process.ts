@@ -19,20 +19,25 @@ import {
 
 // Tools that are auto-approved in acceptEdits mode
 export const ACCEPT_EDITS_AUTO_APPROVE = new Set([
-  "Read", "Glob", "Grep",
-  "Edit", "Write", "NotebookEdit",
-  "TaskCreate", "TaskUpdate", "TaskList", "TaskGet",
-  "EnterPlanMode", "AskUserQuestion",
-  "WebSearch", "WebFetch",
-  "Task", "Skill",
-]);
-
-const FILE_EDIT_TOOLS = new Set([
+  "Read",
+  "Glob",
+  "Grep",
   "Edit",
   "Write",
-  "MultiEdit",
   "NotebookEdit",
+  "TaskCreate",
+  "TaskUpdate",
+  "TaskList",
+  "TaskGet",
+  "EnterPlanMode",
+  "AskUserQuestion",
+  "WebSearch",
+  "WebFetch",
+  "Task",
+  "Skill",
 ]);
+
+const FILE_EDIT_TOOLS = new Set(["Edit", "Write", "MultiEdit", "NotebookEdit"]);
 
 function toFiniteNumber(value: unknown): number | undefined {
   if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
@@ -43,9 +48,7 @@ export function isFileEditToolName(toolName: string): boolean {
   return FILE_EDIT_TOOLS.has(toolName);
 }
 
-export function extractTokenUsage(
-  usage: unknown,
-): {
+export function extractTokenUsage(usage: unknown): {
   inputTokens?: number;
   cachedInputTokens?: number;
   outputTokens?: number;
@@ -55,30 +58,33 @@ export function extractTokenUsage(
   }
   const obj = usage as Record<string, unknown>;
 
-  const inputTokens = toFiniteNumber(obj.input_tokens)
-    ?? toFiniteNumber(obj.inputTokens);
-  const outputTokens = toFiniteNumber(obj.output_tokens)
-    ?? toFiniteNumber(obj.outputTokens);
-  const cachedReadTokens = toFiniteNumber(obj.cached_input_tokens)
-    ?? toFiniteNumber(obj.cache_read_input_tokens)
-    ?? toFiniteNumber(obj.cachedInputTokens)
-    ?? toFiniteNumber(obj.cacheReadInputTokens);
+  const inputTokens =
+    toFiniteNumber(obj.input_tokens) ?? toFiniteNumber(obj.inputTokens);
+  const outputTokens =
+    toFiniteNumber(obj.output_tokens) ?? toFiniteNumber(obj.outputTokens);
+  const cachedReadTokens =
+    toFiniteNumber(obj.cached_input_tokens) ??
+    toFiniteNumber(obj.cache_read_input_tokens) ??
+    toFiniteNumber(obj.cachedInputTokens) ??
+    toFiniteNumber(obj.cacheReadInputTokens);
 
   return {
     ...(inputTokens != null ? { inputTokens } : {}),
-    ...(cachedReadTokens != null ? { cachedInputTokens: cachedReadTokens } : {}),
+    ...(cachedReadTokens != null
+      ? { cachedInputTokens: cachedReadTokens }
+      : {}),
     ...(outputTokens != null ? { outputTokens } : {}),
   };
 }
 
-export function buildThinkingOptions(
-  model: string | undefined,
-): { thinking?: { type: "adaptive" } } {
+export function buildThinkingOptions(model: string | undefined): {
+  thinking?: { type: "adaptive" };
+} {
   if (
-    typeof model === "string"
-    && /^claude-opus-4-7(?:\[1m\])?$/.test(model.trim())
+    typeof model === "string" &&
+    /^claude-opus-4-(?:7|8)(?:\[1m\])?$/.test(model.trim())
   ) {
-    // Opus 4.7 rejects the legacy "thinking.type.enabled" behavior that older
+    // Opus 4.7+ rejects the legacy "thinking.type.enabled" behavior that older
     // Claude Agent SDK releases can fall back to. Force adaptive thinking.
     return { thinking: { type: "adaptive" } };
   }
@@ -101,7 +107,9 @@ const CLAUDE_EFFORT_LEVELS = new Set<ClaudeEffortLevel>([
   "max",
 ]);
 
-function normalizeClaudeModelMetadata(model: ModelInfo): ClaudeModelMetadata | null {
+function normalizeClaudeModelMetadata(
+  model: ModelInfo,
+): ClaudeModelMetadata | null {
   if (!model.value) return null;
   const effortLevels = Array.isArray(model.supportedEffortLevels)
     ? model.supportedEffortLevels.filter((level): level is ClaudeEffortLevel =>
@@ -167,7 +175,10 @@ export async function listAvailableClaudeModels(
  * Parse a permission rule in ToolName(ruleContent) format.
  * Matches the CLI's internal pzT() function: /^([^(]+)\(([^)]+)\)$/
  */
-export function parseRule(rule: string): { toolName: string; ruleContent?: string } {
+export function parseRule(rule: string): {
+  toolName: string;
+  ruleContent?: string;
+} {
   const match = rule.match(/^([^(]+)\(([^)]+)\)$/);
   if (!match || !match[1] || !match[2]) return { toolName: rule };
   return { toolName: match[1], ruleContent: match[2] };
@@ -192,7 +203,8 @@ export function matchesSessionRule(
     if (toolName === "Bash" && typeof input.command === "string") {
       if (parsed.ruleContent.endsWith(":*")) {
         const prefix = parsed.ruleContent.slice(0, -2);
-        const firstWord = (input.command as string).trim().split(/\s+/)[0] ?? "";
+        const firstWord =
+          (input.command as string).trim().split(/\s+/)[0] ?? "";
         if (firstWord === prefix) return true;
       } else {
         if (input.command === parsed.ruleContent) return true;
@@ -207,7 +219,10 @@ export function matchesSessionRule(
  * Bash: uses first word as prefix (e.g., "Bash(npm:*)")
  * Others: tool name only (e.g., "Edit")
  */
-export function buildSessionRule(toolName: string, input: Record<string, unknown>): string {
+export function buildSessionRule(
+  toolName: string,
+  input: Record<string, unknown>,
+): string {
   if (toolName === "Bash" && typeof input.command === "string") {
     const firstWord = (input.command as string).trim().split(/\s+/)[0] ?? "";
     if (firstWord) return `${toolName}(${firstWord}:*)`;
@@ -217,7 +232,10 @@ export function buildSessionRule(toolName: string, input: Record<string, unknown
 
 // ---- Auth error helpers (exported for testing) ----
 
-export type AuthErrorCode = "auth_login_required" | "auth_token_expired" | "auth_api_error";
+export type AuthErrorCode =
+  | "auth_login_required"
+  | "auth_token_expired"
+  | "auth_api_error";
 
 export interface AuthCheckResult {
   authenticated: boolean;
@@ -225,7 +243,8 @@ export interface AuthCheckResult {
   errorCode?: AuthErrorCode;
 }
 
-const AUTH_REMEDY = "Fix: Run this command in the terminal on the machine running Bridge:\n  claude auth login";
+const AUTH_REMEDY =
+  "Fix: Run this command in the terminal on the machine running Bridge:\n  claude auth login";
 
 /**
  * Build a user-friendly auth error result.
@@ -285,6 +304,7 @@ export interface StartOptions {
   maxTurns?: number;
   maxBudgetUsd?: number;
   fallbackModel?: string;
+  ultracode?: boolean;
   forkSession?: boolean;
   persistSession?: boolean;
   /** When resuming, only resume messages up to this UUID (for conversation rewind). */
@@ -309,7 +329,9 @@ export interface RewindFilesResult {
  * Convert SDK messages to the ServerMessage format used by the WebSocket protocol.
  * Exported for testing.
  */
-export function sdkMessageToServerMessage(msg: SDKMessage): ServerMessage | null {
+export function sdkMessageToServerMessage(
+  msg: SDKMessage,
+): ServerMessage | null {
   switch (msg.type) {
     case "system": {
       const sys = msg as Record<string, unknown>;
@@ -319,7 +341,9 @@ export function sdkMessageToServerMessage(msg: SDKMessage): ServerMessage | null
           subtype: "init",
           sessionId: msg.session_id,
           model: sys.model as string,
-          ...(sys.slash_commands ? { slashCommands: sys.slash_commands as string[] } : {}),
+          ...(sys.slash_commands
+            ? { slashCommands: sys.slash_commands as string[] }
+            : {}),
           ...(sys.skills ? { skills: sys.skills as string[] } : {}),
         };
       }
@@ -330,16 +354,26 @@ export function sdkMessageToServerMessage(msg: SDKMessage): ServerMessage | null
     }
 
     case "assistant": {
-      const ast = msg as unknown as { message: Record<string, unknown>; uuid?: string };
+      const ast = msg as unknown as {
+        message: Record<string, unknown>;
+        uuid?: string;
+      };
       return {
         type: "assistant",
-        message: ast.message as ServerMessage extends { type: "assistant" } ? ServerMessage["message"] : never,
+        message: ast.message as ServerMessage extends { type: "assistant" }
+          ? ServerMessage["message"]
+          : never,
         ...(ast.uuid ? { messageUuid: ast.uuid } : {}),
       } as ServerMessage;
     }
 
     case "user": {
-      const usr = msg as { message: { content?: unknown[] }; uuid?: string; isSynthetic?: boolean; isMeta?: boolean };
+      const usr = msg as {
+        message: { content?: unknown[] };
+        uuid?: string;
+        isSynthetic?: boolean;
+        isMeta?: boolean;
+      };
 
       // Filter out meta messages early (e.g., skill loading prompts).
       // Following Happy Coder's approach: isMeta messages are not user-facing.
@@ -349,7 +383,7 @@ export function sdkMessageToServerMessage(msg: SDKMessage): ServerMessage | null
       if (!Array.isArray(content)) return null;
 
       const results = content.filter(
-        (c: unknown) => (c as Record<string, unknown>).type === "tool_result"
+        (c: unknown) => (c as Record<string, unknown>).type === "tool_result",
       );
 
       if (results.length > 0) {
@@ -359,7 +393,9 @@ export function sdkMessageToServerMessage(msg: SDKMessage): ServerMessage | null
           type: "tool_result",
           toolUseId: first.tool_use_id as string,
           content: normalizeToolResultContent(rawContent),
-          ...(Array.isArray(rawContent) ? { rawContentBlocks: rawContent } : {}),
+          ...(Array.isArray(rawContent)
+            ? { rawContentBlocks: rawContent }
+            : {}),
           ...(usr.uuid ? { userMessageUuid: usr.uuid } : {}),
         };
       }
@@ -397,7 +433,9 @@ export function sdkMessageToServerMessage(msg: SDKMessage): ServerMessage | null
         };
       }
       // All other result subtypes are errors
-      const errorText = Array.isArray(res.errors) ? (res.errors as string[]).join("\n") : "Unknown error";
+      const errorText = Array.isArray(res.errors)
+        ? (res.errors as string[]).join("\n")
+        : "Unknown error";
       // Suppress spurious CLI runtime errors (SDK bug: Bun API referenced on Node.js)
       if (errorText.includes("Bun is not defined")) {
         return null;
@@ -493,9 +531,13 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
   private _sessionId: string | null = null;
   private pendingPermissions = new Map<string, PendingPermission>();
   private _permissionMode: PermissionMode | undefined;
-  get permissionMode(): PermissionMode | undefined { return this._permissionMode; }
+  get permissionMode(): PermissionMode | undefined {
+    return this._permissionMode;
+  }
   private _model: string | undefined;
-  get model(): string | undefined { return this._model; }
+  get model(): string | undefined {
+    return this._model;
+  }
   private sessionAllowRules = new Set<string>();
 
   private initTimeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -505,7 +547,10 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
   private userMessageResolve: ((msg: SDKUserMsg) => void) | null = null;
   private stopped = false;
 
-  private pendingInputQueue: Array<{ text: string; images?: Array<{ base64: string; mimeType: string }> }> = [];
+  private pendingInputQueue: Array<{
+    text: string;
+    images?: Array<{ base64: string; mimeType: string }>;
+  }> = [];
   private _projectPath: string | null = null;
   private toolCallsSinceLastResult = 0;
   private fileEditsSinceLastResult = 0;
@@ -537,7 +582,9 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
       try {
         mkdirSync(projectPath, { recursive: true });
       } catch (err) {
-        throw new Error(`Cannot create project directory: ${projectPath} (${(err as NodeJS.ErrnoException).code ?? err})`);
+        throw new Error(
+          `Cannot create project directory: ${projectPath} (${(err as NodeJS.ErrnoException).code ?? err})`,
+        );
       }
     }
 
@@ -559,16 +606,23 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
     this.startAfterAuthCheck(projectPath, options);
   }
 
-  private startAfterAuthCheck(projectPath: string, options?: StartOptions): void {
+  private startAfterAuthCheck(
+    projectPath: string,
+    options?: StartOptions,
+  ): void {
     checkClaudeAuth()
       .then((authCheck) => {
         if (this.stopped) return; // Cancelled while awaiting auth
 
         if (!authCheck.authenticated) {
-          console.log(`[sdk-process] Auth pre-check failed: ${authCheck.message}`);
+          console.log(
+            `[sdk-process] Auth pre-check failed: ${authCheck.message}`,
+          );
           this.emitMessage({
             type: "error",
-            message: authCheck.message ?? "Claude is not authenticated. Please run: claude auth login",
+            message:
+              authCheck.message ??
+              "Claude is not authenticated. Please run: claude auth login",
             ...(authCheck.errorCode ? { errorCode: authCheck.errorCode } : {}),
           });
           this.setStatus("idle");
@@ -591,7 +645,9 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
   }
 
   private startSdkQuery(projectPath: string, options?: StartOptions): void {
-    console.log(`[sdk-process] Starting SDK query (cwd: ${projectPath}, mode: ${options?.permissionMode ?? "default"}${options?.sessionId ? `, resume: ${options.sessionId}` : ""}${options?.continueMode ? ", continue: true" : ""})`);
+    console.log(
+      `[sdk-process] Starting SDK query (cwd: ${projectPath}, mode: ${options?.permissionMode ?? "default"}${options?.sessionId ? `, resume: ${options.sessionId}` : ""}${options?.continueMode ? ", continue: true" : ""})`,
+    );
 
     // In -p mode with --input-format stream-json, Claude CLI won't emit
     // system/init until the first user input. Set a fallback timeout to
@@ -600,11 +656,15 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
     if (this.initTimeoutId) clearTimeout(this.initTimeoutId);
     this.initTimeoutId = setTimeout(() => {
       if (this._status === "starting") {
-        console.log("[sdk-process] Init timeout: setting status to idle (process ready for input)");
+        console.log(
+          "[sdk-process] Init timeout: setting status to idle (process ready for input)",
+        );
         this.setStatus("idle");
       }
       this.initTimeoutId = null;
     }, 3000);
+
+    const effort = options?.ultracode ? "xhigh" : options?.effort;
 
     this.queryInstance = query({
       prompt: this.createUserMessageStream(),
@@ -615,25 +675,40 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
         permissionMode: options?.permissionMode ?? "default",
         ...(options?.model ? { model: options.model } : {}),
         ...buildThinkingOptions(options?.model),
-        ...(options?.effort ? { effort: options.effort } : {}),
+        ...(effort ? { effort } : {}),
+        ...(options?.ultracode ? { settings: { ultracode: true } } : {}),
         ...(options?.maxTurns != null ? { maxTurns: options.maxTurns } : {}),
-        ...(options?.maxBudgetUsd != null ? { maxBudgetUsd: options.maxBudgetUsd } : {}),
-        ...(options?.fallbackModel ? { fallbackModel: options.fallbackModel } : {}),
-        ...(options?.forkSession != null ? { forkSession: options.forkSession } : {}),
-        ...(options?.persistSession != null ? { persistSession: options.persistSession } : {}),
+        ...(options?.maxBudgetUsd != null
+          ? { maxBudgetUsd: options.maxBudgetUsd }
+          : {}),
+        ...(options?.fallbackModel
+          ? { fallbackModel: options.fallbackModel }
+          : {}),
+        ...(options?.forkSession != null
+          ? { forkSession: options.forkSession }
+          : {}),
+        ...(options?.persistSession != null
+          ? { persistSession: options.persistSession }
+          : {}),
         hooks: {
-          PostToolUse: [{
-            hooks: [async (input) => {
-              this.handlePostToolUseHook(input);
-              return { continue: true };
-            }],
-          }],
+          PostToolUse: [
+            {
+              hooks: [
+                async (input) => {
+                  this.handlePostToolUseHook(input);
+                  return { continue: true };
+                },
+              ],
+            },
+          ],
         },
         includePartialMessages: true,
         canUseTool: this.handleCanUseTool.bind(this),
         settingSources: ["user", "project", "local"],
         enableFileCheckpointing: true,
-        ...(options?.resumeSessionAt ? { resumeSessionAt: options.resumeSessionAt } : {}),
+        ...(options?.resumeSessionAt
+          ? { resumeSessionAt: options.resumeSessionAt }
+          : {}),
         ...(options?.sandboxEnabled === true
           ? { sandbox: { enabled: true } }
           : options?.sandboxEnabled === false
@@ -656,7 +731,10 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
         return;
       }
       console.error("[sdk-process] Message processing error:", err);
-      this.emitMessage({ type: "error", message: `SDK error: ${err instanceof Error ? err.message : String(err)}` });
+      this.emitMessage({
+        type: "error",
+        message: `SDK error: ${err instanceof Error ? err.message : String(err)}`,
+      });
       this.setStatus("idle");
       this.emit("exit", 1);
     });
@@ -717,7 +795,9 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
       // drains pendingInputQueue on each iteration, so it will be
       // delivered once the SDK is ready for the next turn.
       this.pendingInputQueue.push({ text });
-      console.log(`[sdk-process] Queued input (queue depth: ${this.pendingInputQueue.length})`);
+      console.log(
+        `[sdk-process] Queued input (queue depth: ${this.pendingInputQueue.length})`,
+      );
       return true;
     }
     const resolve = this.userMessageResolve;
@@ -739,10 +819,15 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
    * @param text - The text message
    * @param images - Array of base64-encoded image data with mime types
    */
-  sendInputWithImages(text: string, images: Array<{ base64: string; mimeType: string }>): boolean {
+  sendInputWithImages(
+    text: string,
+    images: Array<{ base64: string; mimeType: string }>,
+  ): boolean {
     if (!this.userMessageResolve) {
       this.pendingInputQueue.push({ text, images });
-      console.log(`[sdk-process] Queued input with ${images.length} image(s) (queue depth: ${this.pendingInputQueue.length})`);
+      console.log(
+        `[sdk-process] Queued input with ${images.length} image(s) (queue depth: ${this.pendingInputQueue.length})`,
+      );
       return true;
     }
     const resolve = this.userMessageResolve;
@@ -765,8 +850,13 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
     // Add text block
     content.push({ type: "text", text });
 
-    const totalKB = images.reduce((sum, img) => sum + Math.round(img.base64.length / 1024), 0);
-    console.log(`[sdk-process] Sending message with ${images.length} image(s) (${totalKB}KB base64 total)`);
+    const totalKB = images.reduce(
+      (sum, img) => sum + Math.round(img.base64.length / 1024),
+      0,
+    );
+    console.log(
+      `[sdk-process] Sending message with ${images.length} image(s) (${totalKB}KB base64 total)`,
+    );
 
     resolve({
       type: "user",
@@ -788,7 +878,9 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
     const id = toolUseId ?? this.firstPendingId();
     const pending = id ? this.pendingPermissions.get(id) : undefined;
     if (!pending) {
-      console.log("[sdk-process] approve() called but no pending permission requests");
+      console.log(
+        "[sdk-process] approve() called but no pending permission requests",
+      );
       return;
     }
 
@@ -814,7 +906,9 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
     const id = toolUseId ?? this.firstPendingId();
     const pending = id ? this.pendingPermissions.get(id) : undefined;
     if (!pending) {
-      console.log("[sdk-process] approveAlways() called but no pending permission requests");
+      console.log(
+        "[sdk-process] approveAlways() called but no pending permission requests",
+      );
       return;
     }
 
@@ -824,8 +918,13 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
 
     // When a file-edit tool is always-approved, the effective mode is
     // "acceptEdits" — mirror the CLI behaviour by notifying clients.
-    if (isFileEditToolName(pending.toolName) && this._permissionMode !== "acceptEdits") {
-      console.log(`[sdk-process] Permission mode changed: ${this._permissionMode} → acceptEdits (file-edit always-approved)`);
+    if (
+      isFileEditToolName(pending.toolName) &&
+      this._permissionMode !== "acceptEdits"
+    ) {
+      console.log(
+        `[sdk-process] Permission mode changed: ${this._permissionMode} → acceptEdits (file-edit always-approved)`,
+      );
       this._permissionMode = "acceptEdits";
       this.emitMessage({
         type: "system",
@@ -839,12 +938,14 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
     pending.resolve({
       behavior: "allow",
       updatedInput: pending.input,
-      updatedPermissions: [{
-        type: "addRules",
-        rules: [{ toolName: pending.toolName }],
-        behavior: "allow",
-        destination: "session",
-      }],
+      updatedPermissions: [
+        {
+          type: "addRules",
+          rules: [{ toolName: pending.toolName }],
+          behavior: "allow",
+          destination: "session",
+        },
+      ],
     });
 
     if (this.pendingPermissions.size === 0) {
@@ -860,7 +961,9 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
     const id = toolUseId ?? this.firstPendingId();
     const pending = id ? this.pendingPermissions.get(id) : undefined;
     if (!pending) {
-      console.log("[sdk-process] reject() called but no pending permission requests");
+      console.log(
+        "[sdk-process] reject() called but no pending permission requests",
+      );
       return;
     }
 
@@ -882,7 +985,9 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
   answer(toolUseId: string, result: string): void {
     const pending = this.pendingPermissions.get(toolUseId);
     if (!pending || pending.toolName !== "AskUserQuestion") {
-      console.log("[sdk-process] answer() called but no pending AskUserQuestion");
+      console.log(
+        "[sdk-process] answer() called but no pending AskUserQuestion",
+      );
       return;
     }
 
@@ -891,7 +996,10 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
       behavior: "allow",
       updatedInput: {
         ...pending.input,
-        answers: { ...(pending.input.answers as Record<string, string> ?? {}), result },
+        answers: {
+          ...((pending.input.answers as Record<string, string>) ?? {}),
+          result,
+        },
       },
     });
 
@@ -922,15 +1030,23 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
    * Rewind files to their state at the specified user message.
    * Requires enableFileCheckpointing to be enabled (done in start()).
    */
-  async rewindFiles(userMessageId: string, dryRun?: boolean): Promise<RewindFilesResult> {
+  async rewindFiles(
+    userMessageId: string,
+    dryRun?: boolean,
+  ): Promise<RewindFilesResult> {
     if (!this.queryInstance) {
       return { canRewind: false, error: "No active query instance" };
     }
     try {
-      const result = await this.queryInstance.rewindFiles(userMessageId, { dryRun });
+      const result = await this.queryInstance.rewindFiles(userMessageId, {
+        dryRun,
+      });
       return result as RewindFilesResult;
     } catch (err) {
-      return { canRewind: false, error: err instanceof Error ? err.message : String(err) };
+      return {
+        canRewind: false,
+        error: err instanceof Error ? err.message : String(err),
+      };
     }
   }
 
@@ -957,10 +1073,7 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
       setTimeout(() => resolve(null), TIMEOUT_MS);
     });
 
-    Promise.race([
-      this.queryInstance.supportedCommands(),
-      timeoutPromise,
-    ])
+    Promise.race([this.queryInstance.supportedCommands(), timeoutPromise])
       .then((result) => {
         if (this.stopped || !result) return;
         const slashCommands = result.map((cmd) => cmd.name);
@@ -978,7 +1091,9 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
             scope: "project" as const,
           }));
         const skills = skillMetadata.map((m) => m.name);
-        console.log(`[sdk-process] supportedCommands() returned ${slashCommands.length} commands (${skills.length} with descriptions)`);
+        console.log(
+          `[sdk-process] supportedCommands() returned ${slashCommands.length} commands (${skills.length} with descriptions)`,
+        );
         this.emitMessage({
           type: "system",
           subtype: "supported_commands",
@@ -987,7 +1102,9 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
         });
       })
       .catch((err) => {
-        console.log(`[sdk-process] supportedCommands() failed (non-fatal): ${err instanceof Error ? err.message : String(err)}`);
+        console.log(
+          `[sdk-process] supportedCommands() failed (non-fatal): ${err instanceof Error ? err.message : String(err)}`,
+        );
       });
   }
 
@@ -1002,7 +1119,9 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
    */
   getPendingPermission(
     toolUseId?: string,
-  ): { toolUseId: string; toolName: string; input: Record<string, unknown> } | undefined {
+  ):
+    | { toolUseId: string; toolName: string; input: Record<string, unknown> }
+    | undefined {
     const id = toolUseId ?? this.firstPendingId();
     const pending = id ? this.pendingPermissions.get(id) : undefined;
     if (!pending || !id) return undefined;
@@ -1018,7 +1137,9 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
       // Drain queued messages first (FIFO order)
       if (this.pendingInputQueue.length > 0) {
         const { text, images } = this.pendingInputQueue.shift()!;
-        console.log(`[sdk-process] Sending queued input${images ? ` with ${images.length} image(s)` : ""} (remaining: ${this.pendingInputQueue.length})`);
+        console.log(
+          `[sdk-process] Sending queued input${images ? ` with ${images.length} image(s)` : ""} (remaining: ${this.pendingInputQueue.length})`,
+        );
         const content: SDKUserMsg["message"]["content"] = [];
         if (images) {
           for (const image of images) {
@@ -1061,7 +1182,10 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
       // Convert SDK message to ServerMessage
       let serverMsg = sdkMessageToServerMessage(message);
       if (serverMsg?.type === "result") {
-        if (this.toolCallsSinceLastResult > 0 || this.fileEditsSinceLastResult > 0) {
+        if (
+          this.toolCallsSinceLastResult > 0 ||
+          this.fileEditsSinceLastResult > 0
+        ) {
           serverMsg = {
             ...serverMsg,
             ...(this.toolCallsSinceLastResult > 0
@@ -1080,7 +1204,11 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
       }
 
       // Extract session ID and model from system/init
-      if (message.type === "system" && "subtype" in message && (message as Record<string, unknown>).subtype === "init") {
+      if (
+        message.type === "system" &&
+        "subtype" in message &&
+        (message as Record<string, unknown>).subtype === "init"
+      ) {
         if (this.initTimeoutId) {
           clearTimeout(this.initTimeoutId);
           this.initTimeoutId = null;
@@ -1099,10 +1227,15 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
       // permissionMode.  Propagate the change to connected clients.
       if (message.type === "system" && "subtype" in message) {
         const sys = message as Record<string, unknown>;
-        if (sys.subtype === "status" && typeof sys.permissionMode === "string") {
+        if (
+          sys.subtype === "status" &&
+          typeof sys.permissionMode === "string"
+        ) {
           const newMode = sys.permissionMode as PermissionMode;
           if (newMode !== this._permissionMode) {
-            console.log(`[sdk-process] Permission mode changed: ${this._permissionMode} → ${newMode}`);
+            console.log(
+              `[sdk-process] Permission mode changed: ${this._permissionMode} → ${newMode}`,
+            );
             this._permissionMode = newMode;
             this.emitMessage({
               type: "system",
@@ -1144,7 +1277,12 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
   ): Promise<PermissionResult> {
     // AskUserQuestion: always forward to client for response
     if (toolName === "AskUserQuestion") {
-      return this.waitForPermission(options.toolUseID, toolName, input, options.signal);
+      return this.waitForPermission(
+        options.toolUseID,
+        toolName,
+        input,
+        options.signal,
+      );
     }
 
     // Auto-approve check: session allow rules
@@ -1155,7 +1293,12 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
     // SDK handles permissionMode internally, but canUseTool is only called
     // for tools that the SDK thinks need permission. We emit the request
     // to the mobile client and wait.
-    return this.waitForPermission(options.toolUseID, toolName, input, options.signal);
+    return this.waitForPermission(
+      options.toolUseID,
+      toolName,
+      input,
+      options.signal,
+    );
   }
 
   private waitForPermission(
@@ -1183,12 +1326,19 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
         return;
       }
 
-      signal.addEventListener("abort", () => {
-        if (this.pendingPermissions.has(toolUseId)) {
-          this.pendingPermissions.delete(toolUseId);
-          resolve({ behavior: "deny", message: "Permission request timed out" });
-        }
-      }, { once: true });
+      signal.addEventListener(
+        "abort",
+        () => {
+          if (this.pendingPermissions.has(toolUseId)) {
+            this.pendingPermissions.delete(toolUseId);
+            resolve({
+              behavior: "deny",
+              message: "Permission request timed out",
+            });
+          }
+        },
+        { once: true },
+      );
     });
   }
 

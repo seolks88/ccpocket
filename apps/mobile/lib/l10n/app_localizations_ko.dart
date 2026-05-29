@@ -835,6 +835,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get claudeEffortMaxDesc => '가장 철저하지만 가장 느림';
 
   @override
+  String get claudeEffortUltracodeDesc => 'X High와 workflow 오케스트레이션';
+
+  @override
   String get reasoningEffortNoneDesc => '추론 없음';
 
   @override
@@ -1843,7 +1846,7 @@ class AppLocalizationsKo extends AppLocalizations {
   String get newSessionTabCodex => 'Codex';
 
   @override
-  String get newSessionTabClaudeCode => 'Claude';
+  String get newSessionTabClaudeCode => 'Claude Code';
 
   @override
   String usageResetAt(String time) {

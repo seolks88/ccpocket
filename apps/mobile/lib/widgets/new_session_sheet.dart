@@ -295,17 +295,29 @@ const _legacyClaudeEfforts = <ClaudeEffort>[
   ClaudeEffort.low,
   ClaudeEffort.medium,
   ClaudeEffort.high,
+  ClaudeEffort.xhigh,
   ClaudeEffort.max,
+  ClaudeEffort.ultracode,
 ];
+
+List<ClaudeEffort> _appendClaudeCodeWorkflowEffort(List<ClaudeEffort> efforts) {
+  if (!efforts.contains(ClaudeEffort.xhigh) ||
+      efforts.contains(ClaudeEffort.ultracode)) {
+    return efforts;
+  }
+  return [...efforts, ClaudeEffort.ultracode];
+}
 
 Map<String, List<ClaudeEffort>> _normalizeClaudeModelEfforts(
   Map<String, List<String>> raw,
 ) {
   return raw.map((model, values) {
-    final efforts = values
-        .map(claudeEffortFromRaw)
-        .whereType<ClaudeEffort>()
-        .toList(growable: false);
+    final efforts = _appendClaudeCodeWorkflowEffort(
+      values
+          .map(claudeEffortFromRaw)
+          .whereType<ClaudeEffort>()
+          .toList(growable: false),
+    );
     return MapEntry(model, efforts);
   });
 }
@@ -317,7 +329,9 @@ List<ClaudeEffort> _claudeEffortsForModel(
   if (model != null && modelEfforts.containsKey(model)) {
     return modelEfforts[model] ?? const [];
   }
-  return modelEfforts.isEmpty ? _legacyClaudeEfforts : ClaudeEffort.values;
+  return modelEfforts.isEmpty
+      ? _legacyClaudeEfforts
+      : _appendClaudeCodeWorkflowEffort(ClaudeEffort.values);
 }
 
 /// Serialize [NewSessionParams] to JSON for SharedPreferences.
@@ -487,6 +501,16 @@ const _defaultCodexModels = defaultCodexModels;
 
 /// Fallback Claude models when Bridge hasn't delivered a list yet.
 const _defaultClaudeModels = <String>[
+  'default',
+  'best',
+  'opus',
+  'opus[1m]',
+  'opusplan',
+  'sonnet',
+  'sonnet[1m]',
+  'haiku',
+  'claude-opus-4-8',
+  'claude-opus-4-8[1m]',
   'claude-opus-4-7',
   'claude-opus-4-7[1m]',
   'claude-opus-4-6',
@@ -2811,6 +2835,7 @@ String _claudeEffortDescription(ClaudeEffort effort, AppLocalizations l) {
     ClaudeEffort.high => l.claudeEffortHighDesc,
     ClaudeEffort.xhigh => l.claudeEffortXHighDesc,
     ClaudeEffort.max => l.claudeEffortMaxDesc,
+    ClaudeEffort.ultracode => l.claudeEffortUltracodeDesc,
   };
 }
 

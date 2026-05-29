@@ -1668,6 +1668,12 @@ abstract class AppLocalizations {
   /// **'最も丁寧、最も遅い'**
   String get claudeEffortMaxDesc;
 
+  /// No description provided for @claudeEffortUltracodeDesc.
+  ///
+  /// In ja, this message translates to:
+  /// **'X High とワークフロー編成'**
+  String get claudeEffortUltracodeDesc;
+
   /// No description provided for @reasoningEffortNoneDesc.
   ///
   /// In ja, this message translates to:
@@ -3489,7 +3495,7 @@ abstract class AppLocalizations {
   /// No description provided for @newSessionTabClaudeCode.
   ///
   /// In ja, this message translates to:
-  /// **'Claude'**
+  /// **'Claude Code'**
   String get newSessionTabClaudeCode;
 
   /// No description provided for @usageResetAt.

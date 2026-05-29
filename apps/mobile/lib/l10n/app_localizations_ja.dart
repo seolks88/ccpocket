@@ -836,6 +836,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get claudeEffortMaxDesc => '最も丁寧、最も遅い';
 
   @override
+  String get claudeEffortUltracodeDesc => 'X High とワークフロー編成';
+
+  @override
   String get reasoningEffortNoneDesc => '推論なし';
 
   @override
@@ -1830,7 +1833,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get newSessionTabCodex => 'Codex';
 
   @override
-  String get newSessionTabClaudeCode => 'Claude';
+  String get newSessionTabClaudeCode => 'Claude Code';
 
   @override
   String usageResetAt(String time) {

@@ -828,6 +828,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get claudeEffortMaxDesc => '最深入，最慢';
 
   @override
+  String get claudeEffortUltracodeDesc => 'X High 加 workflow 编排';
+
+  @override
   String get reasoningEffortNoneDesc => '无推理';
 
   @override
@@ -1809,7 +1812,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get newSessionTabCodex => 'Codex';
 
   @override
-  String get newSessionTabClaudeCode => 'Claude';
+  String get newSessionTabClaudeCode => 'Claude Code';
 
   @override
   String usageResetAt(String time) {

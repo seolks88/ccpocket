@@ -455,6 +455,7 @@ void main() {
         maxTurns: 8,
         maxBudgetUsd: 1.25,
         fallbackModel: 'claude-haiku-4-5',
+        ultracode: true,
         persistSession: false,
       );
 
@@ -464,6 +465,7 @@ void main() {
       expect(json['maxTurns'], 8);
       expect(json['maxBudgetUsd'], 1.25);
       expect(json['fallbackModel'], 'claude-haiku-4-5');
+      expect(json['ultracode'], true);
       expect(json['persistSession'], false);
       expect(json.containsKey('forkSession'), isFalse);
     });
@@ -479,6 +481,7 @@ void main() {
         maxTurns: 5,
         maxBudgetUsd: 0.5,
         fallbackModel: 'claude-haiku-4-5',
+        ultracode: true,
         forkSession: true,
         persistSession: true,
       );
@@ -492,6 +495,7 @@ void main() {
       expect(json['maxTurns'], 5);
       expect(json['maxBudgetUsd'], 0.5);
       expect(json['fallbackModel'], 'claude-haiku-4-5');
+      expect(json['ultracode'], true);
       expect(json['forkSession'], true);
       expect(json['persistSession'], true);
     });

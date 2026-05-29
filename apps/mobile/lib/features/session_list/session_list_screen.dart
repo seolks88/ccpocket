@@ -40,6 +40,12 @@ import 'workspace_shell_screen.dart';
 
 // ---- Testable helpers (top-level) ----
 
+String? _claudeEffortValue(ClaudeEffort? effort) =>
+    effort == ClaudeEffort.ultracode ? ClaudeEffort.xhigh.value : effort?.value;
+
+bool? _claudeUltracodeValue(ClaudeEffort? effort) =>
+    effort == ClaudeEffort.ultracode ? true : null;
+
 /// Project name → session count, preserving first-seen order.
 Map<String, int> projectCounts(List<RecentSession> sessions) {
   final counts = <String, int>{};
@@ -742,7 +748,10 @@ class _SessionListScreenState extends State<SessionListScreen>
             ? null
             : result.planMode,
         effort: result.provider == Provider.claude
-            ? result.claudeEffort?.value
+            ? _claudeEffortValue(result.claudeEffort)
+            : null,
+        ultracode: result.provider == Provider.claude
+            ? _claudeUltracodeValue(result.claudeEffort)
             : null,
         maxTurns: result.provider == Provider.claude
             ? result.claudeMaxTurns
@@ -1431,9 +1440,14 @@ class _SessionListScreenState extends State<SessionListScreen>
     final permissionMode =
         sessionSettings?['permissionMode'] as String? ??
         session.effectivePermissionMode;
-    final effort =
+    final rawClaudeEffort =
         sessionSettings?['claudeEffort'] as String? ??
         claudeDefaults?.claudeEffort?.value;
+    final claudeEffort = claudeEffortFromRaw(rawClaudeEffort);
+    final effort = claudeEffort == null
+        ? rawClaudeEffort
+        : _claudeEffortValue(claudeEffort);
+    final ultracode = _claudeUltracodeValue(claudeEffort);
     final claudeModel =
         sessionSettings?['claudeModel'] as String? ??
         claudeDefaults?.claudeModel;
@@ -1512,6 +1526,7 @@ class _SessionListScreenState extends State<SessionListScreen>
               permissionMode: permissionMode,
             ),
       effort: !isCodex ? effort : null,
+      ultracode: !isCodex ? ultracode : null,
       maxTurns: !isCodex ? claudeDefaults?.claudeMaxTurns : null,
       maxBudgetUsd: !isCodex ? claudeDefaults?.claudeMaxBudgetUsd : null,
       fallbackModel: !isCodex ? fallbackModel : null,
@@ -1565,7 +1580,7 @@ class _SessionListScreenState extends State<SessionListScreen>
         'executionMode': derivedExecutionMode,
         'planMode': derivedPlanMode,
         'sandboxMode': ?sandboxMode,
-        'claudeEffort': ?effort,
+        'claudeEffort': ?rawClaudeEffort,
         'claudeModel': ?claudeModel,
         'claudeFallbackModel': ?fallbackModel,
         'claudeForkSession': ?forkSession,
@@ -1629,7 +1644,8 @@ class _SessionListScreenState extends State<SessionListScreen>
                 : edited.codexPermissionsMode.value)
           : null,
       planMode: isCodex && useCodexProfile ? null : edited.planMode,
-      effort: !isCodex ? edited.claudeEffort?.value : null,
+      effort: !isCodex ? _claudeEffortValue(edited.claudeEffort) : null,
+      ultracode: !isCodex ? _claudeUltracodeValue(edited.claudeEffort) : null,
       maxTurns: !isCodex ? edited.claudeMaxTurns : null,
       maxBudgetUsd: !isCodex ? edited.claudeMaxBudgetUsd : null,
       fallbackModel: !isCodex ? edited.claudeFallbackModel : null,

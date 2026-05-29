@@ -113,6 +113,7 @@ export type ClientMessage =
       maxTurns?: number;
       maxBudgetUsd?: number;
       fallbackModel?: string;
+      ultracode?: boolean;
       forkSession?: boolean;
       persistSession?: boolean;
       profile?: string;
@@ -232,6 +233,7 @@ export type ClientMessage =
       maxTurns?: number;
       maxBudgetUsd?: number;
       fallbackModel?: string;
+      ultracode?: boolean;
       forkSession?: boolean;
       persistSession?: boolean;
       profile?: string;
@@ -826,11 +828,7 @@ export function parseClientMessage(data: string): ClientMessage | null {
         typeof entry.projectPath !== "string"
       )
         return false;
-      if (
-        entry.id !== undefined &&
-        typeof entry.id !== "string"
-      )
-        return false;
+      if (entry.id !== undefined && typeof entry.id !== "string") return false;
       if (
         entry.useCount !== undefined &&
         (!Number.isInteger(entry.useCount) || Number(entry.useCount) < 0)
@@ -863,9 +861,7 @@ export function parseClientMessage(data: string): ClientMessage | null {
         if (msg.supportedServerMessages !== undefined) {
           if (!Array.isArray(msg.supportedServerMessages)) return null;
           if (
-            msg.supportedServerMessages.some(
-              (type) => typeof type !== "string",
-            )
+            msg.supportedServerMessages.some((type) => typeof type !== "string")
           )
             return null;
         }
@@ -902,6 +898,8 @@ export function parseClientMessage(data: string): ClientMessage | null {
           typeof msg.fallbackModel !== "string"
         )
           return null;
+        if (msg.ultracode !== undefined && typeof msg.ultracode !== "boolean")
+          return null;
         if (
           msg.forkSession !== undefined &&
           typeof msg.forkSession !== "boolean"
@@ -934,9 +932,13 @@ export function parseClientMessage(data: string): ClientMessage | null {
           return null;
         if (
           msg.permissionMode !== undefined &&
-          !["default", "auto", "acceptEdits", "bypassPermissions", "plan"].includes(
-            String(msg.permissionMode),
-          )
+          ![
+            "default",
+            "auto",
+            "acceptEdits",
+            "bypassPermissions",
+            "plan",
+          ].includes(String(msg.permissionMode))
         )
           return null;
         if (
@@ -969,10 +971,7 @@ export function parseClientMessage(data: string): ClientMessage | null {
           return null;
         if (msg.planMode !== undefined && typeof msg.planMode !== "boolean")
           return null;
-        if (
-          msg.autoRename !== undefined &&
-          typeof msg.autoRename !== "boolean"
-        )
+        if (msg.autoRename !== undefined && typeof msg.autoRename !== "boolean")
           return null;
         if (
           msg.webSearchMode !== undefined &&
@@ -982,9 +981,7 @@ export function parseClientMessage(data: string): ClientMessage | null {
         if (msg.additionalWritableRoots !== undefined) {
           if (!Array.isArray(msg.additionalWritableRoots)) return null;
           if (
-            msg.additionalWritableRoots.some(
-              (root) => typeof root !== "string",
-            )
+            msg.additionalWritableRoots.some((root) => typeof root !== "string")
           )
             return null;
         }
@@ -1066,17 +1063,11 @@ export function parseClientMessage(data: string): ClientMessage | null {
         }
         break;
       case "steer_queued_input":
-        if (
-          typeof msg.sessionId !== "string" ||
-          typeof msg.itemId !== "string"
-        )
+        if (typeof msg.sessionId !== "string" || typeof msg.itemId !== "string")
           return null;
         break;
       case "cancel_queued_input":
-        if (
-          typeof msg.sessionId !== "string" ||
-          typeof msg.itemId !== "string"
-        )
+        if (typeof msg.sessionId !== "string" || typeof msg.itemId !== "string")
           return null;
         break;
       case "push_register":
@@ -1094,9 +1085,13 @@ export function parseClientMessage(data: string): ClientMessage | null {
       case "set_permission_mode":
         if (
           typeof msg.mode !== "string" ||
-          !["default", "auto", "acceptEdits", "bypassPermissions", "plan"].includes(
-            msg.mode,
-          )
+          ![
+            "default",
+            "auto",
+            "acceptEdits",
+            "bypassPermissions",
+            "plan",
+          ].includes(msg.mode)
         )
           return null;
         if (
@@ -1243,6 +1238,8 @@ export function parseClientMessage(data: string): ClientMessage | null {
           typeof msg.fallbackModel !== "string"
         )
           return null;
+        if (msg.ultracode !== undefined && typeof msg.ultracode !== "boolean")
+          return null;
         if (
           msg.forkSession !== undefined &&
           typeof msg.forkSession !== "boolean"
@@ -1275,9 +1272,13 @@ export function parseClientMessage(data: string): ClientMessage | null {
           return null;
         if (
           msg.permissionMode !== undefined &&
-          !["default", "auto", "acceptEdits", "bypassPermissions", "plan"].includes(
-            String(msg.permissionMode),
-          )
+          ![
+            "default",
+            "auto",
+            "acceptEdits",
+            "bypassPermissions",
+            "plan",
+          ].includes(String(msg.permissionMode))
         )
           return null;
         if (
@@ -1318,9 +1319,7 @@ export function parseClientMessage(data: string): ClientMessage | null {
         if (msg.additionalWritableRoots !== undefined) {
           if (!Array.isArray(msg.additionalWritableRoots)) return null;
           if (
-            msg.additionalWritableRoots.some(
-              (root) => typeof root !== "string",
-            )
+            msg.additionalWritableRoots.some((root) => typeof root !== "string")
           )
             return null;
         }
@@ -1468,7 +1467,8 @@ export function parseClientMessage(data: string): ClientMessage | null {
           return null;
         if (
           msg.sinceRevision !== undefined &&
-          (!Number.isInteger(msg.sinceRevision) || Number(msg.sinceRevision) < 0)
+          (!Number.isInteger(msg.sinceRevision) ||
+            Number(msg.sinceRevision) < 0)
         )
           return null;
         if (
@@ -1493,10 +1493,7 @@ export function parseClientMessage(data: string): ClientMessage | null {
           typeof msg.projectPath !== "string"
         )
           return null;
-        if (
-          msg.isFavorite !== undefined &&
-          typeof msg.isFavorite !== "boolean"
-        )
+        if (msg.isFavorite !== undefined && typeof msg.isFavorite !== "boolean")
           return null;
         if (msg.updatedAt !== undefined && typeof msg.updatedAt !== "string")
           return null;

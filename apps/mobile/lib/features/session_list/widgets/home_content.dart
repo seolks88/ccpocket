@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -10,6 +12,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../../models/messages.dart';
 import '../../../models/offline_pending_action.dart';
 import '../../../services/app_update_service.dart';
+import '../../../services/bridge_service.dart';
 import '../../../services/draft_service.dart';
 import '../../../services/notification_service.dart';
 import '../../../services/revenuecat_service.dart';
@@ -149,6 +152,9 @@ class HomeContentState extends State<HomeContent> {
   VoidCallback? _catalogStateListener;
   SupportBannerService? _supportBannerService;
   VoidCallback? _supportBannerListener;
+  String? _providerAuthBaseUrl;
+  List<ProviderAuthStatusInfo> _providerAuthStatuses = const [];
+  bool _providerAuthLoading = false;
 
   @override
   void initState() {
@@ -193,6 +199,8 @@ class HomeContentState extends State<HomeContent> {
       supportBannerService.addListener(_supportBannerListener!);
       _refreshSupportBannerVisibility();
     }
+
+    _refreshProviderAuthStatusIfNeeded();
   }
 
   void _toggleDisplayMode() async {
@@ -218,6 +226,8 @@ class HomeContentState extends State<HomeContent> {
     if (widget.bridgeVersion != oldWidget.bridgeVersion) {
       _updateBannerDismissed = false;
       _refreshSupportBannerVisibility();
+      _providerAuthBaseUrl = null;
+      _refreshProviderAuthStatusIfNeeded();
     }
   }
 
@@ -326,6 +336,67 @@ class HomeContentState extends State<HomeContent> {
     );
   }
 
+  void _refreshProviderAuthStatusIfNeeded() {
+    if (widget.connectionState != BridgeConnectionState.connected) return;
+    final bridge = context.read<BridgeService?>();
+    final baseUrl = bridge?.httpBaseUrl;
+    if (bridge == null || baseUrl == null || baseUrl.isEmpty) return;
+    if (_providerAuthLoading && _providerAuthBaseUrl == baseUrl) return;
+    if (_providerAuthBaseUrl == baseUrl && _providerAuthStatuses.isNotEmpty) {
+      return;
+    }
+
+    _providerAuthLoading = true;
+    _providerAuthBaseUrl = baseUrl;
+    unawaited(_loadProviderAuthStatus(bridge, baseUrl));
+  }
+
+  Future<void> _loadProviderAuthStatus(
+    BridgeService bridge,
+    String baseUrl,
+  ) async {
+    try {
+      final statuses = await bridge.fetchProviderAuthStatus();
+      if (!mounted || _providerAuthBaseUrl != baseUrl) return;
+      setState(() {
+        _providerAuthStatuses = statuses;
+        _providerAuthLoading = false;
+      });
+    } catch (_) {
+      if (!mounted || _providerAuthBaseUrl != baseUrl) return;
+      setState(() {
+        _providerAuthStatuses = const [];
+        _providerAuthLoading = false;
+      });
+    }
+  }
+
+  Widget? _buildProviderAuthStrip() {
+    if (_providerAuthStatuses.isEmpty) return null;
+    final visibleStatuses = _providerAuthStatuses
+        .where(
+          (status) => status.provider == 'claude' || status.provider == 'codex',
+        )
+        .toList(growable: false);
+    if (visibleStatuses.isEmpty) return null;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        child: Row(
+          children: [
+            for (var i = 0; i < visibleStatuses.length; i++) ...[
+              if (i > 0) const SizedBox(width: 8),
+              _ProviderAuthStatusChip(status: visibleStatuses[i]),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget? _buildConnectedBridgeBanner(BuildContext context) {
     final label = widget.connectedBridgeLabel;
     if (label == null || label.isEmpty) return null;
@@ -410,6 +481,7 @@ class HomeContentState extends State<HomeContent> {
     final showInlineStopButton =
         widget.showInlineStopButtonOverride ?? shell != null;
     final connectedBridgeBanner = _buildConnectedBridgeBanner(context);
+    final providerAuthStrip = _buildProviderAuthStrip();
 
     // Compute derived state
     // Exclude running sessions from recent list to avoid duplicates
@@ -464,6 +536,7 @@ class HomeContentState extends State<HomeContent> {
             ?supportBanner,
             ?appUpdateBanner,
             ?macOSNativeAppBanner,
+            ?providerAuthStrip,
             SectionHeader(
               icon: Icons.history,
               label: l.recentSessions,
@@ -484,6 +557,7 @@ class HomeContentState extends State<HomeContent> {
           ?updateBanner,
           ?supportBanner,
           ?macOSNativeAppBanner,
+          ?providerAuthStrip,
           const SizedBox(height: 80),
           SessionListEmptyState(onNewSession: widget.onNewSession),
         ],
@@ -501,6 +575,7 @@ class HomeContentState extends State<HomeContent> {
         ?updateBanner,
         ?supportBanner,
         ?macOSNativeAppBanner,
+        ?providerAuthStrip,
         if (hasRunningSessions) ...[
           SectionHeader(
             icon: Icons.play_circle_filled,
@@ -742,6 +817,89 @@ class HomeContentState extends State<HomeContent> {
         ],
       ],
     );
+  }
+}
+
+class _ProviderAuthStatusChip extends StatelessWidget {
+  final ProviderAuthStatusInfo status;
+
+  const _ProviderAuthStatusChip({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final appColors = Theme.of(context).extension<AppColors>()!;
+    final provider = status.parsedProvider;
+    final providerStyle = providerStyleFor(context, provider);
+    final isHealthy = status.installed && status.authenticated;
+    final color = isHealthy
+        ? appColors.statusOnline
+        : status.installed
+        ? colorScheme.error
+        : colorScheme.onSurfaceVariant;
+    final detail = _statusText(status);
+
+    return Tooltip(
+      message: '${status.providerLabel}: $detail',
+      child: Container(
+        key: ValueKey('provider_auth_${status.provider}'),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: isHealthy ? 0.13 : 0.09),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: color.withValues(alpha: 0.34), width: 0.8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(providerStyle.icon, size: 14, color: providerStyle.foreground),
+            const SizedBox(width: 6),
+            Text(
+              status.providerLabel,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: providerStyle.foreground,
+                height: 1,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Icon(
+              isHealthy ? Icons.verified_outlined : Icons.error_outline,
+              size: 14,
+              color: color,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              detail,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: color,
+                height: 1,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static String _statusText(ProviderAuthStatusInfo status) {
+    if (!status.installed) return 'CLI missing';
+    if (!status.authenticated) return 'Sign in needed';
+    if (status.provider == Provider.claude.value) {
+      final plan = _titleCase(status.subscriptionType);
+      if (plan != null) return '$plan signed in';
+    }
+    return 'Signed in';
+  }
+
+  static String? _titleCase(String? value) {
+    final trimmed = value?.trim();
+    if (trimmed == null || trimmed.isEmpty) return null;
+    if (trimmed.length == 1) return trimmed.toUpperCase();
+    return '${trimmed[0].toUpperCase()}${trimmed.substring(1).toLowerCase()}';
   }
 }
 

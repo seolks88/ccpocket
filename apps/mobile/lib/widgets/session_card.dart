@@ -198,14 +198,14 @@ class _RunningSessionCardState extends State<RunningSessionCard> {
                       ),
                     ),
                   ],
-                  if (queuedInput != null || widget.onStop != null) ...[
-                    const Spacer(),
-                    if (queuedInput != null) ...[
-                      _QueuedInputBadge(item: queuedInput),
-                      if (widget.onStop != null) const SizedBox(width: 6),
-                    ],
+                  const Spacer(),
+                  _ProviderBadge(provider: provider),
+                  if (queuedInput != null) ...[
+                    const SizedBox(width: 6),
+                    _QueuedInputBadge(item: queuedInput),
                   ],
                   if (widget.onStop != null) ...[
+                    const SizedBox(width: 6),
                     _RunningSessionStopButton(onPressed: widget.onStop!),
                   ],
                 ],
@@ -2421,6 +2421,51 @@ class _AgentLabel extends StatelessWidget {
   }
 }
 
+class _ProviderBadge extends StatelessWidget {
+  final Provider provider;
+
+  const _ProviderBadge({required this.provider});
+
+  @override
+  Widget build(BuildContext context) {
+    final style = providerStyleFor(context, provider);
+    final label = provider.label;
+    return Semantics(
+      label: '$label session',
+      child: Tooltip(
+        message: label,
+        child: Container(
+          key: ValueKey('provider_badge_${provider.value}'),
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+          decoration: BoxDecoration(
+            color: style.background,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: style.border, width: 0.6),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(style.icon, size: 12, color: style.foreground),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w800,
+                  color: style.foreground,
+                  height: 1,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class RecentSessionCard extends StatelessWidget {
   final RecentSession session;
   final VoidCallback onTap;
@@ -2490,6 +2535,8 @@ class RecentSessionCard extends StatelessWidget {
                       Expanded(
                         child: Row(
                           children: [
+                            _ProviderBadge(provider: provider),
+                            const SizedBox(width: 8),
                             if (session.name != null &&
                                 session.name!.isNotEmpty) ...[
                               Flexible(

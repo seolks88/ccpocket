@@ -318,6 +318,7 @@
   "claudeEffortHighDesc": "更深入的分析",
   "claudeEffortXHighDesc": "复杂工作的扩展推理",
   "claudeEffortMaxDesc": "最深入，最慢",
+  "claudeEffortUltracodeDesc": "X High 加 workflow 编排",
 
   "reasoningEffortNoneDesc": "无推理",
   "reasoningEffortMinimalDesc": "最快，分析最少",
@@ -814,7 +815,7 @@
   "autoRenameClaudeSessions": "自动 Rename (Claude)",
   "autoRenameClaudeSessionsSubtitle": "在首次智能体回复后自动为 Claude 会话命名。使用 API Key 计费时会产生额外按量费用。",
   "newSessionTabCodex": "Codex",
-  "newSessionTabClaudeCode": "Claude",
+  "newSessionTabClaudeCode": "Claude Code",
   "usageResetAt": "重置时间：{time}",
   "@usageResetAt": {
     "placeholders": {

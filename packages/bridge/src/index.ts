@@ -10,6 +10,7 @@ import { MdnsAdvertiser } from "./mdns.js";
 import { ProjectHistory } from "./project-history.js";
 import { getVersionInfo } from "./version.js";
 import { fetchAllUsage } from "./usage.js";
+import { fetchProviderAuthStatuses } from "./provider-auth-status.js";
 import { runDoctor } from "./doctor.js";
 import { handleTranscriptionRequest } from "./transcription.js";
 import { DebugTraceStore } from "./debug-trace-store.js";
@@ -32,10 +33,9 @@ export async function startServer() {
 
   // Parse allowed project directories (default: $HOME)
   const ALLOWED_DIRS: string[] = process.env.BRIDGE_ALLOWED_DIRS
-    ? process.env.BRIDGE_ALLOWED_DIRS
-      .split(",")
-      .map((d) => resolvePlatformPath(d.trim()))
-      .filter(Boolean)
+    ? process.env.BRIDGE_ALLOWED_DIRS.split(",")
+        .map((d) => resolvePlatformPath(d.trim()))
+        .filter(Boolean)
     : [homedir()];
 
   console.log("[bridge] Starting ccpocket bridge server...");
@@ -69,52 +69,70 @@ export async function startServer() {
   const recordingStore = RECORDING_ENABLED ? new RecordingStore() : undefined;
   const promptHistoryBackup = new PromptHistoryBackupStore();
   const promptHistoryStore = new PromptHistoryStore(
-    promptHistoryStoreFileForPort(
-      PORT,
-      process.env.BRIDGE_PROMPT_HISTORY_FILE,
-    ),
+    promptHistoryStoreFileForPort(PORT, process.env.BRIDGE_PROMPT_HISTORY_FILE),
   );
   const MDNS_DISABLED = !!process.env.BRIDGE_DISABLE_MDNS;
   const mdns = MDNS_DISABLED ? undefined : new MdnsAdvertiser();
 
   // Initialize stores (async)
-  galleryStore.init().then(() => {
-    console.log("[bridge] Gallery store initialized");
-  }).catch((err) => {
-    console.error("[bridge] Failed to initialize gallery store:", err);
-  });
+  galleryStore
+    .init()
+    .then(() => {
+      console.log("[bridge] Gallery store initialized");
+    })
+    .catch((err) => {
+      console.error("[bridge] Failed to initialize gallery store:", err);
+    });
 
-  projectHistory.init().then(() => {
-    console.log("[bridge] Project history initialized");
-  }).catch((err) => {
-    console.error("[bridge] Failed to initialize project history:", err);
-  });
+  projectHistory
+    .init()
+    .then(() => {
+      console.log("[bridge] Project history initialized");
+    })
+    .catch((err) => {
+      console.error("[bridge] Failed to initialize project history:", err);
+    });
 
-  debugTraceStore.init().then(() => {
-    console.log("[bridge] Debug trace store initialized");
-  }).catch((err) => {
-    console.error("[bridge] Failed to initialize debug trace store:", err);
-  });
+  debugTraceStore
+    .init()
+    .then(() => {
+      console.log("[bridge] Debug trace store initialized");
+    })
+    .catch((err) => {
+      console.error("[bridge] Failed to initialize debug trace store:", err);
+    });
 
   if (recordingStore) {
-    recordingStore.init().then(() => {
-      console.log("[bridge] Recording enabled");
-    }).catch((err) => {
-      console.error("[bridge] Failed to initialize recording store:", err);
-    });
+    recordingStore
+      .init()
+      .then(() => {
+        console.log("[bridge] Recording enabled");
+      })
+      .catch((err) => {
+        console.error("[bridge] Failed to initialize recording store:", err);
+      });
   }
 
-  promptHistoryBackup.init().then(() => {
-    console.log("[bridge] Prompt history backup store initialized");
-  }).catch((err) => {
-    console.error("[bridge] Failed to initialize prompt history backup store:", err);
-  });
+  promptHistoryBackup
+    .init()
+    .then(() => {
+      console.log("[bridge] Prompt history backup store initialized");
+    })
+    .catch((err) => {
+      console.error(
+        "[bridge] Failed to initialize prompt history backup store:",
+        err,
+      );
+    });
 
-  await promptHistoryStore.init().then(() => {
-    console.log("[bridge] Prompt history store initialized");
-  }).catch((err) => {
-    console.error("[bridge] Failed to initialize prompt history store:", err);
-  });
+  await promptHistoryStore
+    .init()
+    .then(() => {
+      console.log("[bridge] Prompt history store initialized");
+    })
+    .catch((err) => {
+      console.error("[bridge] Failed to initialize prompt history store:", err);
+    });
 
   const startedAt = Date.now();
   let wsServer: BridgeWebSocketServer | null = null;
@@ -166,6 +184,19 @@ export async function startServer() {
       return;
     }
 
+    if (req.url === "/provider-auth-status" && req.method === "GET") {
+      fetchProviderAuthStatuses()
+        .then((providers) => {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ providers }));
+        })
+        .catch((err) => {
+          res.writeHead(500, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: String(err) }));
+        });
+      return;
+    }
+
     // Voice transcription endpoint. This is HTTP-based instead of WebSocket so
     // a long audio request is not tied to the chat session socket lifecycle.
     if (handleTranscriptionRequest(req, res)) return;
@@ -191,12 +222,15 @@ export async function startServer() {
     if (galleryStore.handleRequest(req, res)) return;
 
     // Upload images via POST /api/gallery/upload
-    if (galleryStore.handleUploadRequest(req, res, (meta) => {
-      if (wsServer) {
-        const info = galleryStore.metaToInfo(meta);
-        wsServer.broadcastGalleryNewImage(info);
-      }
-    })) return;
+    if (
+      galleryStore.handleUploadRequest(req, res, (meta) => {
+        if (wsServer) {
+          const info = galleryStore.metaToInfo(meta);
+          wsServer.broadcastGalleryNewImage(info);
+        }
+      })
+    )
+      return;
 
     // Default 404 for unknown HTTP requests
     res.writeHead(404, { "Content-Type": "text/plain" });
@@ -218,7 +252,9 @@ export async function startServer() {
   });
 
   httpServer.listen(PORT, HOST, () => {
-    console.log(`[bridge] Ready. Listening on http://${HOST}:${PORT} (HTTP + WebSocket)`);
+    console.log(
+      `[bridge] Ready. Listening on http://${HOST}:${PORT} (HTTP + WebSocket)`,
+    );
     mdns?.start(PORT, API_KEY);
     printStartupInfo(PORT, HOST, API_KEY);
   });
@@ -237,8 +273,7 @@ export async function startServer() {
 
 // Auto-start when executed directly (node dist/index.js, tsx src/index.ts)
 const isDirectExecution =
-  process.argv[1] &&
-  fileURLToPath(import.meta.url) === process.argv[1];
+  process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
 
 if (isDirectExecution) {
   setupProxy();

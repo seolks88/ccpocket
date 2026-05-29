@@ -1800,6 +1800,7 @@ class BridgeService implements BridgeServiceBase {
     int? maxTurns,
     double? maxBudgetUsd,
     String? fallbackModel,
+    bool? ultracode,
     bool? forkSession,
     bool? persistSession,
     String? profile,
@@ -1826,6 +1827,7 @@ class BridgeService implements BridgeServiceBase {
         maxTurns: maxTurns,
         maxBudgetUsd: maxBudgetUsd,
         fallbackModel: fallbackModel,
+        ultracode: ultracode,
         forkSession: forkSession,
         persistSession: persistSession,
         profile: profile,
@@ -2009,6 +2011,25 @@ class BridgeService implements BridgeServiceBase {
 
   void requestUsage() {
     send(ClientMessage.getUsage());
+  }
+
+  Future<List<ProviderAuthStatusInfo>> fetchProviderAuthStatus() async {
+    final baseUrl = httpBaseUrl;
+    if (baseUrl == null) return const [];
+
+    final response = await http
+        .get(Uri.parse('$baseUrl/provider-auth-status'))
+        .timeout(const Duration(seconds: 4));
+    if (response.statusCode != 200) return const [];
+
+    final json = jsonDecode(response.body) as Map<String, dynamic>;
+    final providers = json['providers'] as List? ?? const [];
+    return providers
+        .whereType<Map>()
+        .map(
+          (p) => ProviderAuthStatusInfo.fromJson(Map<String, dynamic>.from(p)),
+        )
+        .toList(growable: false);
   }
 
   void requestPromptHistorySync({
