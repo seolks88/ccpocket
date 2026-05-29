@@ -2922,6 +2922,8 @@ describe("BridgeWebSocketServer resume/get_history flow", () => {
     const sessionId = created.sessionId as string;
 
     const session = (bridge as any).sessionManager.get(sessionId);
+    session.status = "running";
+    session.process.status = "running";
     session.process.isWaitingForInput = false;
     session.process.sendInput.mockReturnValue(true);
 
@@ -2950,7 +2952,7 @@ describe("BridgeWebSocketServer resume/get_history flow", () => {
     bridge.close();
   });
 
-  it("claude input uses enqueue result for queued ack and interrupt", async () => {
+  it("claude input queued before readiness is not interrupted", async () => {
     const bridge = new BridgeWebSocketServer({ server: httpServer });
     const ws = {
       readyState: OPEN_STATE,
@@ -2973,8 +2975,12 @@ describe("BridgeWebSocketServer resume/get_history flow", () => {
     const sessionId = created.sessionId as string;
     const session = (bridge as any).sessionManager.get(sessionId);
 
-    // Simulate race: snapshot says idle, but SDK queues the input.
+    // Simulate readiness race: the session looks idle, but the SDK stream has
+    // not installed its next-input resolver yet. Queue without interrupting,
+    // otherwise the queued prompt can be dropped before the turn starts.
     session.process.isWaitingForInput = true;
+    session.status = "idle";
+    session.process.status = "idle";
     session.process.sendInput.mockReturnValue(true);
 
     ws.send.mockClear();
@@ -2995,7 +3001,7 @@ describe("BridgeWebSocketServer resume/get_history flow", () => {
       sessionId,
       queued: true,
     });
-    expect(session.process.interrupt).toHaveBeenCalledTimes(1);
+    expect(session.process.interrupt).not.toHaveBeenCalled();
 
     bridge.close();
   });

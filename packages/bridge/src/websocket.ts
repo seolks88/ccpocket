@@ -31,6 +31,7 @@ import {
   type DebugTraceEvent,
   type ImageChange,
   type Provider,
+  type ProcessStatus,
   type ServerMessage,
 } from "./parser.js";
 import {
@@ -175,6 +176,21 @@ function preferredClaudeFastModeModel(models: string[]): string {
     candidates.find((model) => available.has(model)) ??
     models.find(isFastModeCapableClaudeModel) ??
     "opus[1m]"
+  );
+}
+
+function shouldInterruptQueuedClaudeInput(
+  session: SessionInfo,
+  process: SdkProcess,
+): boolean {
+  const statuses = [session.status, process.status].filter(
+    (status): status is ProcessStatus => status !== undefined,
+  );
+  return statuses.some(
+    (status) =>
+      status === "running" ||
+      status === "waiting_approval" ||
+      status === "compacting",
   );
 }
 
@@ -2309,10 +2325,16 @@ export class BridgeWebSocketServer {
                   typeof result === "boolean" ? result : isAgentBusySnapshot;
               }
               if (queuedAfterResolve) {
-                console.log(
-                  `[ws] Agent is busy — will queue input and interrupt current turn`,
-                );
-                claudeProc.interrupt();
+                if (shouldInterruptQueuedClaudeInput(session, claudeProc)) {
+                  console.log(
+                    `[ws] Agent is busy — will queue input and interrupt current turn`,
+                  );
+                  claudeProc.interrupt();
+                } else {
+                  console.log(
+                    `[ws] Agent is not ready yet — queued input without interrupt`,
+                  );
+                }
               }
             })
             .catch((err) => {
@@ -2321,10 +2343,16 @@ export class BridgeWebSocketServer {
               const queuedAfterResolve =
                 typeof result === "boolean" ? result : isAgentBusySnapshot;
               if (queuedAfterResolve) {
-                console.log(
-                  `[ws] Agent is busy — will queue input and interrupt current turn`,
-                );
-                claudeProc.interrupt();
+                if (shouldInterruptQueuedClaudeInput(session, claudeProc)) {
+                  console.log(
+                    `[ws] Agent is busy — will queue input and interrupt current turn`,
+                  );
+                  claudeProc.interrupt();
+                } else {
+                  console.log(
+                    `[ws] Agent is not ready yet — queued input without interrupt`,
+                  );
+                }
               }
             });
           break;
@@ -2348,10 +2376,16 @@ export class BridgeWebSocketServer {
         });
 
         if (wasQueued) {
-          console.log(
-            `[ws] Agent is busy — will queue input and interrupt current turn`,
-          );
-          claudeProc.interrupt();
+          if (shouldInterruptQueuedClaudeInput(session, claudeProc)) {
+            console.log(
+              `[ws] Agent is busy — will queue input and interrupt current turn`,
+            );
+            claudeProc.interrupt();
+          } else {
+            console.log(
+              `[ws] Agent is not ready yet — queued input without interrupt`,
+            );
+          }
         }
         break;
       }
