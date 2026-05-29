@@ -5,6 +5,14 @@
 CC Pocket 会使用保存在你的 Bridge 机器上的 Claude Code 登录状态。
 如果认证失败，请在那台机器上重新登录 Claude Code。
 
+## 订阅与 API Key
+
+Claude Code 可以使用 Claude.ai Pro、Max、Team 或 Enterprise 订阅登录，也可以
+使用 Console API 凭据。如果 Bridge 进程环境中设置了 `ANTHROPIC_API_KEY` 或
+`ANTHROPIC_AUTH_TOKEN`，Claude Code 会优先使用这些凭据，而不是订阅登录，这可能
+产生 API 计费。若要使用订阅额度，请在 Bridge 机器上保持这些环境变量未设置，并在
+Claude Code 中用 `/status` 确认当前认证方式。
+
 ## 当你不在 Bridge 机器旁边时
 
 在 CC Pocket 的使用场景里，你的 Bridge 机器可能是家里的 Mac mini，或者另一台一直开着的 Mac。

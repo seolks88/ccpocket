@@ -104,8 +104,12 @@ Service setup supports macOS launchd and Linux systemd.
 
 ## Notes
 
-- Claude sessions require `@ccpocket/bridge` `1.25.0` or newer and an `ANTHROPIC_API_KEY`.
-  Claude subscription login via `/login` is not supported for new Bridge installs.
+- Claude sessions require `@ccpocket/bridge` `1.25.0` or newer and a working
+  Claude Code login on the Bridge machine. Claude Code can use Claude.ai
+  subscription login, Console API credentials, or supported cloud-provider
+  credentials. If `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` is set in the
+  Bridge environment, Claude Code will prefer that credential over subscription
+  login.
   See [Claude authentication troubleshooting](docs/auth-troubleshooting.md).
 - CC Pocket is designed around self-hosting and minimal data collection. Supporter purchases
   restore within the same Apple ID or Google account, but do not sync across stores.

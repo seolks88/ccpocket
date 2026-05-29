@@ -270,23 +270,10 @@ export function buildAuthError(
  * Returns authenticated=false with a message when login is required.
  */
 async function checkClaudeAuth(): Promise<AuthCheckResult> {
-  // API key authentication — always allowed.
-  if (process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN) {
-    return { authenticated: true };
-  }
-
-  // Subscription (OAuth) authentication is disabled for third-party app usage.
-  // Current Anthropic docs still require API key auth for third-party products
-  // using the Claude Agent SDK. See:
-  // - https://code.claude.com/docs/en/agent-sdk
-  // - https://code.claude.com/docs/en/legal-and-compliance
-  //
-  // Users should set ANTHROPIC_API_KEY instead.
-  return {
-    authenticated: false,
-    errorCode: "auth_api_error",
-    message: "⚠ API key required\n\nAnthropic's current Claude Agent SDK docs do not permit third-party products to use Claude subscription login. Please set the ANTHROPIC_API_KEY environment variable on the Bridge machine instead.\n\nhttps://console.anthropic.com/settings/keys",
-  };
+  // Let Claude Code choose the active credential source. Current Claude Code
+  // docs support Claude.ai subscription OAuth, API keys, and cloud-provider
+  // credentials; API-key environment variables still take precedence when set.
+  return { authenticated: true };
 }
 
 export interface StartOptions {
@@ -1094,22 +1081,6 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
 
       // Extract session ID and model from system/init
       if (message.type === "system" && "subtype" in message && (message as Record<string, unknown>).subtype === "init") {
-        // Guard: reject OAuth authentication even if SDK accepted it.
-        // API key (ANTHROPIC_API_KEY) is the only allowed auth source for
-        // this third-party app under the current Anthropic docs.
-        const apiKeySource = (message as Record<string, unknown>).apiKeySource;
-        if (apiKeySource === "oauth") {
-          console.log("[sdk-process] Rejected OAuth auth source at runtime");
-          this.emitMessage({
-            type: "error",
-            message: "⚠ API key required\n\nAnthropic's current Claude Agent SDK docs do not permit third-party products to use Claude subscription login. Please set the ANTHROPIC_API_KEY environment variable on the Bridge machine instead.\n\nhttps://console.anthropic.com/settings/keys",
-            errorCode: "auth_api_error",
-          });
-          this.stop();
-          this.emit("exit", 1);
-          return;
-        }
-
         if (this.initTimeoutId) {
           clearTimeout(this.initTimeoutId);
           this.initTimeoutId = null;

@@ -5,6 +5,15 @@
 CC Pocket은 Bridge 컴퓨터에 저장된 Claude Code 로그인 상태를 사용합니다.
 인증에 실패하면 해당 컴퓨터에서 Claude Code에 다시 로그인하세요.
 
+## 구독과 API 키
+
+Claude Code는 Claude.ai Pro, Max, Team, Enterprise 구독 로그인을 사용할 수
+있고, Console API 자격 증명도 사용할 수 있습니다. Bridge 프로세스 환경에
+`ANTHROPIC_API_KEY` 또는 `ANTHROPIC_AUTH_TOKEN`이 설정되어 있으면 Claude
+Code는 구독 로그인보다 해당 자격 증명을 먼저 사용하므로 API 과금이 발생할 수
+있습니다. 구독 한도 안에서 사용하려면 Bridge 컴퓨터에서 해당 환경 변수를
+비워두고, Claude Code의 `/status`로 현재 사용 중인 계정을 확인하세요.
+
 ## Bridge 컴퓨터를 직접 사용할 수 없을 때
 
 CC Pocket을 사용할 때 Bridge 컴퓨터는 집에서 실행 중인 Mac mini나 다른 Mac일 수 있습니다.

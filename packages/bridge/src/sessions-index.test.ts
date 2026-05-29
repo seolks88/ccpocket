@@ -1913,6 +1913,61 @@ describe("claude namedOnly optimization", () => {
     expect(result.sessions[0].name).toBe("My named session");
   });
 
+  it("extracts Claude user images by message uuid", async () => {
+    const sessionId = "claude-image-session";
+    const projectDir = join(tempHome, ".claude", "projects", "-tmp-project-a");
+    mkdirSync(projectDir, { recursive: true });
+
+    writeFileSync(
+      join(projectDir, `${sessionId}.jsonl`),
+      [
+        JSON.stringify({
+          type: "user",
+          uuid: "user-img-1",
+          message: {
+            role: "user",
+            content: [
+              { type: "text", text: "first image" },
+              {
+                type: "image",
+                source: {
+                  type: "base64",
+                  media_type: "image/png",
+                  data: "aW1hZ2UtMQ==",
+                },
+              },
+            ],
+          },
+        }),
+        JSON.stringify({
+          type: "user",
+          uuid: "user-img-2",
+          message: {
+            role: "user",
+            content: [
+              { type: "text", text: "second image" },
+              {
+                type: "image",
+                source: {
+                  type: "base64",
+                  media_type: "image/jpeg",
+                  data: "aW1hZ2UtMg==",
+                },
+              },
+            ],
+          },
+        }),
+      ].join("\n"),
+    );
+
+    await expect(
+      extractMessageImages(sessionId, "user-img-1"),
+    ).resolves.toEqual([{ base64: "aW1hZ2UtMQ==", mimeType: "image/png" }]);
+    await expect(
+      extractMessageImages(sessionId, "user-img-2"),
+    ).resolves.toEqual([{ base64: "aW1hZ2UtMg==", mimeType: "image/jpeg" }]);
+  });
+
   it("excludes indexed Claude auto-rename helper sessions", async () => {
     const projectDir = join(tempHome, ".claude", "projects", "-tmp-project-a");
     mkdirSync(projectDir, { recursive: true });

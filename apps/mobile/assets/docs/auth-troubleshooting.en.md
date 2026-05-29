@@ -3,6 +3,16 @@
 CC Pocket uses the Claude Code login state stored on your Bridge machine.
 If authentication fails, sign in to Claude Code again on that machine.
 
+## Subscription vs API Key
+
+Claude Code can use your Claude.ai Pro, Max, Team, or Enterprise subscription
+login. It can also use Console API credentials. If `ANTHROPIC_API_KEY` or
+`ANTHROPIC_AUTH_TOKEN` is set in the Bridge process environment, Claude Code
+will use that credential before subscription login, which can result in API
+billing. To use your subscription allocation, keep those environment variables
+unset on the Bridge machine and verify the active account with `/status` in
+Claude Code.
+
 ## If You Are Not Near Your Bridge Machine
 
 With CC Pocket, your Bridge machine may be a Mac mini or another Mac running at home.

@@ -2819,7 +2819,19 @@ interface CodexMessageImageIndex {
   imagesByUuid: Map<string, ExtractedImage[]>;
 }
 
+interface ClaudeMessageImageIndex {
+  jsonlPath: string;
+  size: number;
+  mtimeMs: number;
+  imagesByUuid: Map<string, ExtractedImage[]>;
+}
+
+const CLAUDE_IMAGE_INDEX_CACHE_LIMIT = 8;
 const CODEX_IMAGE_INDEX_CACHE_LIMIT = 8;
+const claudeMessageImageIndexCache = new Map<
+  string,
+  Promise<ClaudeMessageImageIndex | null>
+>();
 const codexMessageImageIndexCache = new Map<
   string,
   Promise<CodexMessageImageIndex | null>
@@ -2847,17 +2859,75 @@ async function extractClaudeMessageImages(
   sessionId: string,
   messageUuid: string,
 ): Promise<ExtractedImage[]> {
-  const jsonlPath = await findSessionJsonlPath(sessionId);
-  if (!jsonlPath) return [];
+  const index = await getClaudeMessageImageIndex(sessionId);
+  return index?.imagesByUuid.get(messageUuid) ?? [];
+}
 
-  let raw: string;
-  try {
-    raw = await readFile(jsonlPath, "utf-8");
-  } catch {
-    return [];
+async function getClaudeMessageImageIndex(
+  sessionId: string,
+): Promise<ClaudeMessageImageIndex | null> {
+  const cached = claudeMessageImageIndexCache.get(sessionId);
+  if (cached) {
+    const index = await cached;
+    if (index && (await isFreshClaudeMessageImageIndex(index))) {
+      return index;
+    }
+    claudeMessageImageIndexCache.delete(sessionId);
   }
 
-  const lines = raw.split("\n");
+  const promise = buildClaudeMessageImageIndex(sessionId);
+  claudeMessageImageIndexCache.set(sessionId, promise);
+  trimClaudeMessageImageIndexCache();
+  return promise;
+}
+
+async function isFreshClaudeMessageImageIndex(
+  index: ClaudeMessageImageIndex,
+): Promise<boolean> {
+  try {
+    const current = await stat(index.jsonlPath);
+    return current.size === index.size && current.mtimeMs === index.mtimeMs;
+  } catch {
+    return false;
+  }
+}
+
+function trimClaudeMessageImageIndexCache() {
+  while (claudeMessageImageIndexCache.size > CLAUDE_IMAGE_INDEX_CACHE_LIMIT) {
+    const oldest = claudeMessageImageIndexCache.keys().next().value;
+    if (!oldest) return;
+    claudeMessageImageIndexCache.delete(oldest);
+  }
+}
+
+async function buildClaudeMessageImageIndex(
+  sessionId: string,
+): Promise<ClaudeMessageImageIndex | null> {
+  const jsonlPath = await findSessionJsonlPath(sessionId);
+  if (!jsonlPath) return null;
+
+  let fileStat;
+  let raw: string;
+  try {
+    fileStat = await stat(jsonlPath);
+    raw = await readFile(jsonlPath, "utf-8");
+  } catch {
+    return null;
+  }
+
+  return {
+    jsonlPath,
+    size: fileStat.size,
+    mtimeMs: fileStat.mtimeMs,
+    imagesByUuid: collectClaudeMessageImages(raw.split("\n")),
+  };
+}
+
+function collectClaudeMessageImages(
+  lines: string[],
+): Map<string, ExtractedImage[]> {
+  const imagesByUuid = new Map<string, ExtractedImage[]>();
+
   for (const line of lines) {
     if (!line.trim()) continue;
 
@@ -2869,7 +2939,8 @@ async function extractClaudeMessageImages(
     }
 
     if (entry.type !== "user") continue;
-    if (entry.uuid !== messageUuid) continue;
+    const uuid = typeof entry.uuid === "string" ? entry.uuid : undefined;
+    if (!uuid) continue;
 
     const message = entry.message as { content: unknown[] | string } | undefined;
     if (!message?.content || !Array.isArray(message.content)) continue;
@@ -2889,10 +2960,12 @@ async function extractClaudeMessageImages(
         images.push({ base64: data, mimeType: mediaType });
       }
     }
-    return images;
+    if (images.length > 0) {
+      imagesByUuid.set(uuid, images);
+    }
   }
 
-  return [];
+  return imagesByUuid;
 }
 
 async function extractCodexMessageImages(

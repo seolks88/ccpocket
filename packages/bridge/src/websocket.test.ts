@@ -1311,6 +1311,59 @@ describe("BridgeWebSocketServer resume/get_history flow", () => {
     bridge.close();
   });
 
+  it("does not scan Claude JSONL images for text-only past user messages", async () => {
+    getSessionHistoryMock.mockResolvedValue([
+      {
+        role: "user",
+        uuid: "text-user-msg-1",
+        content: [{ type: "text", text: "No image here" }],
+      },
+    ]);
+    const imageStore = {
+      registerFromBase64: vi.fn(),
+    };
+
+    const bridge = new BridgeWebSocketServer({
+      server: httpServer,
+      imageStore: imageStore as any,
+    });
+    const ws = {
+      readyState: OPEN_STATE,
+      send: vi.fn(),
+    } as any;
+
+    await (bridge as any).handleClientMessage(
+      {
+        type: "resume_session",
+        sessionId: "claude-session-1",
+        projectPath: "/tmp/project-a",
+        provider: "claude",
+      },
+      ws,
+    );
+
+    await Promise.resolve();
+    await Promise.resolve();
+    const resumeSends = ws.send.mock.calls.map((c: unknown[]) =>
+      JSON.parse(c[0] as string),
+    );
+    const created = resumeSends.find(
+      (m: any) => m.type === "system" && m.subtype === "session_created",
+    );
+    const newSessionId = created.sessionId as string;
+
+    ws.send.mockClear();
+    await (bridge as any).handleClientMessage(
+      { type: "get_history", sessionId: newSessionId },
+      ws,
+    );
+
+    expect(extractMessageImagesMock).not.toHaveBeenCalled();
+    expect(imageStore.registerFromBase64).not.toHaveBeenCalled();
+
+    bridge.close();
+  });
+
   it("registers restored image generation base64 results through regular history", async () => {
     getSessionHistoryMock.mockResolvedValue([
       {

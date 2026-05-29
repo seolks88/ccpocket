@@ -1384,7 +1384,12 @@ export class BridgeWebSocketServer {
 
     const messageUuid = typeof msg.uuid === "string" ? msg.uuid : undefined;
     const providerSessionId = session.claudeSessionId;
+    const expectedImageCount =
+      typeof msg.imageCount === "number" ? msg.imageCount : 0;
     if (session.provider === "codex") {
+      return refs;
+    }
+    if (expectedImageCount <= existingImages.length) {
       return refs;
     }
     if (

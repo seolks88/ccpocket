@@ -5,6 +5,16 @@
 CC Pocket は Bridge マシン上に保存された Claude Code のログイン状態を使います。
 認証エラーが出たら、そのマシンで Claude Code に再ログインしてください。
 
+## サブスクリプションと API キー
+
+Claude Code は Claude.ai Pro, Max, Team, Enterprise のサブスクリプション
+ログインを使用できます。Console API 認証情報も使用できます。Bridge プロセスの
+環境に `ANTHROPIC_API_KEY` または `ANTHROPIC_AUTH_TOKEN` が設定されている
+場合、Claude Code はサブスクリプションログインより先にその認証情報を使用する
+ため、API 課金になることがあります。サブスクリプション枠を使う場合は、Bridge
+マシンでこれらの環境変数を未設定にし、Claude Code の `/status` で現在の
+認証方法を確認してください。
+
 ## 手元に Bridge マシンがない場合
 
 CC Pocket では、自宅の Mac mini や別の Mac を Bridge マシンとして動かしていることがあります。
