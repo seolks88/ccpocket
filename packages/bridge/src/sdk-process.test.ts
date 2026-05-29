@@ -385,6 +385,7 @@ describe("sdkMessageToServerMessage", () => {
         total_cost_usd: 0.05,
         duration_ms: 1234,
         stop_reason: "end_turn",
+        fast_mode_state: "on",
         uuid: "test-uuid" as `${string}-${string}-${string}-${string}-${string}`,
         session_id: "test-session",
       };
@@ -399,6 +400,7 @@ describe("sdkMessageToServerMessage", () => {
         duration: 1234,
         sessionId: "test-session",
         stopReason: "end_turn",
+        fastModeState: "on",
       });
     });
 

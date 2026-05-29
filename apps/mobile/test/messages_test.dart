@@ -550,6 +550,7 @@ void main() {
         'outputTokens': 333,
         'toolCalls': 9,
         'fileEdits': 3,
+        'fastModeState': 'on',
       });
 
       expect(msg, isA<ResultMessage>());
@@ -559,6 +560,7 @@ void main() {
       expect(result.outputTokens, 333);
       expect(result.toolCalls, 9);
       expect(result.fileEdits, 3);
+      expect(result.fastModeState, 'on');
     });
   });
 

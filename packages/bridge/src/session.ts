@@ -234,24 +234,31 @@ function sanitizeClaudeModel(model: unknown): string | undefined {
 
 function mergeClaudeSettings(
   current: SessionInfo["claudeSettings"],
-  msg: Extract<ServerMessage, { type: "system" }>,
+  msg:
+    | Extract<ServerMessage, { type: "system" }>
+    | Extract<ServerMessage, { type: "result" }>,
 ): SessionInfo["claudeSettings"] {
-  const model = sanitizeClaudeModel(msg.model);
+  const model =
+    msg.type === "system" ? sanitizeClaudeModel(msg.model) : undefined;
   const next = {
     ...(current ?? {}),
     ...(model !== undefined ? { model } : {}),
-    ...(msg.effort !== undefined ? { effort: msg.effort } : {}),
-    ...(msg.fastMode !== undefined ? { fastMode: msg.fastMode } : {}),
-    ...(msg.apiKeySource !== undefined
+    ...(msg.type === "system" && msg.effort !== undefined
+      ? { effort: msg.effort }
+      : {}),
+    ...(msg.type === "system" && msg.fastMode !== undefined
+      ? { fastMode: msg.fastMode }
+      : {}),
+    ...(msg.type === "system" && msg.apiKeySource !== undefined
       ? { apiKeySource: msg.apiKeySource }
       : {}),
-    ...(msg.billingSource !== undefined
+    ...(msg.type === "system" && msg.billingSource !== undefined
       ? { billingSource: msg.billingSource }
       : {}),
     ...(msg.fastModeState !== undefined
       ? { fastModeState: msg.fastModeState }
       : {}),
-    ...(msg.claudeCodeVersion !== undefined
+    ...(msg.type === "system" && msg.claudeCodeVersion !== undefined
       ? { claudeCodeVersion: msg.claudeCodeVersion }
       : {}),
   };
@@ -445,7 +452,10 @@ export class SessionManager {
             session.claudeSessionId = msg.sessionId;
             this.saveWorktreeMapping(session);
           }
-          if (msg.type === "system") {
+          if (
+            msg.type === "system" ||
+            (msg.type === "result" && msg.fastModeState !== undefined)
+          ) {
             session.claudeSettings = mergeClaudeSettings(
               session.claudeSettings,
               msg,

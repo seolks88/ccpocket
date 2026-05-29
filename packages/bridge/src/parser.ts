@@ -529,6 +529,7 @@ export type ServerMessage =
       outputTokens?: number;
       toolCalls?: number;
       fileEdits?: number;
+      fastModeState?: string;
     }
   | { type: "error"; message: string; errorCode?: string }
   | { type: "status"; status: ProcessStatus }

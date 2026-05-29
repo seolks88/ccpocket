@@ -154,6 +154,37 @@ void main() {
     await claudeCubit.close();
   });
 
+  testWidgets('claude fast chip shows actual off state plainly', (
+    tester,
+  ) async {
+    final claudeCubit = ChatSessionCubit(
+      sessionId: 'claude-fast-session',
+      provider: Provider.claude,
+      bridge: bridge,
+      streamingCubit: streamingCubit,
+    );
+
+    bridge.emitMessage(
+      const SystemMessage(
+        subtype: 'session_created',
+        provider: 'claude',
+        model: 'claude-opus-4-8[1m]',
+        fastMode: true,
+        fastModeState: 'off',
+      ),
+      sessionId: 'claude-fast-session',
+    );
+
+    await tester.pumpWidget(_wrap(claudeCubit, bridge: bridge));
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('Fast Pending'), findsNothing);
+    expect(find.text('Fast Off'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await claudeCubit.close();
+  });
+
   testWidgets('codex renders chips in Plan, Permissions order', (tester) async {
     await tester.pumpWidget(_wrap(cubit));
     await tester.pump(const Duration(milliseconds: 100));

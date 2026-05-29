@@ -766,6 +766,7 @@ sealed class ServerMessage {
         outputTokens: json['outputTokens'] as int?,
         toolCalls: json['toolCalls'] as int?,
         fileEdits: json['fileEdits'] as int?,
+        fastModeState: json['fastModeState'] as String?,
       ),
       'error' => ErrorMessage(
         message: json['message'] as String,
@@ -1504,6 +1505,7 @@ class ResultMessage implements ServerMessage {
   final int? outputTokens;
   final int? toolCalls;
   final int? fileEdits;
+  final String? fastModeState;
   const ResultMessage({
     required this.subtype,
     this.result,
@@ -1517,6 +1519,7 @@ class ResultMessage implements ServerMessage {
     this.outputTokens,
     this.toolCalls,
     this.fileEdits,
+    this.fastModeState,
   });
 }
 

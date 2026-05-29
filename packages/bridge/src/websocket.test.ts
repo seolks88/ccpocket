@@ -110,11 +110,19 @@ vi.mock("./session.js", () => ({
       const id = `s-${++this.seq}`;
       const process = {
         status: "idle",
+        isRunning: true,
+        model:
+          options && typeof options === "object" && "model" in options
+            ? (options as { model?: string }).model
+            : undefined,
         sessionId: codexOptions && typeof codexOptions === "object" && "threadId" in codexOptions
           ? (codexOptions as { threadId?: string }).threadId
           : options?.sessionId,
         isWaitingForInput: true,
         setPermissionMode: vi.fn(async () => {}),
+        applyRuntimeOptions: vi.fn(async function (this: any, runtime: any) {
+          if (runtime.model !== undefined) this.model = runtime.model;
+        }),
         approvalPolicy: "never",
         approvalsReviewer: "user",
         collaborationMode: "default",
@@ -168,6 +176,20 @@ vi.mock("./session.js", () => ({
         pastMessages,
         codexOptions,
         codexSettings: codexOptions,
+        claudeSettings:
+          provider === "claude"
+            ? {
+                ...(options && typeof options === "object" && "model" in options
+                  ? { model: (options as { model?: string }).model }
+                  : {}),
+                ...(options && typeof options === "object" && "effort" in options
+                  ? { effort: (options as { effort?: string }).effort }
+                  : {}),
+                ...(options && typeof options === "object" && "fastMode" in options
+                  ? { fastMode: (options as { fastMode?: boolean }).fastMode }
+                  : {}),
+              }
+            : undefined,
         history: [],
         historyEntries: [],
         historyRevision: 0,
@@ -322,6 +344,7 @@ vi.mock("./session.js", () => ({
         gitBranch: "",
         lastMessage: "",
         codexSettings: s.codexSettings,
+        claudeSettings: s.claudeSettings,
         queuedInput: s.codexQueuedInput,
       }));
     }
@@ -1966,6 +1989,102 @@ describe("BridgeWebSocketServer resume/get_history flow", () => {
       tipCode: "auto_mode_fallback_default",
       sessionId: created.sessionId,
     });
+
+    bridge.close();
+  });
+
+  it("promotes Claude fast mode to Opus on start", async () => {
+    const bridge = new BridgeWebSocketServer({ server: httpServer });
+    const ws = {
+      readyState: OPEN_STATE,
+      send: vi.fn(),
+    } as any;
+    (bridge as any).claudeModels = [
+      "default",
+      "sonnet",
+      "claude-opus-4-8[1m]",
+    ];
+
+    (bridge as any).handleClientMessage(
+      {
+        type: "start",
+        projectPath: "/tmp/project-fast-start",
+        provider: "claude",
+        model: "default",
+        fastMode: true,
+      },
+      ws,
+    );
+    await Promise.resolve();
+
+    const sends = ws.send.mock.calls.map((c: unknown[]) =>
+      JSON.parse(c[0] as string),
+    );
+    const created = sends.find(
+      (m: any) => m.type === "system" && m.subtype === "session_created",
+    );
+    const session = (bridge as any).sessionManager.get(created.sessionId);
+
+    expect(session.startOptions).toMatchObject({
+      model: "claude-opus-4-8[1m]",
+      fastMode: true,
+    });
+
+    bridge.close();
+  });
+
+  it("applies Claude fast mode in place and promotes to Opus", async () => {
+    const bridge = new BridgeWebSocketServer({ server: httpServer });
+    const ws = {
+      readyState: OPEN_STATE,
+      send: vi.fn(),
+    } as any;
+    (bridge as any).claudeModels = [
+      "default",
+      "sonnet",
+      "claude-opus-4-8[1m]",
+    ];
+
+    (bridge as any).handleClientMessage(
+      {
+        type: "start",
+        projectPath: "/tmp/project-fast-in-place",
+        provider: "claude",
+        model: "default",
+        effort: "xhigh",
+        fastMode: false,
+      },
+      ws,
+    );
+    await Promise.resolve();
+
+    const created = ws.send.mock.calls
+      .map((c: unknown[]) => JSON.parse(c[0] as string))
+      .find(
+        (m: any) => m.type === "system" && m.subtype === "session_created",
+      );
+    const session = (bridge as any).sessionManager.get(created.sessionId);
+
+    await (bridge as any).handleClientMessage(
+      {
+        type: "set_claude_session_options",
+        sessionId: created.sessionId,
+        fastMode: true,
+      },
+      ws,
+    );
+
+    expect(session.process.applyRuntimeOptions).toHaveBeenCalledWith({
+      model: "claude-opus-4-8[1m]",
+      effort: "xhigh",
+      fastMode: true,
+    });
+    expect(session.claudeSettings).toMatchObject({
+      model: "claude-opus-4-8[1m]",
+      effort: "xhigh",
+      fastMode: true,
+    });
+    expect((bridge as any).sessionManager.list()).toHaveLength(1);
 
     bridge.close();
   });

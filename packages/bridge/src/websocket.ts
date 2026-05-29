@@ -154,6 +154,30 @@ const FALLBACK_CLAUDE_MODEL_EFFORTS: Record<string, ClaudeEffortLevel[]> = {
   "claude-haiku-4-6": [],
 };
 
+function isFastModeCapableClaudeModel(model: string | undefined): boolean {
+  const value = model?.trim().toLowerCase();
+  return !!value && value.includes("opus") && value !== "opusplan";
+}
+
+function preferredClaudeFastModeModel(models: string[]): string {
+  const candidates = [
+    "claude-opus-4-8[1m]",
+    "opus[1m]",
+    "claude-opus-4-8",
+    "opus",
+    "claude-opus-4-7[1m]",
+    "claude-opus-4-7",
+    "claude-opus-4-6[1m]",
+    "claude-opus-4-6",
+  ];
+  const available = new Set(models.map((model) => model.trim()));
+  return (
+    candidates.find((model) => available.has(model)) ??
+    models.find(isFastModeCapableClaudeModel) ??
+    "opus[1m]"
+  );
+}
+
 const FALLBACK_CODEX_MODELS: string[] = [
   "gpt-5.5",
   "gpt-5.4",
@@ -1831,6 +1855,12 @@ export class BridgeWebSocketServer {
             provider === "claude"
               ? this.sessionManager.getCachedCommands(projectPath)
               : undefined;
+          const claudeModel =
+            provider === "claude" &&
+            msg.fastMode === true &&
+            !isFastModeCapableClaudeModel(msg.model)
+              ? preferredClaudeFastModeModel(this.claudeModels)
+              : msg.model;
           const {
             sessionId,
             permissionMode: effectivePermissionMode,
@@ -1844,7 +1874,7 @@ export class BridgeWebSocketServer {
                   sessionId: msg.sessionId,
                   continueMode: msg.continue,
                   permissionMode: claudePermissionMode,
-                  model: msg.model,
+                  model: claudeModel,
                   effort: msg.effort,
                   maxTurns: msg.maxTurns,
                   maxBudgetUsd: msg.maxBudgetUsd,
@@ -2967,7 +2997,7 @@ export class BridgeWebSocketServer {
 
         const currentSettings = session.claudeSettings ?? {};
         const process = session.process as SdkProcess;
-        const nextModel =
+        let nextModel =
           msg.model !== undefined
             ? msg.model.trim()
             : (currentSettings.model ?? process.model);
@@ -2982,6 +3012,9 @@ export class BridgeWebSocketServer {
         const nextEffort = msg.effort ?? currentSettings.effort;
         const nextFastMode =
           msg.fastMode ?? currentSettings.fastMode ?? false;
+        if (nextFastMode && !isFastModeCapableClaudeModel(nextModel)) {
+          nextModel = preferredClaudeFastModeModel(this.claudeModels);
+        }
 
         if (
           nextModel === (currentSettings.model ?? process.model) &&
@@ -2994,6 +3027,38 @@ export class BridgeWebSocketServer {
         const oldSessionId = session.id;
         const claudeSessionId = session.claudeSessionId ?? process.sessionId;
         const projectPath = session.projectPath;
+
+        if (process.isRunning) {
+          try {
+            await process.applyRuntimeOptions({
+              model: nextModel,
+              effort: nextEffort as ClaudeEffortLevel | undefined,
+              fastMode: nextFastMode,
+            });
+            session.claudeSettings = {
+              ...currentSettings,
+              model: nextModel,
+              ...(nextEffort !== undefined ? { effort: nextEffort } : {}),
+              fastMode: nextFastMode,
+            };
+            this.broadcastSessionList();
+            this.recordDebugEvent(oldSessionId, {
+              direction: "internal" as const,
+              channel: "bridge" as const,
+              type: "claude_session_options_changed",
+              detail: `model=${nextModel ?? "default"} effort=${nextEffort ?? "default"} fastMode=${nextFastMode} applied=in-place claude=${claudeSessionId ?? "new"}`,
+            });
+            console.log(
+              `[ws] Claude options change: applied in-place to ${oldSessionId} (model=${nextModel ?? "default"}, effort=${nextEffort ?? "default"}, fastMode=${nextFastMode})`,
+            );
+            break;
+          } catch (err) {
+            console.warn(
+              `[ws] Claude in-place options change failed; falling back to resume: ${err}`,
+            );
+          }
+        }
+
         const worktreePath = session.worktreePath;
         const worktreeBranch = session.worktreeBranch;
         const sessionName = session.name;
@@ -4154,6 +4219,10 @@ export class BridgeWebSocketServer {
 
         getSessionHistory(claudeSessionId)
           .then((pastMessages) => {
+            const claudeModel =
+              msg.fastMode === true && !isFastModeCapableClaudeModel(msg.model)
+                ? preferredClaudeFastModeModel(this.claudeModels)
+                : msg.model;
             const {
               sessionId,
               permissionMode: effectivePermissionMode,
@@ -4165,7 +4234,7 @@ export class BridgeWebSocketServer {
               options: {
                 sessionId: claudeSessionId,
                 permissionMode: claudePermissionMode,
-                model: msg.model,
+                model: claudeModel,
                 effort: msg.effort,
                 maxTurns: msg.maxTurns,
                 maxBudgetUsd: msg.maxBudgetUsd,

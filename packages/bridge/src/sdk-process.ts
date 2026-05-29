@@ -318,6 +318,12 @@ export interface StartOptions {
   autoRename?: boolean;
 }
 
+export interface ClaudeRuntimeOptions {
+  model?: string;
+  effort?: ClaudeEffortLevel;
+  fastMode?: boolean;
+}
+
 export interface RewindFilesResult {
   canRewind: boolean;
   error?: string;
@@ -437,6 +443,10 @@ export function sdkMessageToServerMessage(
     case "result": {
       const res = msg as Record<string, unknown>;
       const tokenUsage = extractTokenUsage(res.usage);
+      const fastModeState =
+        typeof res.fast_mode_state === "string"
+          ? res.fast_mode_state
+          : undefined;
       if (res.subtype === "success") {
         return {
           type: "result",
@@ -446,6 +456,7 @@ export function sdkMessageToServerMessage(
           duration: res.duration_ms as number,
           sessionId: msg.session_id,
           stopReason: res.stop_reason as string | undefined,
+          ...(fastModeState !== undefined ? { fastModeState } : {}),
           ...tokenUsage,
         };
       }
@@ -463,6 +474,7 @@ export function sdkMessageToServerMessage(
         error: errorText,
         sessionId: msg.session_id,
         stopReason: res.stop_reason as string | undefined,
+        ...(fastModeState !== undefined ? { fastModeState } : {}),
         ...tokenUsage,
       };
     }
@@ -1053,6 +1065,49 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
       type: "system",
       subtype: "set_permission_mode",
       permissionMode: mode,
+      sessionId: this._sessionId ?? undefined,
+    });
+  }
+
+  /**
+   * Apply Claude runtime controls through the SDK control channel, matching
+   * Claude Code slash/settings behavior more closely than destroying the query.
+   */
+  async applyRuntimeOptions(options: ClaudeRuntimeOptions): Promise<void> {
+    if (!this.queryInstance) {
+      throw new Error("No active query instance");
+    }
+
+    const settings: Record<string, unknown> = {};
+    if (options.model !== undefined) {
+      settings.model =
+        options.model.trim() === "" || options.model === "default"
+          ? null
+          : options.model;
+    }
+    if (options.effort !== undefined) {
+      settings.effortLevel = options.effort;
+    }
+    if (options.fastMode !== undefined) {
+      settings.fastMode = options.fastMode;
+    }
+
+    if (Object.keys(settings).length > 0) {
+      await this.queryInstance.applyFlagSettings(settings as never);
+    }
+    if (options.model !== undefined) {
+      await this.queryInstance.setModel(
+        options.model === "default" ? undefined : options.model,
+      );
+      this._model = options.model;
+    }
+
+    this.emitMessage({
+      type: "system",
+      subtype: "set_claude_session_options",
+      ...(options.model !== undefined ? { model: options.model } : {}),
+      ...(options.effort !== undefined ? { effort: options.effort } : {}),
+      ...(options.fastMode !== undefined ? { fastMode: options.fastMode } : {}),
       sessionId: this._sessionId ?? undefined,
     });
   }

@@ -694,6 +694,9 @@ class ChatMessageHandler {
             claudeCodeVersion = m.claudeCodeVersion;
           }
         }
+        if (m is ResultMessage && m.fastModeState != null) {
+          claudeFastModeState = m.fastModeState;
+        }
         if (m is SystemMessage &&
             (m.serviceTier != null || m.subtype == 'set_service_tier')) {
           serviceTier = m.serviceTier;
@@ -841,6 +844,9 @@ class ChatMessageHandler {
       claudeBillingSource = msg.billingSource;
       claudeFastModeState = msg.fastModeState;
       claudeCodeVersion = msg.claudeCodeVersion;
+    }
+    if (msg is ResultMessage) {
+      claudeFastModeState = msg.fastModeState;
     }
     if (msg is SystemMessage &&
         (msg.serviceTier != null || subtype == 'set_service_tier')) {

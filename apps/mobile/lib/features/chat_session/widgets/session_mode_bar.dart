@@ -177,10 +177,19 @@ class SessionModeBar extends StatelessWidget {
                       enabled: settings.fastMode,
                       actualState: settings.fastModeState,
                       onTap: () async {
+                        final nextFastMode = !settings.fastMode;
+                        final nextModel =
+                            nextFastMode &&
+                                !_isClaudeFastModeCapableModel(
+                                  _effectiveClaudeModel(settings),
+                                )
+                            ? _preferredClaudeFastModeModel(context)
+                            : null;
                         await onBeforeRestart?.call();
                         HapticFeedback.lightImpact();
                         chatCubit.setClaudeSessionOptions(
-                          fastMode: !settings.fastMode,
+                          model: nextModel,
+                          fastMode: nextFastMode,
                         );
                       },
                     ),
@@ -1619,6 +1628,32 @@ String _effectiveClaudeModel(ClaudeSessionRuntimeSettings settings) {
   return model == null || model.isEmpty ? 'default' : model;
 }
 
+bool _isClaudeFastModeCapableModel(String model) {
+  final value = model.trim().toLowerCase();
+  return value.contains('opus') && value != 'opusplan';
+}
+
+String _preferredClaudeFastModeModel(BuildContext context) {
+  final models = context.read<BridgeService>().claudeModels;
+  const candidates = [
+    'claude-opus-4-8[1m]',
+    'opus[1m]',
+    'claude-opus-4-8',
+    'opus',
+    'claude-opus-4-7[1m]',
+    'claude-opus-4-7',
+    'claude-opus-4-6[1m]',
+    'claude-opus-4-6',
+  ];
+  for (final candidate in candidates) {
+    if (models.contains(candidate)) return candidate;
+  }
+  return models.firstWhere(
+    _isClaudeFastModeCapableModel,
+    orElse: () => 'opus[1m]',
+  );
+}
+
 IconData _claudeModelIcon(String model) {
   final value = model.toLowerCase();
   if (value.contains('opus')) return Icons.auto_awesome;
@@ -1745,14 +1780,20 @@ class ClaudeFastModeChip extends StatelessWidget {
         : enabled
         ? cs.primary
         : cs.onSurfaceVariant;
-    final label = enabled ? (requestedButOff ? 'Fast?' : 'Fast') : 'Fast Off';
+    final label = enabled
+        ? switch (normalizedActual) {
+            'cooldown' => 'Fast Cooldown',
+            'off' => 'Fast Off',
+            _ => 'Fast',
+          }
+        : 'Fast Off';
 
     return _SessionChip(
       icon: enabled ? Icons.bolt : Icons.bolt_outlined,
       label: label,
       color: color,
       tooltip:
-          'Claude Opus fast mode: ${enabled ? 'requested' : 'off'}${actualState == null ? '' : ', actual $actualState'}',
+          'Claude Opus fast mode: ${enabled ? 'requested' : 'off'}${actualState == null ? '' : ', Claude reports $actualState'}${enabled && normalizedActual == 'off' ? '. Check usage credits or admin settings.' : ''}',
       showChevron: false,
       onTap: onTap,
     );
