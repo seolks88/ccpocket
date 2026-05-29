@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../l10n/app_localizations.dart';
 import '../models/messages.dart';
+import '../theme/app_spacing.dart';
 import '../theme/app_theme.dart';
 import 'expandable_summary_text.dart';
+import 'permission_presentation_view.dart';
 
 enum PlanApprovalUiMode { claude, codex }
 
@@ -132,116 +134,42 @@ class _ApprovalHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    final cs = Theme.of(context).colorScheme;
-    final primaryTargetText = primaryTarget;
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(3),
-          decoration: BoxDecoration(
-            color: (isPlanApproval ? cs.primary : appColors.permissionIcon)
-                .withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(
-            isPlanApproval ? Icons.assignment : Icons.shield,
-            color: isPlanApproval ? cs.primary : appColors.permissionIcon,
-            size: 18,
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                toolName ?? l.approvalRequired,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 2),
-              ExpandableSummaryText(
-                text: summary,
-                style: TextStyle(fontSize: 11, color: appColors.subtleText),
-                maxLines: 2,
-                backgroundColor: appColors.approvalBar,
-              ),
-              if (!isPlanApproval && primaryTargetText != null) ...[
-                const SizedBox(height: 8),
-                _PrimaryTargetCard(
-                  text: primaryTargetText,
-                  backgroundColor: appColors.approvalBar.withValues(alpha: 0.7),
-                  borderColor: appColors.approvalBarBorder,
-                  textColor: Theme.of(context).colorScheme.onSurface,
-                ),
-              ],
-              if (detailLines.isNotEmpty) ...[
-                const SizedBox(height: 6),
-                ...detailLines.map(
-                  (line) => Padding(
-                    padding: const EdgeInsets.only(bottom: 2),
-                    child: Text(
-                      line,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: appColors.subtleText,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-        if (isPlanApproval && onViewPlan != null)
-          IconButton(
-            key: const ValueKey('view_plan_header_button'),
-            icon: Icon(Icons.open_in_full, size: 18, color: cs.primary),
-            tooltip: l.viewEditPlan,
-            onPressed: onViewPlan,
-            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-            padding: EdgeInsets.zero,
-          ),
-      ],
-    );
-  }
-}
-
-class _PrimaryTargetCard extends StatelessWidget {
-  final String text;
-  final Color backgroundColor;
-  final Color borderColor;
-  final Color textColor;
-
-  const _PrimaryTargetCard({
-    required this.text,
-    required this.backgroundColor,
-    required this.borderColor,
-    required this.textColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: borderColor.withValues(alpha: 0.7)),
+    // The plan ARTIFACT shares the plan-mode semantic color (statusPlan),
+    // matching the inline PlanCard and the plan-mode chip. Tool permissions
+    // keep the dedicated permission accent.
+    final accent = isPlanApproval
+        ? appColors.statusPlan
+        : appColors.permissionIcon;
+    return PermissionPresentationView(
+      icon: isPlanApproval ? Icons.assignment : Icons.shield_outlined,
+      iconColor: accent,
+      title: toolName ?? l.approvalRequired,
+      summary: ExpandableSummaryText(
+        text: summary,
+        // style inherited from PermissionPresentationView's summary slot
+        // (bodySmall + subtleText) so the bubble and bar read identically.
+        maxLines: 2,
+        backgroundColor: appColors.approvalBar,
       ),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 11,
-          fontFamily: 'monospace',
-          color: textColor,
-        ),
-      ),
+      primaryTarget: isPlanApproval ? null : primaryTarget,
+      detailLines: detailLines,
+      trailing: (isPlanApproval && onViewPlan != null)
+          ? IconButton(
+              key: const ValueKey('view_plan_header_button'),
+              icon: Icon(
+                Icons.open_in_full,
+                size: AppIconSize.inline,
+                color: accent,
+              ),
+              tooltip: l.viewEditPlan,
+              onPressed: onViewPlan,
+              constraints: const BoxConstraints(
+                minWidth: AppSizes.minTouchTarget,
+                minHeight: AppSizes.minTouchTarget,
+              ),
+              padding: EdgeInsets.zero,
+            )
+          : null,
     );
   }
 }
@@ -362,6 +290,7 @@ class _ApprovalButtons extends StatelessWidget {
                 key: const ValueKey('reject_button'),
                 onPressed: onReject,
                 style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(0, AppSizes.minTouchTarget),
                   padding: const EdgeInsets.symmetric(vertical: 10),
                 ),
                 child: Text(
@@ -376,6 +305,7 @@ class _ApprovalButtons extends StatelessWidget {
                 key: const ValueKey('approve_button'),
                 onPressed: onApprove,
                 style: FilledButton.styleFrom(
+                  minimumSize: const Size(0, AppSizes.minTouchTarget),
                   padding: const EdgeInsets.symmetric(vertical: 10),
                 ),
                 child: Text(l.acceptPlan, style: const TextStyle(fontSize: 13)),
@@ -393,6 +323,7 @@ class _ApprovalButtons extends StatelessWidget {
                 key: const ValueKey('approve_clear_context_button'),
                 onPressed: onApproveClearContext,
                 style: FilledButton.styleFrom(
+                  minimumSize: const Size(0, AppSizes.minTouchTarget),
                   padding: const EdgeInsets.symmetric(vertical: 10),
                 ),
                 child: Text(
@@ -408,6 +339,7 @@ class _ApprovalButtons extends StatelessWidget {
               key: const ValueKey('approve_button'),
               onPressed: onApprove,
               style: FilledButton.styleFrom(
+                minimumSize: const Size(0, AppSizes.minTouchTarget),
                 padding: const EdgeInsets.symmetric(vertical: 10),
               ),
               child: Text(l.acceptPlan, style: const TextStyle(fontSize: 13)),
@@ -428,13 +360,19 @@ class _ApprovalButtons extends StatelessWidget {
     final alwaysMain = isCodex ? l.approveSessionMain : l.approveAlways;
     final alwaysSub = isCodex ? l.approveSessionSub : l.approveAlwaysSub;
     final buttons = <Widget>[
+      // Reject / Cancel is the only destructive action here; it alone carries
+      // the error color. Affirmative actions stay neutral/dominant so red is
+      // never paired with "approve".
       if (canReject)
         Expanded(
           child: OutlinedButton(
             key: const ValueKey('reject_button'),
             onPressed: onReject,
             style: OutlinedButton.styleFrom(
+              minimumSize: const Size(0, AppSizes.minTouchTarget),
               padding: const EdgeInsets.symmetric(vertical: 8),
+              foregroundColor: cs.error,
+              side: BorderSide(color: cs.error.withValues(alpha: 0.5)),
             ),
             child: Text(rejectLabel, style: const TextStyle(fontSize: 13)),
           ),
@@ -446,6 +384,7 @@ class _ApprovalButtons extends StatelessWidget {
             key: const ValueKey('approve_always_button'),
             onPressed: onApproveAlways,
             style: OutlinedButton.styleFrom(
+              minimumSize: const Size(0, AppSizes.minTouchTarget),
               padding: const EdgeInsets.symmetric(vertical: 8),
               foregroundColor: cs.onSurfaceVariant,
               side: BorderSide(color: cs.onSurfaceVariant.withValues(alpha: 0.5)),
@@ -467,6 +406,7 @@ class _ApprovalButtons extends StatelessWidget {
             key: const ValueKey('approve_button'),
             onPressed: onApprove,
             style: FilledButton.styleFrom(
+              minimumSize: const Size(0, AppSizes.minTouchTarget),
               padding: const EdgeInsets.symmetric(vertical: 10),
             ),
             child: Text(

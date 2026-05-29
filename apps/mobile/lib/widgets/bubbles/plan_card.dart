@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 
 import '../../theme/app_spacing.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/markdown_style.dart';
 
 /// A visually distinct card for rendering implementation plans inline in chat.
@@ -32,7 +33,10 @@ class PlanCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    // The plan artifact uses the dedicated plan-mode semantic color so it
+    // matches the plan-mode chip and the plan-approval header (one concept,
+    // one token) instead of the generic primary ember.
+    final planColor = Theme.of(context).extension<AppColors>()!.statusPlan;
 
     return GestureDetector(
       onTap: _isLongPlan ? onViewFullPlan : null,
@@ -42,16 +46,16 @@ class PlanCard extends StatelessWidget {
           horizontal: AppSpacing.bubbleMarginH,
         ),
         decoration: BoxDecoration(
-          color: cs.primary.withValues(alpha: 0.06),
+          color: planColor.withValues(alpha: 0.06),
           borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
-          border: Border.all(color: cs.primary.withValues(alpha: 0.25)),
+          border: Border.all(color: planColor.withValues(alpha: 0.25)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
             _PlanHeader(sectionCount: _sectionCount),
-            Divider(height: 1, color: cs.primary.withValues(alpha: 0.15)),
+            Divider(height: 1, color: planColor.withValues(alpha: 0.15)),
             _PlanBody(planText: planText, isLongPlan: _isLongPlan),
             if (_isLongPlan) _PlanFooter(onViewFullPlan: onViewFullPlan),
           ],
@@ -68,36 +72,41 @@ class _PlanHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final planColor = theme.extension<AppColors>()!.statusPlan;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
       child: Row(
         children: [
-          Icon(Icons.assignment, size: 18, color: cs.primary),
-          const SizedBox(width: 8),
+          Icon(Icons.assignment, size: AppIconSize.inline, color: planColor),
+          const SizedBox(width: AppSpacing.sm),
           Text(
             'Implementation Plan',
-            style: TextStyle(
-              fontSize: 13,
+            style: theme.textTheme.titleSmall?.copyWith(
               fontWeight: FontWeight.w600,
-              color: cs.primary,
+              color: planColor,
             ),
           ),
           const Spacer(),
           if (sectionCount > 0)
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.sm,
+                vertical: 2,
+              ),
               decoration: BoxDecoration(
-                color: cs.primary.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(8),
+                color: planColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(AppSpacing.codeRadius),
               ),
               child: Text(
                 '$sectionCount sections',
-                style: TextStyle(
-                  fontSize: 10,
+                style: theme.textTheme.labelSmall?.copyWith(
                   fontWeight: FontWeight.w500,
-                  color: cs.primary,
+                  color: planColor,
                 ),
               ),
             ),
@@ -166,7 +175,8 @@ class _PlanFooter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final planColor = theme.extension<AppColors>()!.statusPlan;
 
     return InkWell(
       key: const ValueKey('view_full_plan_button'),
@@ -176,23 +186,26 @@ class _PlanFooter extends StatelessWidget {
       ),
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 10),
+        // Min touch target so the footer action clears 44px even though the
+        // painted strip looks compact.
+        constraints: const BoxConstraints(minHeight: AppSizes.minTouchTarget),
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
         decoration: BoxDecoration(
           border: Border(
-            top: BorderSide(color: cs.primary.withValues(alpha: 0.15)),
+            top: BorderSide(color: planColor.withValues(alpha: 0.15)),
           ),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.unfold_more, size: 16, color: cs.primary),
-            const SizedBox(width: 4),
+            Icon(Icons.unfold_more, size: AppIconSize.inline, color: planColor),
+            const SizedBox(width: AppSpacing.xs),
             Text(
               'View Full Plan',
-              style: TextStyle(
-                fontSize: 12,
+              style: theme.textTheme.labelLarge?.copyWith(
                 fontWeight: FontWeight.w600,
-                color: cs.primary,
+                color: planColor,
               ),
             ),
           ],
