@@ -1278,7 +1278,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get guideBridgeDescription =>
-      'Start the Bridge Server on your PC. If you want to use Claude, set ANTHROPIC_API_KEY too.';
+      'Start the Bridge Server on your PC. If you want to use Claude, sign in to Claude Code on that machine.';
 
   @override
   String get guideBridgePrerequisites => 'Prerequisites';
@@ -1287,7 +1287,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get guideBridgePrereq1 => 'Mac / PC with Node.js installed';
 
   @override
-  String get guideBridgePrereq2 => 'If you use Claude, set ANTHROPIC_API_KEY';
+  String get guideBridgePrereq2 => 'If you use Claude, sign in to Claude Code';
 
   @override
   String get guideBridgePrereq3 =>
@@ -2075,14 +2075,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authErrorAlternativeLabel => 'Shell alternative';
 
   @override
-  String get apiKeyRequiredTitle => 'API key required';
+  String get apiKeyRequiredTitle => 'Claude authentication failed';
 
   @override
   String get apiKeyRequiredBody =>
-      'Anthropic\'s current Claude Agent SDK docs do not permit third-party products to use Claude subscription login. Please use an API key instead.';
+      'Claude Code can use your Claude subscription login or API credentials. Sign in again on the Bridge machine and check /status to confirm the active account.';
 
   @override
-  String get apiKeyRequiredHint => 'Get your API key at:';
+  String get apiKeyRequiredHint =>
+      'If you intentionally use API billing, check your Console credentials.';
 
   @override
   String get authHelpTitle => 'Auth Troubleshooting';

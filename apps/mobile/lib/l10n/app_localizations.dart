@@ -2361,7 +2361,7 @@ abstract class AppLocalizations {
   /// No description provided for @guideBridgeDescription.
   ///
   /// In ja, this message translates to:
-  /// **'PC で Bridge Server を起動します。Claude を使う場合は ANTHROPIC_API_KEY も設定してください。'**
+  /// **'PC で Bridge Server を起動します。Claude を使う場合は、そのマシンで Claude Code にログインしてください。'**
   String get guideBridgeDescription;
 
   /// No description provided for @guideBridgePrerequisites.
@@ -2379,7 +2379,7 @@ abstract class AppLocalizations {
   /// No description provided for @guideBridgePrereq2.
   ///
   /// In ja, this message translates to:
-  /// **'Claude を使う場合は ANTHROPIC_API_KEY を設定'**
+  /// **'Claude を使う場合は Claude Code にログイン'**
   String get guideBridgePrereq2;
 
   /// No description provided for @guideBridgePrereq3.
@@ -3813,19 +3813,19 @@ abstract class AppLocalizations {
   /// No description provided for @apiKeyRequiredTitle.
   ///
   /// In ja, this message translates to:
-  /// **'APIキーが必要です'**
+  /// **'Claude 認証に失敗しました'**
   String get apiKeyRequiredTitle;
 
   /// No description provided for @apiKeyRequiredBody.
   ///
   /// In ja, this message translates to:
-  /// **'Anthropic の現行 Claude Agent SDK ドキュメントでは、サードパーティ製品で Claude のサブスクリプションログインを使うことは許可されていません。APIキーをご利用ください。'**
+  /// **'Claude Code は Claude のサブスクリプションログインまたは API 認証情報を使用できます。Bridge マシンで再ログインし、/status で現在のアカウントを確認してください。'**
   String get apiKeyRequiredBody;
 
   /// No description provided for @apiKeyRequiredHint.
   ///
   /// In ja, this message translates to:
-  /// **'APIキーの取得:'**
+  /// **'意図的に API 課金を使う場合は、Console の認証情報を確認してください。'**
   String get apiKeyRequiredHint;
 
   /// No description provided for @authHelpTitle.

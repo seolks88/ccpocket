@@ -1241,7 +1241,7 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get guideBridgeDescription =>
-      'PC에서 Bridge 서버를 시작하세요. Claude를 사용하려면 ANTHROPIC_API_KEY도 설정하세요.';
+      'PC에서 Bridge 서버를 시작하세요. Claude를 사용하려면 해당 컴퓨터에서 Claude Code에 로그인하세요.';
 
   @override
   String get guideBridgePrerequisites => '필수 조건';
@@ -1250,7 +1250,7 @@ class AppLocalizationsKo extends AppLocalizations {
   String get guideBridgePrereq1 => 'Node.js가 설치된 Mac / PC';
 
   @override
-  String get guideBridgePrereq2 => 'Claude를 사용한다면 ANTHROPIC_API_KEY 설정';
+  String get guideBridgePrereq2 => 'Claude를 사용한다면 Claude Code 로그인';
 
   @override
   String get guideBridgePrereq3 => 'Codex를 사용한다면 Codex 인증 완료';
@@ -2018,14 +2018,14 @@ class AppLocalizationsKo extends AppLocalizations {
   String get authErrorAlternativeLabel => '셸 대안';
 
   @override
-  String get apiKeyRequiredTitle => 'API 키 필요';
+  String get apiKeyRequiredTitle => 'Claude 인증 실패';
 
   @override
   String get apiKeyRequiredBody =>
-      'Anthropic의 현재 Claude Agent SDK 문서는 타사 제품의 Claude 구독 로그인을 허용하지 않습니다. 대신 API 키를 사용하세요.';
+      'Claude Code는 Claude 구독 로그인이나 API 자격 증명을 사용할 수 있습니다. Bridge 컴퓨터에서 다시 로그인하고 /status로 현재 계정을 확인하세요.';
 
   @override
-  String get apiKeyRequiredHint => 'API 키 받기:';
+  String get apiKeyRequiredHint => '의도적으로 API 과금을 사용한다면 Console 자격 증명을 확인하세요.';
 
   @override
   String get authHelpTitle => '인증 문제 해결';

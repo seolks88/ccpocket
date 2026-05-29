@@ -18,7 +18,7 @@ Widget _wrapErrorBubble({required Widget child, required Locale locale}) {
 
 void main() {
   group('ErrorBubble auth UI', () {
-    testWidgets('shows API key guidance for auth_api_error', (tester) async {
+    testWidgets('shows Claude login guidance for auth_api_error', (tester) async {
       const message = ErrorMessage(
         message: 'Failed to authenticate. API Error: 401 terminated',
         errorCode: 'auth_api_error',
@@ -31,21 +31,16 @@ void main() {
         ),
       );
 
-      expect(find.text('APIキーが必要です'), findsOneWidget);
+      expect(find.text('Claudeの再ログインが必要です'), findsOneWidget);
       expect(
-        find.text(
-          'Anthropic の現行 Claude Agent SDK ドキュメントでは、'
-          'サードパーティ製品で Claude のサブスクリプションログインを'
-          '使うことは許可されていません。APIキーをご利用ください。',
-        ),
+        find.text('BridgeマシンでClaudeに再ログインしてください。'),
         findsOneWidget,
       );
-      expect(find.text('APIキーの取得:'), findsOneWidget);
-      expect(find.text('ANTHROPIC_API_KEY=sk-ant-...'), findsOneWidget);
-      expect(find.text('console.anthropic.com/settings/keys'), findsOneWidget);
-      expect(find.text('手順を見る'), findsNothing);
-      expect(find.text('claude'), findsNothing);
-      expect(find.text('/login'), findsNothing);
+      expect(find.text('手順を見る'), findsOneWidget);
+      expect(find.text('claude'), findsOneWidget);
+      expect(find.text('/login'), findsOneWidget);
+      expect(find.text('ANTHROPIC_API_KEY=sk-ant-...'), findsNothing);
+      expect(find.text('console.anthropic.com/settings/keys'), findsNothing);
     });
 
     testWidgets('keeps non-auth error layout unchanged', (tester) async {

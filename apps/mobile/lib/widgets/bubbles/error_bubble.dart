@@ -29,8 +29,8 @@ String? _errorTitle(String? errorCode, AppLocalizations l) {
 String? _errorHint(String? errorCode, AppLocalizations l) {
   return switch (errorCode) {
     'auth_login_required' ||
-    'auth_token_expired' => 'Run "claude auth login" on the Bridge machine',
-    'auth_api_error' => 'Set ANTHROPIC_API_KEY on the Bridge machine',
+    'auth_token_expired' ||
+    'auth_api_error' => 'Run "claude auth login" on the Bridge machine',
     'codex_auth_required' => 'Check OPENAI_API_KEY on the Bridge machine',
     'codex_cli_not_found' =>
       'Install Codex CLI on the Bridge machine, then restart Bridge',
@@ -46,7 +46,9 @@ String? _errorHint(String? errorCode, AppLocalizations l) {
 /// Copyable command for the hint tap action.
 String? _copyableCommand(String? errorCode) {
   return switch (errorCode) {
-    'auth_login_required' || 'auth_token_expired' => 'claude auth login',
+    'auth_login_required' ||
+    'auth_token_expired' ||
+    'auth_api_error' => 'claude auth login',
     'bridge_update_required' => 'npm update -g @ccpocket/bridge',
     'codex_cli_not_found' => 'npm install -g @openai/codex',
     _ => null,
@@ -55,11 +57,8 @@ String? _copyableCommand(String? errorCode) {
 
 bool _isClaudeAuthError(String? errorCode) {
   return errorCode == 'auth_login_required' ||
-      errorCode == 'auth_token_expired';
-}
-
-bool _isApiKeyRequired(String? errorCode) {
-  return errorCode == 'auth_api_error';
+      errorCode == 'auth_token_expired' ||
+      errorCode == 'auth_api_error';
 }
 
 /// Whether the errorCode represents a non-critical warning (amber style).
@@ -119,8 +118,6 @@ class ErrorBubble extends StatelessWidget {
                     alternativeCommand: 'claude auth login',
                     helpLabel: l.authHelpButton,
                   )
-                : _isApiKeyRequired(resolvedErrorCode)
-                ? _ApiKeyRequiredCard(textColor: textColor)
                 : _buildStructured(context, title, hint, textColor, isWarn)
           : _buildSimple(textColor),
     );
@@ -338,98 +335,6 @@ class _ClaudeAuthErrorCard extends StatelessWidget {
           },
           icon: const Icon(Icons.help_outline, size: 16),
           label: Text(helpLabel),
-        ),
-      ],
-    );
-  }
-}
-
-class _ApiKeyRequiredCard extends StatelessWidget {
-  final Color textColor;
-
-  const _ApiKeyRequiredCard({required this.textColor});
-
-  @override
-  Widget build(BuildContext context) {
-    final l = AppLocalizations.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            _AuthIcon(textColor: textColor),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                l.apiKeyRequiredTitle,
-                style: TextStyle(
-                  color: textColor,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Text(
-          l.apiKeyRequiredBody,
-          style: TextStyle(
-            color: textColor.withValues(alpha: 0.92),
-            fontSize: 12,
-            height: 1.4,
-          ),
-        ),
-        const SizedBox(height: 10),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
-          decoration: BoxDecoration(
-            color: textColor.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            'ANTHROPIC_API_KEY=sk-ant-...',
-            style: TextStyle(
-              color: textColor,
-              fontSize: 12,
-              fontFamily: 'monospace',
-            ),
-          ),
-        ),
-        const SizedBox(height: 10),
-        Text(
-          l.apiKeyRequiredHint,
-          style: TextStyle(
-            color: textColor.withValues(alpha: 0.7),
-            fontSize: 11,
-            height: 1.4,
-          ),
-        ),
-        const SizedBox(height: 6),
-        GestureDetector(
-          onTap: () {
-            Clipboard.setData(
-              const ClipboardData(
-                text: 'https://console.anthropic.com/settings/keys',
-              ),
-            );
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Copied URL'),
-                duration: Duration(seconds: 2),
-              ),
-            );
-          },
-          child: Text(
-            'console.anthropic.com/settings/keys',
-            style: TextStyle(
-              color: textColor,
-              fontSize: 12,
-              decoration: TextDecoration.underline,
-              decorationColor: textColor.withValues(alpha: 0.5),
-            ),
-          ),
         ),
       ],
     );

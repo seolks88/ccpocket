@@ -1212,7 +1212,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get guideBridgeDescription =>
-      '先在你的电脑上启动 Bridge 服务。如果你要使用 Claude，也请先设置 ANTHROPIC_API_KEY。';
+      '先在你的电脑上启动 Bridge 服务。如果要使用 Claude，请在那台机器上登录 Claude Code。';
 
   @override
   String get guideBridgePrerequisites => '前置条件';
@@ -1221,7 +1221,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get guideBridgePrereq1 => '已安装 Node.js 的 Mac / PC';
 
   @override
-  String get guideBridgePrereq2 => '如果使用 Claude，请设置 ANTHROPIC_API_KEY';
+  String get guideBridgePrereq2 => '如果使用 Claude，请登录 Claude Code';
 
   @override
   String get guideBridgePrereq3 => '如果使用 Codex，请先完成 Codex 认证';
@@ -1983,14 +1983,14 @@ class AppLocalizationsZh extends AppLocalizations {
   String get authErrorAlternativeLabel => 'Shell 方式';
 
   @override
-  String get apiKeyRequiredTitle => '需要 API 密钥';
+  String get apiKeyRequiredTitle => 'Claude 认证失败';
 
   @override
   String get apiKeyRequiredBody =>
-      'Anthropic 当前的 Claude Agent SDK 文档不允许第三方产品使用 Claude 订阅登录。请改用 API 密钥。';
+      'Claude Code 可以使用 Claude 订阅登录或 API 凭据。请在 Bridge 机器上重新登录，并用 /status 确认当前账号。';
 
   @override
-  String get apiKeyRequiredHint => '在此获取 API 密钥：';
+  String get apiKeyRequiredHint => '如果你有意使用 API 计费，请检查 Console 凭据。';
 
   @override
   String get authHelpTitle => '认证故障排查';
