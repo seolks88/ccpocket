@@ -11,6 +11,7 @@ import '../l10n/app_localizations.dart';
 import '../models/messages.dart';
 import '../models/new_session_tab.dart';
 import '../services/bridge_service.dart';
+import '../theme/app_spacing.dart';
 import '../theme/app_theme.dart';
 import '../theme/provider_style.dart';
 import 'workspace_pane_chrome.dart';
@@ -2306,6 +2307,13 @@ class _OptionsSection extends StatelessWidget {
 
     final isClaude = provider == Provider.claude;
 
+    // Full / unsandboxed access — the most consequential choice on the form.
+    // Mirrors the existing error-color accent special-cases below so the
+    // Permissions group is emphasized exactly when a dangerous mode is active.
+    final dangerousAccess = isClaude
+        ? selectedPermissionMode == PermissionMode.bypassPermissions
+        : codexPermissionsMode == CodexPermissionsMode.fullAccess;
+
     IconData sandboxIcon(SandboxMode mode) => mode == SandboxMode.on
         ? Icons.shield_outlined
         : (isClaude ? Icons.code : Icons.warning_amber);
@@ -2316,6 +2324,8 @@ class _OptionsSection extends StatelessWidget {
 
     // -- Selector field widget (shows current selection with description) --
 
+    final textTheme = Theme.of(context).textTheme;
+
     Widget modeSelectorField({
       required String label,
       required IconData icon,
@@ -2324,20 +2334,33 @@ class _OptionsSection extends StatelessWidget {
       required VoidCallback onTap,
       Color? accentColor,
       Key? key,
+      // When true the field's own fill is dropped so it reads cleanly when
+      // nested inside a grouped section card (avoids fill-on-fill muddiness).
+      bool transparentFill = false,
+      // When true the title is rendered heavier so consequential fields
+      // (e.g. Permissions) outweigh secondary ones.
+      bool emphasized = false,
     }) {
       final cs = Theme.of(context).colorScheme;
+      var decoration = buildInputDecoration(label).copyWith(
+        suffixIcon: Icon(Icons.arrow_drop_down, color: cs.onSurfaceVariant),
+      );
+      if (transparentFill) {
+        decoration = decoration.copyWith(
+          filled: false,
+          fillColor: Colors.transparent,
+        );
+      }
       return InkWell(
         key: key,
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
         child: InputDecorator(
-          decoration: buildInputDecoration(label).copyWith(
-            suffixIcon: Icon(Icons.arrow_drop_down, color: cs.onSurfaceVariant),
-          ),
+          decoration: decoration,
           child: Row(
             children: [
-              Icon(icon, size: 16, color: accentColor),
-              const SizedBox(width: 8),
+              Icon(icon, size: AppIconSize.inline, color: accentColor),
+              const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -2345,15 +2368,15 @@ class _OptionsSection extends StatelessWidget {
                   children: [
                     Text(
                       title,
-                      style: TextStyle(fontSize: 13, color: accentColor),
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: accentColor,
+                        fontWeight: emphasized ? FontWeight.w600 : null,
+                      ),
                     ),
                     if (subtitle.isNotEmpty)
                       Text(
                         subtitle,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: cs.onSurfaceVariant,
-                        ),
+                        style: textTheme.bodySmall,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -2400,18 +2423,15 @@ class _OptionsSection extends StatelessWidget {
                         children: [
                           Text(
                             title,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
+                            style: textTheme.titleSmall?.copyWith(
                               color: sheetCs.onSurface,
                             ),
                           ),
                           if (subtitle != null) ...[
-                            const SizedBox(height: 4),
+                            const SizedBox(height: AppSpacing.xs),
                             Text(
                               subtitle,
-                              style: TextStyle(
-                                fontSize: 12,
+                              style: textTheme.bodySmall?.copyWith(
                                 color: sheetCs.onSurfaceVariant,
                               ),
                             ),
@@ -2437,7 +2457,7 @@ class _OptionsSection extends StatelessWidget {
                             subtitle: descriptionFor(mode).isNotEmpty
                                 ? Text(
                                     descriptionFor(mode),
-                                    style: const TextStyle(fontSize: 12),
+                                    style: textTheme.bodySmall,
                                   )
                                 : null,
                             trailing: mode == currentMode
@@ -2446,7 +2466,7 @@ class _OptionsSection extends StatelessWidget {
                                     color:
                                         colorFor?.call(mode, sheetCs) ??
                                         sheetCs.primary,
-                                    size: 20,
+                                    size: AppIconSize.action,
                                   )
                                 : null,
                             onTap: () {
@@ -2466,252 +2486,282 @@ class _OptionsSection extends StatelessWidget {
       );
     }
 
+    // -- Permissions / Approval selector (the most consequential field) --
+    final permissionsField = provider == Provider.codex
+        ? modeSelectorField(
+            key: const ValueKey('dialog_codex_permissions_mode'),
+            label: 'Permissions',
+            icon: codexPermissionsIcon(codexPermissionsMode),
+            title: codexPermissionsMode.label,
+            subtitle: codexPermissionsDescription(codexPermissionsMode),
+            transparentFill: true,
+            emphasized: true,
+            accentColor:
+                codexPermissionsMode == CodexPermissionsMode.fullAccess
+                ? Theme.of(context).colorScheme.error
+                : null,
+            onTap: () => showModeSheet<CodexPermissionsMode>(
+              title: 'Permissions',
+              subtitle: l.sheetSubtitleApproval,
+              modes: CodexPermissionsMode.values,
+              currentMode: codexPermissionsMode,
+              iconFor: codexPermissionsIcon,
+              labelFor: (mode) => mode.label,
+              descriptionFor: codexPermissionsDescription,
+              onSelected: onCodexPermissionsModeChanged,
+              colorFor: (mode, cs) => switch (mode) {
+                CodexPermissionsMode.fullAccess => cs.error,
+                CodexPermissionsMode.autoReview => cs.primary,
+                _ => cs.primary,
+              },
+            ),
+          )
+        : modeSelectorField(
+            key: const ValueKey('dialog_permission_mode'),
+            label: l.approval,
+            icon: permissionIcon(selectedPermissionMode),
+            title: selectedPermissionMode.label,
+            subtitle: permissionDescription(selectedPermissionMode),
+            transparentFill: true,
+            emphasized: true,
+            accentColor: switch (selectedPermissionMode) {
+              PermissionMode.auto => autoModeColor,
+              PermissionMode.bypassPermissions => Theme.of(
+                context,
+              ).colorScheme.error,
+              _ => null,
+            },
+            onTap: () => showModeSheet<PermissionMode>(
+              title: l.approval,
+              subtitle: l.sheetSubtitleApproval,
+              modes: PermissionMode.values,
+              currentMode: selectedPermissionMode,
+              iconFor: permissionIcon,
+              labelFor: (m) => m.label,
+              descriptionFor: permissionDescription,
+              onSelected: (value) {
+                onClaudePermissionModeChanged(value);
+                switch (value) {
+                  case PermissionMode.defaultMode:
+                    onExecutionModeChanged(ExecutionMode.defaultMode);
+                    onPlanModeChanged(false);
+                  case PermissionMode.auto:
+                    onExecutionModeChanged(ExecutionMode.defaultMode);
+                    onPlanModeChanged(false);
+                  case PermissionMode.acceptEdits:
+                    onExecutionModeChanged(ExecutionMode.acceptEdits);
+                    onPlanModeChanged(false);
+                  case PermissionMode.plan:
+                    onExecutionModeChanged(ExecutionMode.defaultMode);
+                    onPlanModeChanged(true);
+                  case PermissionMode.bypassPermissions:
+                    onExecutionModeChanged(ExecutionMode.fullAccess);
+                    onPlanModeChanged(false);
+                }
+              },
+              colorFor: (mode, cs) => switch (mode) {
+                PermissionMode.auto => autoModeColor,
+                PermissionMode.bypassPermissions => cs.error,
+                _ => cs.primary,
+              },
+            ),
+          );
+
+    // -- Model selector --
+    final modelField = modeSelectorField(
+      key: ValueKey(
+        provider == Provider.claude
+            ? 'dialog_claude_model'
+            : 'dialog_codex_model',
+      ),
+      label: l.model,
+      icon: Icons.smart_toy_outlined,
+      transparentFill: true,
+      title: provider == Provider.claude
+          ? displayLabelForClaudeModel(
+              selectedClaudeModel ?? claudeModels.firstOrNull ?? '',
+            )
+          : (selectedModel ?? codexModels.firstOrNull ?? ''),
+      subtitle: '',
+      onTap: () {
+        final models = provider == Provider.claude ? claudeModels : codexModels;
+        final current = provider == Provider.claude
+            ? (selectedClaudeModel ?? models.firstOrNull)
+            : (selectedModel ?? models.firstOrNull);
+        final onChanged = provider == Provider.claude
+            ? onClaudeModelChanged
+            : onSelectedModelChanged;
+        showModeSheet<String>(
+          title: l.model,
+          subtitle: l.sheetSubtitleModel,
+          modes: models,
+          currentMode: current ?? '',
+          iconFor: (_) => Icons.smart_toy_outlined,
+          labelFor: provider == Provider.claude
+              ? displayLabelForClaudeModel
+              : (m) => m,
+          descriptionFor: provider == Provider.claude
+              ? descriptionForClaudeModel
+              : (_) => '',
+          onSelected: (m) => onChanged(m),
+        );
+      },
+    );
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // -- Permissions / Safety group --
+          _OptionGroupCard(
+            title: l.permission,
+            emphasized: dangerousAccess,
+            children: [
+              permissionsField,
+              if (isClaude) ...[
+                _groupFieldDivider(context),
+                modeSelectorField(
+                  key: const ValueKey('dialog_sandbox'),
+                  label: l.sandbox,
+                  icon: sandboxIcon(sandboxMode),
+                  title: sandboxLabel(sandboxMode),
+                  subtitle: sandboxDescription(sandboxMode),
+                  transparentFill: true,
+                  onTap: () => showModeSheet<SandboxMode>(
+                    title: l.sandbox,
+                    subtitle: l.sheetSubtitleSandboxClaude,
+                    modes: SandboxMode.values.reversed.toList(),
+                    currentMode: sandboxMode,
+                    iconFor: sandboxIcon,
+                    labelFor: sandboxLabel,
+                    descriptionFor: sandboxDescription,
+                    onSelected: onSandboxModeChanged,
+                    colorFor: (mode, cs) => cs.primary,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          // -- Model group (profile + model + effort/reasoning) --
+          _OptionGroupCard(
+            title: l.model,
+            children: [
+              if (provider == Provider.codex && codexProfiles.isNotEmpty) ...[
+                DropdownButtonFormField<String?>(
+                  key: const ValueKey('dialog_codex_profile'),
+                  initialValue: selectedCodexProfile,
+                  isExpanded: true,
+                  decoration: buildInputDecoration('Profile').copyWith(
+                    filled: false,
+                    fillColor: Colors.transparent,
+                  ),
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                  items: [
+                    DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text(l.defaultLabel, style: textTheme.bodyMedium),
+                    ),
+                    for (final profile in codexProfiles)
+                      DropdownMenuItem<String?>(
+                        value: profile,
+                        child: Text(profile, style: textTheme.bodyMedium),
+                      ),
+                  ],
+                  onChanged: onCodexProfileChanged,
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+                  child: Text(
+                    l.codexProfilePrecedenceNote,
+                    style: textTheme.bodySmall?.copyWith(
+                      color: appColors.subtleText,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+                _groupFieldDivider(context),
+              ],
+              modelField,
+              // -- Effort / Reasoning selector --
+              if (provider == Provider.claude &&
+                  selectedClaudeEfforts.isNotEmpty) ...[
+                _groupFieldDivider(context),
+                modeSelectorField(
+                  key: const ValueKey('dialog_claude_effort'),
+                  label: l.effort,
+                  icon: Icons.speed,
+                  title: claudeEffort.label,
+                  subtitle: _claudeEffortDescription(claudeEffort, l),
+                  transparentFill: true,
+                  onTap: () => showModeSheet<ClaudeEffort>(
+                    title: l.effort,
+                    subtitle: l.sheetSubtitleEffort,
+                    modes: selectedClaudeEfforts,
+                    currentMode: claudeEffort,
+                    iconFor: (_) => Icons.speed,
+                    labelFor: (e) => e.label,
+                    descriptionFor: (e) => _claudeEffortDescription(e, l),
+                    onSelected: onClaudeEffortChanged,
+                  ),
+                ),
+              ],
+              if (provider == Provider.codex &&
+                  codexReasoningEfforts.isNotEmpty) ...[
+                _groupFieldDivider(context),
+                modeSelectorField(
+                  key: const ValueKey('dialog_codex_reasoning_effort'),
+                  label: l.reasoning,
+                  icon: Icons.psychology,
+                  title:
+                      (codexReasoningEfforts.contains(modelReasoningEffort)
+                              ? modelReasoningEffort
+                              : codexReasoningEfforts.first)
+                          .label,
+                  subtitle: _reasoningEffortDescription(
+                    codexReasoningEfforts.contains(modelReasoningEffort)
+                        ? modelReasoningEffort
+                        : codexReasoningEfforts.first,
+                    l,
+                  ),
+                  transparentFill: true,
+                  onTap: () => showModeSheet<ReasoningEffort>(
+                    title: l.reasoning,
+                    subtitle: l.sheetSubtitleEffort,
+                    modes: codexReasoningEfforts,
+                    currentMode:
+                        codexReasoningEfforts.contains(modelReasoningEffort)
+                        ? modelReasoningEffort
+                        : codexReasoningEfforts.first,
+                    iconFor: (_) => Icons.psychology,
+                    labelFor: (e) => e.label,
+                    descriptionFor: (e) => _reasoningEffortDescription(e, l),
+                    onSelected: onModelReasoningEffortChanged,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          // -- Workspace / Git group --
           Padding(
-            padding: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.only(
+              left: AppSpacing.xs,
+              bottom: AppSpacing.sm,
+            ),
             child: Text(
-              'Environment',
-              style: TextStyle(
-                fontSize: 12,
+              l.git,
+              style: textTheme.labelMedium?.copyWith(
                 fontWeight: FontWeight.w600,
                 color: appColors.subtleText,
                 letterSpacing: 0.5,
               ),
             ),
           ),
-          if (provider == Provider.codex && codexProfiles.isNotEmpty) ...[
-            DropdownButtonFormField<String?>(
-              key: const ValueKey('dialog_codex_profile'),
-              initialValue: selectedCodexProfile,
-              isExpanded: true,
-              decoration: buildInputDecoration('Profile'),
-              style: TextStyle(
-                fontSize: 13,
-                color: Theme.of(context).colorScheme.onSurface,
-              ),
-              items: [
-                DropdownMenuItem<String?>(
-                  value: null,
-                  child: Text(
-                    l.defaultLabel,
-                    style: const TextStyle(fontSize: 13),
-                  ),
-                ),
-                for (final profile in codexProfiles)
-                  DropdownMenuItem<String?>(
-                    value: profile,
-                    child: Text(profile, style: const TextStyle(fontSize: 13)),
-                  ),
-              ],
-              onChanged: onCodexProfileChanged,
-            ),
-            const SizedBox(height: 6),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Text(
-                l.codexProfilePrecedenceNote,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: appColors.subtleText,
-                  height: 1.4,
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-          ],
-          provider == Provider.codex
-              ? modeSelectorField(
-                  key: const ValueKey('dialog_codex_permissions_mode'),
-                  label: 'Permissions',
-                  icon: codexPermissionsIcon(codexPermissionsMode),
-                  title: codexPermissionsMode.label,
-                  subtitle: codexPermissionsDescription(codexPermissionsMode),
-                  accentColor:
-                      codexPermissionsMode == CodexPermissionsMode.fullAccess
-                      ? Theme.of(context).colorScheme.error
-                      : null,
-                  onTap: () => showModeSheet<CodexPermissionsMode>(
-                    title: 'Permissions',
-                    subtitle: l.sheetSubtitleApproval,
-                    modes: CodexPermissionsMode.values,
-                    currentMode: codexPermissionsMode,
-                    iconFor: codexPermissionsIcon,
-                    labelFor: (mode) => mode.label,
-                    descriptionFor: codexPermissionsDescription,
-                    onSelected: onCodexPermissionsModeChanged,
-                    colorFor: (mode, cs) => switch (mode) {
-                      CodexPermissionsMode.fullAccess => cs.error,
-                      CodexPermissionsMode.autoReview => cs.primary,
-                      _ => cs.primary,
-                    },
-                  ),
-                )
-              : modeSelectorField(
-                  key: const ValueKey('dialog_permission_mode'),
-                  label: l.approval,
-                  icon: permissionIcon(selectedPermissionMode),
-                  title: selectedPermissionMode.label,
-                  subtitle: permissionDescription(selectedPermissionMode),
-                  accentColor: switch (selectedPermissionMode) {
-                    PermissionMode.auto => autoModeColor,
-                    PermissionMode.bypassPermissions => Theme.of(
-                      context,
-                    ).colorScheme.error,
-                    _ => null,
-                  },
-                  onTap: () => showModeSheet<PermissionMode>(
-                    title: l.approval,
-                    subtitle: l.sheetSubtitleApproval,
-                    modes: PermissionMode.values,
-                    currentMode: selectedPermissionMode,
-                    iconFor: permissionIcon,
-                    labelFor: (m) => m.label,
-                    descriptionFor: permissionDescription,
-                    onSelected: (value) {
-                      onClaudePermissionModeChanged(value);
-                      switch (value) {
-                        case PermissionMode.defaultMode:
-                          onExecutionModeChanged(ExecutionMode.defaultMode);
-                          onPlanModeChanged(false);
-                        case PermissionMode.auto:
-                          onExecutionModeChanged(ExecutionMode.defaultMode);
-                          onPlanModeChanged(false);
-                        case PermissionMode.acceptEdits:
-                          onExecutionModeChanged(ExecutionMode.acceptEdits);
-                          onPlanModeChanged(false);
-                        case PermissionMode.plan:
-                          onExecutionModeChanged(ExecutionMode.defaultMode);
-                          onPlanModeChanged(true);
-                        case PermissionMode.bypassPermissions:
-                          onExecutionModeChanged(ExecutionMode.fullAccess);
-                          onPlanModeChanged(false);
-                      }
-                    },
-                    colorFor: (mode, cs) => switch (mode) {
-                      PermissionMode.auto => autoModeColor,
-                      PermissionMode.bypassPermissions => cs.error,
-                      _ => cs.primary,
-                    },
-                  ),
-                ),
-          if (isClaude) ...[
-            const SizedBox(height: 8),
-            modeSelectorField(
-              key: const ValueKey('dialog_sandbox'),
-              label: l.sandbox,
-              icon: sandboxIcon(sandboxMode),
-              title: sandboxLabel(sandboxMode),
-              subtitle: sandboxDescription(sandboxMode),
-              onTap: () => showModeSheet<SandboxMode>(
-                title: l.sandbox,
-                subtitle: l.sheetSubtitleSandboxClaude,
-                modes: SandboxMode.values.reversed.toList(),
-                currentMode: sandboxMode,
-                iconFor: sandboxIcon,
-                labelFor: sandboxLabel,
-                descriptionFor: sandboxDescription,
-                onSelected: onSandboxModeChanged,
-                colorFor: (mode, cs) => cs.primary,
-              ),
-            ),
-          ],
-          const SizedBox(height: 8),
-          // -- Model selector --
-          modeSelectorField(
-            key: ValueKey(
-              provider == Provider.claude
-                  ? 'dialog_claude_model'
-                  : 'dialog_codex_model',
-            ),
-            label: l.model,
-            icon: Icons.smart_toy_outlined,
-            title: provider == Provider.claude
-                ? displayLabelForClaudeModel(
-                    selectedClaudeModel ?? claudeModels.firstOrNull ?? '',
-                  )
-                : (selectedModel ?? codexModels.firstOrNull ?? ''),
-            subtitle: '',
-            onTap: () {
-              final models = provider == Provider.claude
-                  ? claudeModels
-                  : codexModels;
-              final current = provider == Provider.claude
-                  ? (selectedClaudeModel ?? models.firstOrNull)
-                  : (selectedModel ?? models.firstOrNull);
-              final onChanged = provider == Provider.claude
-                  ? onClaudeModelChanged
-                  : onSelectedModelChanged;
-              showModeSheet<String>(
-                title: l.model,
-                subtitle: l.sheetSubtitleModel,
-                modes: models,
-                currentMode: current ?? '',
-                iconFor: (_) => Icons.smart_toy_outlined,
-                labelFor: provider == Provider.claude
-                    ? displayLabelForClaudeModel
-                    : (m) => m,
-                descriptionFor: provider == Provider.claude
-                    ? descriptionForClaudeModel
-                    : (_) => '',
-                onSelected: (m) => onChanged(m),
-              );
-            },
-          ),
-          const SizedBox(height: 8),
-          // -- Effort / Reasoning selector --
-          if (provider == Provider.claude && selectedClaudeEfforts.isNotEmpty)
-            modeSelectorField(
-              key: const ValueKey('dialog_claude_effort'),
-              label: l.effort,
-              icon: Icons.speed,
-              title: claudeEffort.label,
-              subtitle: _claudeEffortDescription(claudeEffort, l),
-              onTap: () => showModeSheet<ClaudeEffort>(
-                title: l.effort,
-                subtitle: l.sheetSubtitleEffort,
-                modes: selectedClaudeEfforts,
-                currentMode: claudeEffort,
-                iconFor: (_) => Icons.speed,
-                labelFor: (e) => e.label,
-                descriptionFor: (e) => _claudeEffortDescription(e, l),
-                onSelected: onClaudeEffortChanged,
-              ),
-            ),
-          if (provider == Provider.codex && codexReasoningEfforts.isNotEmpty)
-            modeSelectorField(
-              key: const ValueKey('dialog_codex_reasoning_effort'),
-              label: l.reasoning,
-              icon: Icons.psychology,
-              title:
-                  (codexReasoningEfforts.contains(modelReasoningEffort)
-                          ? modelReasoningEffort
-                          : codexReasoningEfforts.first)
-                      .label,
-              subtitle: _reasoningEffortDescription(
-                codexReasoningEfforts.contains(modelReasoningEffort)
-                    ? modelReasoningEffort
-                    : codexReasoningEfforts.first,
-                l,
-              ),
-              onTap: () => showModeSheet<ReasoningEffort>(
-                title: l.reasoning,
-                subtitle: l.sheetSubtitleEffort,
-                modes: codexReasoningEfforts,
-                currentMode:
-                    codexReasoningEfforts.contains(modelReasoningEffort)
-                    ? modelReasoningEffort
-                    : codexReasoningEfforts.first,
-                iconFor: (_) => Icons.psychology,
-                labelFor: (e) => e.label,
-                descriptionFor: (e) => _reasoningEffortDescription(e, l),
-                onSelected: onModelReasoningEffortChanged,
-              ),
-            ),
-          const SizedBox(height: 8),
           // Worktree toggle (shared) + inline options when expanded
           _WorktreeToggleTile(
             useWorktree: useWorktree,
@@ -2730,7 +2780,7 @@ class _OptionsSection extends StatelessWidget {
                 : null,
           ),
           // Advanced section (unified for both providers)
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.md),
           _AdvancedOptions(
             provider: provider,
             buildInputDecoration: buildInputDecoration,
@@ -2760,6 +2810,89 @@ class _OptionsSection extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A labeled section in the options form: a [textTheme.labelMedium] header
+/// over a [surfaceContainerHigh] card holding [children]. Splits the otherwise
+/// flat stack of selector fields into scannable groups (Permissions / Model /
+/// Git) without changing any field behavior.
+///
+/// When [emphasized] is true the card gains an error-tinted border + fill so
+/// the most consequential group (full-access permissions, which governs
+/// whether the agent can damage the machine) reads as a warning zone instead
+/// of an ordinary field.
+class _OptionGroupCard extends StatelessWidget {
+  final String title;
+  final List<Widget> children;
+  final bool emphasized;
+
+  const _OptionGroupCard({
+    required this.title,
+    required this.children,
+    this.emphasized = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final appColors = Theme.of(context).extension<AppColors>()!;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(
+            left: AppSpacing.xs,
+            bottom: AppSpacing.sm,
+          ),
+          child: Text(
+            title,
+            style: textTheme.labelMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: emphasized ? cs.error : appColors.subtleText,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ),
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.xs,
+          ),
+          decoration: BoxDecoration(
+            color: emphasized
+                ? cs.error.withValues(alpha: 0.06)
+                : cs.surfaceContainerHigh,
+            borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+            border: Border.all(
+              color: emphasized
+                  ? cs.error.withValues(alpha: 0.5)
+                  : cs.outlineVariant.withValues(alpha: 0.35),
+              width: emphasized ? 1.5 : 1,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: children,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Thin separator between fields stacked inside a single [_OptionGroupCard].
+Widget _groupFieldDivider(BuildContext context) {
+  final cs = Theme.of(context).colorScheme;
+  return Divider(
+    height: 1,
+    thickness: 1,
+    color: cs.outlineVariant.withValues(alpha: 0.35),
+  );
 }
 
 class _WorktreeToggleTile extends StatelessWidget {
@@ -3435,7 +3568,12 @@ class _SheetActions extends StatelessWidget {
     final providerStyle = providerStyleFor(context, provider);
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        0,
+        AppSpacing.lg,
+        AppSpacing.lg,
+      ),
       child: Row(
         children: [
           TextButton(
@@ -3446,38 +3584,19 @@ class _SheetActions extends StatelessWidget {
             ),
             child: Text(l.cancel),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: AppSpacing.md),
           Expanded(
-            child: SizedBox(
-              height: 54,
-              child: FilledButton(
-                key: const ValueKey('dialog_start_button'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: canStart ? providerStyle.background : null,
-                  foregroundColor: canStart ? providerStyle.foreground : null,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 12,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  elevation: 0,
-                ),
-                onPressed: canStart ? onStart : null,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      'Start with ${provider.label}',
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        height: 1.2,
-                      ),
-                    ),
-                  ],
-                ),
+            child: FilledButton(
+              key: const ValueKey('dialog_start_button'),
+              style: FilledButton.styleFrom(
+                backgroundColor: canStart ? providerStyle.background : null,
+                foregroundColor: canStart ? providerStyle.foreground : null,
+                elevation: 0,
+              ),
+              onPressed: canStart ? onStart : null,
+              child: Text(
+                'Start with ${provider.label}',
+                style: Theme.of(context).textTheme.labelLarge,
               ),
             ),
           ),
