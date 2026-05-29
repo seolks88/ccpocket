@@ -5,6 +5,7 @@ import '../../l10n/app_localizations.dart';
 import '../../models/messages.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/code_text_style.dart';
 import '../../utils/command_parser.dart';
 import '../adaptive_context_menu.dart';
 
@@ -204,10 +205,7 @@ class _StandardBubble extends StatelessWidget {
                         ),
                       ),
                     if (displayText.isNotEmpty)
-                      Text(
-                        displayText,
-                        style: TextStyle(color: cs.onPrimaryContainer),
-                      ),
+                      _UserMessageBody(text: displayText),
                   ],
                 ),
               ),
@@ -216,6 +214,158 @@ class _StandardBubble extends StatelessWidget {
                 child: _StatusIndicator(status: status),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Body for a standard (non-command) user message.
+///
+/// Short, normal chat text renders as plain selectable proportional text and is
+/// visually unchanged. Large or code-like payloads — injected context dumps
+/// (e.g. a leading "# Files mentioned" marker), fenced code blocks, or anything
+/// over [_lineThreshold] lines — are detected conservatively and rendered:
+///   * selectable (so the user can copy inline),
+///   * in monospace via [codeTextSettingsOf] when the content is code-like, and
+///   * collapsed behind a >=44px "Show more" affordance so a huge paste cannot
+///     dominate the conversation.
+class _UserMessageBody extends StatefulWidget {
+  final String text;
+
+  const _UserMessageBody({required this.text});
+
+  /// A user message with more than this many lines is treated as "large" and
+  /// gets the selectable + collapsible treatment.
+  static const int _lineThreshold = 8;
+
+  /// Number of lines shown before the message is collapsed.
+  static const int _collapsedMaxLines = 6;
+
+  @override
+  State<_UserMessageBody> createState() => _UserMessageBodyState();
+}
+
+class _UserMessageBodyState extends State<_UserMessageBody> {
+  bool _expanded = false;
+
+  /// True when the payload looks like injected context / a dump that benefits
+  /// from monospace rendering (file lists, pasted code), as opposed to long
+  /// prose. Kept deliberately conservative.
+  bool get _isCodeLike {
+    final t = widget.text;
+    if (t.contains('```')) return true;
+    final trimmedStart = t.trimLeft();
+    // Client-injected context markers, e.g. "# Files mentioned by the user:".
+    if (trimmedStart.startsWith('# Files mentioned') ||
+        trimmedStart.startsWith('<files') ||
+        trimmedStart.startsWith('# File contents') ||
+        trimmedStart.startsWith('# Code')) {
+      return true;
+    }
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final appColors = Theme.of(context).extension<AppColors>()!;
+
+    final lines = widget.text.split('\n');
+    final isCodeLike = _isCodeLike;
+    final isLarge =
+        isCodeLike || lines.length > _UserMessageBody._lineThreshold;
+
+    // Short, normal chat message: unchanged plain (but now selectable) text.
+    if (!isLarge) {
+      return SelectableText(
+        widget.text,
+        style: TextStyle(color: cs.onPrimaryContainer),
+      );
+    }
+
+    final TextStyle bodyStyle = isCodeLike
+        ? codeTextSettingsOf(context).style(color: cs.onPrimaryContainer)
+        : TextStyle(color: cs.onPrimaryContainer, height: 1.4);
+
+    final collapsedMaxLines = _UserMessageBody._collapsedMaxLines;
+    final hasMore = lines.length > collapsedMaxLines;
+    final hiddenLines = lines.length - collapsedMaxLines;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SelectableText(
+          widget.text,
+          style: bodyStyle,
+          maxLines: _expanded ? null : collapsedMaxLines,
+          // SelectableText has no `overflow`; maxLines clips and the affordance
+          // below communicates the truncation.
+        ),
+        if (hasMore)
+          _ShowMoreToggle(
+            expanded: _expanded,
+            hiddenLines: hiddenLines,
+            color: appColors.subtleText,
+            onTap: () => setState(() => _expanded = !_expanded),
+          ),
+      ],
+    );
+  }
+}
+
+/// "Show more / Show less" affordance with a guaranteed >=44px hit area even
+/// though the painted label is compact.
+class _ShowMoreToggle extends StatelessWidget {
+  final bool expanded;
+  final int hiddenLines;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _ShowMoreToggle({
+    required this.expanded,
+    required this.hiddenLines,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final label = expanded
+        ? l10n.showLess
+        : '${l10n.showMore} (${l10n.lineCountSummary(hiddenLines)})';
+
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppSpacing.codeRadius),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            minHeight: AppSizes.minTouchTarget,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  expanded ? Icons.expand_less : Icons.expand_more,
+                  size: AppIconSize.inline,
+                  color: color,
+                ),
+                const SizedBox(width: AppSpacing.xs),
+                Text(
+                  label,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: color,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
