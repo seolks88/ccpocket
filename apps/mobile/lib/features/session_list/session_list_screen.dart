@@ -24,6 +24,7 @@ import '../../services/connection_url_parser.dart';
 import '../../services/platform_environment_service.dart';
 import '../../services/server_discovery_service.dart';
 import '../../services/ssh_bridge_tunnel_service.dart';
+import '../../theme/code_text_style.dart';
 import '../../widgets/workspace_pane_chrome.dart';
 import '../../widgets/adaptive_context_menu.dart';
 import '../../widgets/new_session_sheet.dart';
@@ -520,8 +521,7 @@ class _SessionListScreenState extends State<SessionListScreen>
                 const SizedBox(height: 4),
                 SelectableText(
                   url,
-                  style: TextStyle(
-                    fontFamily: 'monospace',
+                  style: codeTextSettingsOf(ctx).style(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                     color: Theme.of(ctx).colorScheme.primary,
@@ -2580,8 +2580,7 @@ class _SetupStep extends StatelessWidget {
                   ),
                   child: Text(
                     command,
-                    style: TextStyle(
-                      fontFamily: 'monospace',
+                    style: codeTextSettingsOf(context).style(
                       fontSize: 11,
                       color: cs.onSurfaceVariant,
                     ),

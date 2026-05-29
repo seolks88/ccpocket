@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../l10n/app_localizations.dart';
+import '../../../theme/code_text_style.dart';
 import 'guide_page.dart';
 
 /// Page 5: Auto-start setup (launchd on macOS / systemd on Linux)
@@ -50,8 +51,7 @@ class GuidePageAutostart extends StatelessWidget {
                   ),
                   child: Text(
                     l.guideLaunchdCommandValue,
-                    style: TextStyle(
-                      fontFamily: 'monospace',
+                    style: codeTextSettingsOf(context).style(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                       color: cs.onSurface,

@@ -5,6 +5,7 @@ import '../l10n/app_localizations.dart';
 import '../models/messages.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_theme.dart';
+import '../theme/code_text_style.dart';
 import '../theme/provider_style.dart';
 import '../utils/command_parser.dart';
 import 'adaptive_context_menu.dart';
@@ -559,9 +560,8 @@ class _ToolApprovalArea extends StatelessWidget {
               ),
               child: Text(
                 presentation.primaryTarget!,
-                style: TextStyle(
+                style: codeTextSettingsOf(context).style(
                   fontSize: 11,
-                  fontFamily: 'monospace',
                   color: Theme.of(context).colorScheme.onSurface,
                 ),
                 maxLines: 2,

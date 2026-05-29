@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../models/messages.dart';
 import '../../../services/bridge_service.dart';
+import '../../../theme/code_text_style.dart';
 import '../../../widgets/workspace_pane_chrome.dart';
 import '../../../l10n/app_localizations.dart';
 import '../state/branch_cubit.dart';
@@ -164,8 +165,7 @@ class _BranchSelectorContentState extends State<_BranchSelectorContent> {
                               ),
                               title: Text(
                                 branch,
-                                style: TextStyle(
-                                  fontFamily: 'monospace',
+                                style: codeTextSettingsOf(context).style(
                                   fontSize: 13,
                                   fontWeight: isCurrent
                                       ? FontWeight.w600

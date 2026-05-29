@@ -24,6 +24,7 @@ import '../services/revenuecat_service.dart';
 import '../services/replay_bridge_service.dart';
 import '../services/store_screenshot_extension.dart';
 import '../theme/app_theme.dart';
+import '../theme/code_text_style.dart';
 import '../widgets/session_card.dart';
 import '../widgets/new_session_sheet.dart';
 import '../features/claude_session/claude_session_screen.dart';
@@ -1049,9 +1050,8 @@ class _MockSessionListWrapperState extends State<_MockSessionListWrapper> {
                                 ),
                                 child: Text(
                                   _log[index],
-                                  style: TextStyle(
+                                  style: codeTextSettingsOf(context).style(
                                     fontSize: 11,
-                                    fontFamily: 'monospace',
                                     color: cs.onSurface.withValues(alpha: 0.7),
                                   ),
                                 ),

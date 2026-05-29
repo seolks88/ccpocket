@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../theme/code_text_style.dart';
 import '../../../utils/diff_parser.dart';
 import '../../../widgets/workspace_pane_chrome.dart';
 import '../state/git_view_state.dart';
@@ -368,9 +369,8 @@ class _GitFileLabel extends StatelessWidget {
             node.parentPath,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
+            style: codeTextSettingsOf(context).style(
               fontSize: 11,
-              fontFamily: 'monospace',
               color: cs.onSurfaceVariant,
             ),
           ),

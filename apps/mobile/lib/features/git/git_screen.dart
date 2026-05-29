@@ -11,6 +11,7 @@ import '../../l10n/app_localizations.dart';
 import '../../models/git_diff_interaction_mode.dart';
 import '../../services/bridge_service.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/code_text_style.dart';
 import '../../utils/diff_parser.dart'
     show DiffSelection, reconstructDiff, reconstructUnifiedDiff;
 import '../../widgets/adaptive_context_menu.dart';
@@ -696,8 +697,7 @@ class _DiffActionMenuHeader extends StatelessWidget {
           filePath,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            fontFamily: 'monospace',
+          style: codeTextSettingsOf(context).style(
             fontSize: 13,
             fontWeight: FontWeight.w600,
           ),
@@ -708,8 +708,7 @@ class _DiffActionMenuHeader extends StatelessWidget {
             subtitle!,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontFamily: 'monospace',
+            style: codeTextSettingsOf(context).style(
               fontSize: 11,
               color: subtleText,
             ),

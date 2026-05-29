@@ -7,6 +7,7 @@ import '../../models/messages.dart';
 import '../../router/app_router.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/code_text_style.dart';
 import '../../utils/structured_error_inference.dart';
 
 /// Maps errorCode to a localized title for the error bubble header.
@@ -449,10 +450,9 @@ class _CommandChip extends StatelessWidget {
             Expanded(
               child: Text(
                 command,
-                style: TextStyle(
+                style: codeTextSettingsOf(context).style(
                   color: textColor,
                   fontSize: 12,
-                  fontFamily: 'monospace',
                 ),
               ),
             ),

@@ -431,10 +431,9 @@ class _CommandBubble extends StatelessWidget {
                     children: [
                       TextSpan(
                         text: command.commandName,
-                        style: TextStyle(
+                        style: codeTextSettingsOf(context).style(
                           color: cs.onPrimaryContainer,
                           fontWeight: FontWeight.w600,
-                          fontFamily: 'monospace',
                         ),
                       ),
                       if (hasArgs) ...[

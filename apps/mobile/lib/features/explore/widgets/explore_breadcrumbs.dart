@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../theme/app_theme.dart';
+import '../../../theme/code_text_style.dart';
 
 class ExploreBreadcrumbs extends StatelessWidget {
   final String projectName;
@@ -20,6 +21,7 @@ class ExploreBreadcrumbs extends StatelessWidget {
   Widget build(BuildContext context) {
     final appColors = Theme.of(context).extension<AppColors>()!;
     final textTheme = Theme.of(context).textTheme;
+    final codeFont = codeTextSettingsOf(context).style();
 
     return Container(
       width: double.infinity,
@@ -44,7 +46,8 @@ class ExploreBreadcrumbs extends StatelessWidget {
               '/',
               style: textTheme.bodySmall?.copyWith(
                 color: appColors.subtleText,
-                fontFamily: 'monospace',
+                fontFamily: codeFont.fontFamily,
+                fontFamilyFallback: codeFont.fontFamilyFallback,
               ),
             )
           else

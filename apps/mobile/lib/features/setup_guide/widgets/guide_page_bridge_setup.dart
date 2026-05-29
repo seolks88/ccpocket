@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../l10n/app_localizations.dart';
+import '../../../theme/code_text_style.dart';
 import 'guide_page.dart';
 
 /// Page 2: Bridge Server のセットアップ
@@ -215,8 +216,7 @@ class _StepItem extends StatelessWidget {
                 ),
                 child: Text(
                   step.code,
-                  style: TextStyle(
-                    fontFamily: 'monospace',
+                  style: codeTextSettingsOf(context).style(
                     fontSize: 12,
                     color: cs.onSurface,
                   ),

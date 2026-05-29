@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/app_theme.dart';
+import '../../theme/code_text_style.dart';
 import '../../utils/diff_parser.dart';
 
 /// Maximum number of diff lines shown inline before truncation.
@@ -120,9 +121,8 @@ class _DiffLineRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 1, horizontal: 6),
       child: Text(
         '$prefix ${line.content}',
-        style: TextStyle(
+        style: codeTextSettingsOf(context).style(
           fontSize: _codeFontSize,
-          fontFamily: 'monospace',
           color: textColor,
           height: _codeHeight,
         ),

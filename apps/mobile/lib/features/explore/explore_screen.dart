@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../services/bridge_service.dart';
+import '../../theme/code_text_style.dart';
 import '../../widgets/workspace_pane_chrome.dart';
 import '../file_peek/file_peek_sheet.dart';
 import '../session_list/workspace_shell_screen.dart';
@@ -327,8 +328,7 @@ class _RecentFilesSheet extends StatelessWidget {
                     title: Text(fileName),
                     subtitle: Text(
                       dir.isEmpty ? '/' : dir,
-                      style: TextStyle(
-                        fontFamily: 'monospace',
+                      style: codeTextSettingsOf(context).style(
                         color: subtle,
                         fontSize: 12,
                       ),

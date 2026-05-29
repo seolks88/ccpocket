@@ -7,6 +7,7 @@ import '../models/messages.dart';
 import '../services/native_paste_bridge.dart';
 import '../utils/platform_helper.dart';
 import '../utils/diff_parser.dart';
+import '../theme/code_text_style.dart';
 import 'bubbles/image_preview.dart';
 
 /// Bottom input bar with slash-command button, text field, and action buttons.
@@ -608,9 +609,8 @@ class _DiffPreview extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     preview,
-                    style: TextStyle(
+                    style: codeTextSettingsOf(context).style(
                       fontSize: 10,
-                      fontFamily: 'monospace',
                       color: cs.onSurface.withValues(alpha: 0.6),
                     ),
                     maxLines: 2,

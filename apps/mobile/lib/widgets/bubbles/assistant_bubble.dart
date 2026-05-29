@@ -12,6 +12,7 @@ import '../../models/messages.dart';
 import '../../router/app_router.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/code_text_style.dart';
 import '../../theme/markdown_style.dart';
 import '../../utils/structured_error_inference.dart';
 import '../../utils/diff_parser.dart';
@@ -676,7 +677,7 @@ class _ToolUseCard extends StatelessWidget {
                   onTapFullDiff: onOpenGitScreen,
                 )
               else
-                _buildInputBody(appColors),
+                _buildInputBody(context, appColors),
             ],
           ),
         ),
@@ -684,7 +685,7 @@ class _ToolUseCard extends StatelessWidget {
     );
   }
 
-  Widget _buildInputBody(AppColors appColors) {
+  Widget _buildInputBody(BuildContext context, AppColors appColors) {
     final fullText = getToolFullInput(category, input);
     final lines = fullText.split('\n');
     final hasMore = lines.length > _previewLines;
@@ -692,9 +693,8 @@ class _ToolUseCard extends StatelessWidget {
     if (expansion == ToolUseExpansion.expanded) {
       return SelectableText(
         fullText,
-        style: TextStyle(
+        style: codeTextSettingsOf(context).style(
           fontSize: 11,
-          fontFamily: 'monospace',
           color: appColors.toolResultTextExpanded,
           height: 1.4,
         ),
@@ -711,9 +711,8 @@ class _ToolUseCard extends StatelessWidget {
       children: [
         Text(
           previewText,
-          style: TextStyle(
+          style: codeTextSettingsOf(context).style(
             fontSize: 11,
-            fontFamily: 'monospace',
             color: appColors.toolResultText,
             height: 1.4,
           ),

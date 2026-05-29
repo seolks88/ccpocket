@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
+import '../theme/code_text_style.dart';
 import 'slash_command_sheet.dart';
 
 class SlashCommandOverlay extends StatefulWidget {
@@ -112,8 +113,7 @@ class _SlashCommandOverlayState extends State<SlashCommandOverlay> {
                     const SizedBox(width: 10),
                     Text(
                       cmd.command,
-                      style: TextStyle(
-                        fontFamily: 'monospace',
+                      style: codeTextSettingsOf(context).style(
                         fontWeight: FontWeight.w600,
                         fontSize: 14,
                         color: cs.primary,

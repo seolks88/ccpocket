@@ -23,6 +23,7 @@ import '../../providers/machine_manager_cubit.dart';
 import '../../router/app_router.dart';
 import '../../services/bridge_service.dart';
 import '../../services/in_app_review_service.dart';
+import '../../theme/code_text_style.dart';
 import '../../services/machine_manager_service.dart';
 import '../../services/platform_environment_service.dart';
 import '../../services/prompt_history_service.dart';
@@ -1379,6 +1380,7 @@ class _BridgeUpdateStatusTile extends StatelessWidget {
       context: context,
       showDragHandle: true,
       builder: (context) {
+        final codeFont = codeTextSettingsOf(context).style();
         return SafeArea(
           child: SingleChildScrollView(
             child: Padding(
@@ -1423,9 +1425,10 @@ class _BridgeUpdateStatusTile extends StatelessWidget {
                     ),
                     child: SelectableText(
                       l.bridgeUpdateSetupCommand,
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodyMedium?.copyWith(fontFamily: 'monospace'),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontFamily: codeFont.fontFamily,
+                        fontFamilyFallback: codeFont.fontFamilyFallback,
+                      ),
                     ),
                   ),
                 ],

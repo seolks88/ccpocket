@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../theme/code_text_style.dart';
 import '../state/explore_state.dart';
 
 class ExploreEntryTile extends StatelessWidget {
@@ -35,7 +36,7 @@ class ExploreEntryTile extends StatelessWidget {
               entry.relativePath,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
+              style: codeTextSettingsOf(context).style(fontSize: 12),
             ),
       trailing: entry.isDirectory
           ? const Icon(Icons.chevron_right, size: 18)

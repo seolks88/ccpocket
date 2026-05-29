@@ -153,10 +153,9 @@ Future<String?> _showFilePickerSheet(
                   subtitle: dir.isNotEmpty
                       ? Text(
                           dir,
-                          style: TextStyle(
+                          style: codeTextSettingsOf(context).style(
                             fontSize: 12,
                             color: appColors.subtleText,
-                            fontFamily: 'monospace',
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -357,10 +356,9 @@ class _FilePeekContentState extends State<_FilePeekContent> {
               alignment: Alignment.centerLeft,
               child: Text(
                 widget.filePath,
-                style: TextStyle(
+                style: codeTextSettingsOf(context).style(
                   fontSize: 11,
                   color: appColors.subtleText,
-                  fontFamily: 'monospace',
                 ),
               ),
             ),

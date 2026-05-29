@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/app_theme.dart';
+import '../../theme/code_text_style.dart';
 import '../google_search_text_selection.dart';
 
 /// Displays Claude's thinking content with a collapsible UI.
@@ -165,10 +166,9 @@ class _ThinkingBubbleState extends State<ThinkingBubble>
                   const SizedBox(height: 6),
                   Text(
                     preview,
-                    style: TextStyle(
+                    style: codeTextSettingsOf(context).style(
                       fontSize: 12,
                       color: cs.onSurface.withValues(alpha: 0.6),
-                      fontFamily: 'monospace',
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -181,10 +181,9 @@ class _ThinkingBubbleState extends State<ThinkingBubble>
                     child: SingleChildScrollView(
                       child: SelectableText(
                         widget.thinking,
-                        style: TextStyle(
+                        style: codeTextSettingsOf(context).style(
                           fontSize: 12,
                           color: cs.onSurface.withValues(alpha: 0.8),
-                          fontFamily: 'monospace',
                           height: 1.5,
                         ),
                         contextMenuBuilder:

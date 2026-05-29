@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../models/messages.dart'
     show CodexAppMetadata, CodexPluginMetadata, CodexSkillMetadata;
 import '../theme/app_theme.dart';
+import '../theme/code_text_style.dart';
 
 // ---- Model ----
 
@@ -415,8 +416,7 @@ class _CommandTile extends StatelessWidget {
         children: [
           Text(
             command.command,
-            style: const TextStyle(
-              fontFamily: 'monospace',
+            style: codeTextSettingsOf(context).style(
               fontWeight: FontWeight.w600,
               fontSize: 15,
             ),
