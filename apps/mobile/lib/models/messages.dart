@@ -353,7 +353,7 @@ enum ClaudeEffort {
   high('high', 'High'),
   xhigh('xhigh', 'X High'),
   max('max', 'Max'),
-  ultracode('ultracode', 'Ultracode');
+  ultracode('ultracode', 'Ultracode Workflow');
 
   final String value;
   final String label;
