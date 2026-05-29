@@ -154,7 +154,7 @@ void main() {
     await claudeCubit.close();
   });
 
-  testWidgets('claude fast chip shows actual off state plainly', (
+  testWidgets('claude fast chip shows blocked when requested fast is off', (
     tester,
   ) async {
     final claudeCubit = ChatSessionCubit(
@@ -179,7 +179,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
 
     expect(find.text('Fast Pending'), findsNothing);
-    expect(find.text('Fast Off'), findsOneWidget);
+    expect(find.text('Fast Blocked'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await claudeCubit.close();

@@ -1783,7 +1783,7 @@ class ClaudeFastModeChip extends StatelessWidget {
     final label = enabled
         ? switch (normalizedActual) {
             'cooldown' => 'Fast Cooldown',
-            'off' => 'Fast Off',
+            'off' => 'Fast Blocked',
             _ => 'Fast',
           }
         : 'Fast Off';
@@ -1793,7 +1793,7 @@ class ClaudeFastModeChip extends StatelessWidget {
       label: label,
       color: color,
       tooltip:
-          'Claude Opus fast mode: ${enabled ? 'requested' : 'off'}${actualState == null ? '' : ', Claude reports $actualState'}${enabled && normalizedActual == 'off' ? '. Check usage credits or admin settings.' : ''}',
+          'Claude Opus fast mode: ${enabled ? 'requested' : 'off'}${actualState == null ? '' : ', Claude reports $actualState'}${enabled && normalizedActual == 'off' ? '. Extra usage or usage credits are disabled.' : ''}',
       showChevron: false,
       onTap: onTap,
     );
