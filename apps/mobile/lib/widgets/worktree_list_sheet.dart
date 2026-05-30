@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../l10n/app_localizations.dart';
 import '../models/messages.dart';
 import '../services/bridge_service.dart';
 import '../theme/app_theme.dart';
@@ -85,10 +86,11 @@ class _WorktreeListContentState extends State<_WorktreeListContent> {
       widget.currentWorktreePath == wt.worktreePath;
 
   void _confirmRemove(WorktreeInfo wt) {
+    final l = AppLocalizations.of(context);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Remove Worktree'),
+        title: Text(l.removeWorktreeTitle),
         content: Text(
           'Remove worktree on branch "${wt.branch}"?\n'
           'Path: ${wt.worktreePath}',
@@ -96,7 +98,7 @@ class _WorktreeListContentState extends State<_WorktreeListContent> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
+            child: Text(l.cancel),
           ),
           FilledButton(
             onPressed: () {
@@ -107,7 +109,7 @@ class _WorktreeListContentState extends State<_WorktreeListContent> {
               backgroundColor: Theme.of(ctx).colorScheme.error,
               foregroundColor: Theme.of(ctx).colorScheme.onError,
             ),
-            child: const Text('Remove'),
+            child: Text(l.remove),
           ),
         ],
       ),
@@ -117,6 +119,7 @@ class _WorktreeListContentState extends State<_WorktreeListContent> {
   @override
   Widget build(BuildContext context) {
     final appColors = Theme.of(context).extension<AppColors>()!;
+    final l = AppLocalizations.of(context);
     return Padding(
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
@@ -133,9 +136,12 @@ class _WorktreeListContentState extends State<_WorktreeListContent> {
               children: [
                 Icon(Icons.account_tree_outlined, size: 20),
                 const SizedBox(width: 8),
-                const Text(
-                  'Worktrees',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                Text(
+                  l.worktrees,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ],
             ),
@@ -151,7 +157,7 @@ class _WorktreeListContentState extends State<_WorktreeListContent> {
               padding: const EdgeInsets.all(32),
               child: Center(
                 child: Text(
-                  'No worktrees found',
+                  l.noWorktreesFound,
                   style: TextStyle(color: appColors.subtleText),
                 ),
               ),
@@ -193,6 +199,7 @@ class _MainRepoTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final appColors = Theme.of(context).extension<AppColors>()!;
     final cs = Theme.of(context).colorScheme;
+    final l = AppLocalizations.of(context);
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -207,7 +214,7 @@ class _MainRepoTile extends StatelessWidget {
           color: isCurrent ? cs.primary : appColors.subtleText,
         ),
         title: Text(
-          'main repo',
+          l.mainRepo,
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w600,
@@ -241,6 +248,7 @@ class _WorktreeTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final appColors = Theme.of(context).extension<AppColors>()!;
     final cs = Theme.of(context).colorScheme;
+    final l = AppLocalizations.of(context);
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -271,7 +279,7 @@ class _WorktreeTile extends StatelessWidget {
             : IconButton(
                 icon: Icon(Icons.delete_outline, size: 20, color: cs.error),
                 onPressed: onRemove,
-                tooltip: 'Remove worktree',
+                tooltip: l.removeWorktreeTitle,
               ),
       ),
     );

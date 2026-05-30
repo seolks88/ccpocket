@@ -270,7 +270,7 @@ class _GitScreenBodyState extends State<_GitScreenBody> {
                 ? chrome.compactButtonStyle()
                 : null,
             icon: const Icon(Icons.close),
-            tooltip: 'Close',
+            tooltip: l.close,
           )
         : null;
 
@@ -454,44 +454,45 @@ class _GitScreenBodyState extends State<_GitScreenBody> {
     if (fileIdx >= state.files.length) return;
     final file = state.files[fileIdx];
     final isStaged = state.viewMode == GitViewMode.staged;
+    final l = AppLocalizations.of(context);
 
     final action = await showAdaptiveActionMenu<String>(
       context: context,
       position: position,
       header: _DiffActionMenuHeader(filePath: file.filePath),
       items: [
-        const AdaptiveActionMenuItem(
-          key: ValueKey('git_view_file_action'),
+        AdaptiveActionMenuItem(
+          key: const ValueKey('git_view_file_action'),
           value: 'view_file',
           icon: Icons.description_outlined,
-          label: 'View File',
-          subtitle: 'Open the full current file',
+          label: l.gitViewFile,
+          subtitle: l.gitViewFileSubtitle,
         ),
         if (!isStaged)
-          const AdaptiveActionMenuItem(
+          AdaptiveActionMenuItem(
             value: 'stage',
             icon: Icons.add_circle_outline,
-            label: 'Stage',
+            label: l.gitStage,
           ),
         if (isStaged)
-          const AdaptiveActionMenuItem(
+          AdaptiveActionMenuItem(
             value: 'unstage',
             icon: Icons.remove_circle_outline,
-            label: 'Unstage',
+            label: l.gitUnstage,
           ),
         if (!isStaged)
-          const AdaptiveActionMenuItem(
+          AdaptiveActionMenuItem(
             value: 'revert',
             icon: Icons.undo,
-            label: 'Revert',
-            subtitle: 'Discard all changes in this file',
+            label: l.gitRevert,
+            subtitle: l.gitDiscardFileUnstagedChangesMessage,
             destructive: true,
           ),
-        const AdaptiveActionMenuItem(
+        AdaptiveActionMenuItem(
           value: 'request_change',
           icon: Icons.rate_review_outlined,
-          label: 'Request Change',
-          subtitle: 'Send this file back to AI with feedback',
+          label: l.gitRequestChange,
+          subtitle: l.gitRequestChangeFileSubtitle,
         ),
       ],
     );
@@ -533,6 +534,7 @@ class _GitScreenBodyState extends State<_GitScreenBody> {
     if (hunkIdx >= file.hunks.length) return;
     final hunk = file.hunks[hunkIdx];
     final isStaged = state.viewMode == GitViewMode.staged;
+    final l = AppLocalizations.of(context);
 
     final action = await showAdaptiveActionMenu<String>(
       context: context,
@@ -542,38 +544,38 @@ class _GitScreenBodyState extends State<_GitScreenBody> {
         subtitle: hunk.header,
       ),
       items: [
-        const AdaptiveActionMenuItem(
-          key: ValueKey('git_view_file_action'),
+        AdaptiveActionMenuItem(
+          key: const ValueKey('git_view_file_action'),
           value: 'view_file',
           icon: Icons.description_outlined,
-          label: 'View File',
-          subtitle: 'Open the full current file',
+          label: l.gitViewFile,
+          subtitle: l.gitViewFileSubtitle,
         ),
         if (!isStaged)
-          const AdaptiveActionMenuItem(
+          AdaptiveActionMenuItem(
             value: 'stage',
             icon: Icons.add_circle_outline,
-            label: 'Stage',
+            label: l.gitStage,
           ),
         if (isStaged)
-          const AdaptiveActionMenuItem(
+          AdaptiveActionMenuItem(
             value: 'unstage',
             icon: Icons.remove_circle_outline,
-            label: 'Unstage',
+            label: l.gitUnstage,
           ),
         if (!isStaged)
-          const AdaptiveActionMenuItem(
+          AdaptiveActionMenuItem(
             value: 'revert',
             icon: Icons.undo,
-            label: 'Revert',
-            subtitle: 'Discard changes in this hunk',
+            label: l.gitRevert,
+            subtitle: l.gitDiscardHunkUnstagedChangesMessage,
             destructive: true,
           ),
-        const AdaptiveActionMenuItem(
+        AdaptiveActionMenuItem(
           value: 'request_change',
           icon: Icons.rate_review_outlined,
-          label: 'Request Change',
-          subtitle: 'Send this hunk back to AI with feedback',
+          label: l.gitRequestChange,
+          subtitle: l.gitRequestChangeHunkSubtitle,
         ),
       ],
     );
@@ -608,6 +610,7 @@ class _GitScreenBodyState extends State<_GitScreenBody> {
     required String message,
     required VoidCallback onConfirm,
   }) async {
+    final l = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -616,7 +619,7 @@ class _GitScreenBodyState extends State<_GitScreenBody> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
+            child: Text(l.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
@@ -624,7 +627,7 @@ class _GitScreenBodyState extends State<_GitScreenBody> {
               backgroundColor: Theme.of(dialogContext).colorScheme.error,
               foregroundColor: Theme.of(dialogContext).colorScheme.onError,
             ),
-            child: const Text('Revert'),
+            child: Text(l.gitRevert),
           ),
         ],
       ),
@@ -732,10 +735,11 @@ class _FileListAppBarButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final l = AppLocalizations.of(context);
 
     return IconButton(
       key: const ValueKey('git_file_list_button'),
-      tooltip: 'Files',
+      tooltip: l.files,
       onPressed: onPressed,
       icon: Stack(
         clipBehavior: Clip.none,
@@ -906,6 +910,7 @@ class _DiffBottomBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final l = AppLocalizations.of(context);
 
     // Calculate stats from visible files
     final files = state.files;
@@ -989,7 +994,7 @@ class _DiffBottomBar extends StatelessWidget {
                           child: _ActionButton(
                             key: const ValueKey('revert_all_button'),
                             icon: Icons.undo,
-                            label: 'Revert All',
+                            label: l.gitRevertAll,
                             isError: true,
                             onPressed: _isBusy || files.isEmpty
                                 ? null
@@ -1001,7 +1006,7 @@ class _DiffBottomBar extends StatelessWidget {
                           child: _ActionButton(
                             key: const ValueKey('stage_all_button'),
                             icon: Icons.add_circle_outline,
-                            label: 'Stage All',
+                            label: l.gitStageAll,
                             primary: true,
                             onPressed: _isBusy || files.isEmpty
                                 ? null
@@ -1014,7 +1019,7 @@ class _DiffBottomBar extends StatelessWidget {
                           child: _ActionButton(
                             key: const ValueKey('unstage_all_button'),
                             icon: Icons.remove_circle_outline,
-                            label: 'Unstage All',
+                            label: l.gitUnstageAll,
                             onPressed: _isBusy || files.isEmpty
                                 ? null
                                 : cubit.unstageAll,
@@ -1025,7 +1030,7 @@ class _DiffBottomBar extends StatelessWidget {
                           child: _ActionButton(
                             key: const ValueKey('commit_button'),
                             icon: Icons.check,
-                            label: 'Commit',
+                            label: l.gitCommit,
                             primary: true,
                             onPressed: _isBusy ? null : onCommit,
                           ),

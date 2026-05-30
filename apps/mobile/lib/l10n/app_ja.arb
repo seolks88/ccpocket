@@ -1015,6 +1015,118 @@
       "message": { "type": "String" }
     }
   },
+  "loadMore": "もっと読み込む",
+  "@loadMore": {
+    "description": "Button label to load more sessions in the list"
+  },
+  "fullScreen": "フルスクリーン",
+  "@fullScreen": {
+    "description": "Screenshot option to capture the entire screen"
+  },
+  "captureEntireDesktop": "デスクトップ全体をキャプチャ",
+  "@captureEntireDesktop": {
+    "description": "Subtitle for the full screen screenshot option"
+  },
+  "noWindowsFound": "ウィンドウが見つかりません",
+  "@noWindowsFound": {
+    "description": "Empty state when no capturable windows are found"
+  },
+  "screenshotSaved": "スクリーンショットを保存しました",
+  "@screenshotSaved": {
+    "description": "Snackbar shown after a screenshot is saved"
+  },
+  "screenshotFailed": "スクリーンショットに失敗しました",
+  "@screenshotFailed": {
+    "description": "Snackbar shown when a screenshot fails"
+  },
+  "worktrees": "ワークツリー",
+  "@worktrees": {
+    "description": "Title of the git worktree list sheet"
+  },
+  "mainRepo": "メインリポジトリ",
+  "@mainRepo": {
+    "description": "Label for the main repository entry in the worktree list"
+  },
+  "removeWorktreeTitle": "ワークツリーを削除",
+  "@removeWorktreeTitle": {
+    "description": "Title for the remove worktree confirmation dialog"
+  },
+  "noWorktreesFound": "ワークツリーがありません",
+  "@noWorktreesFound": {
+    "description": "Empty state when no git worktrees exist"
+  },
+  "recentFiles": "最近のファイル",
+  "@recentFiles": {
+    "description": "Label/tooltip for recently opened files in the explorer"
+  },
+  "noRecentFiles": "最近開いたファイルはまだありません",
+  "@noRecentFiles": {
+    "description": "Empty state when there are no recently opened files"
+  },
+  "implementationPlan": "実装プラン",
+  "@implementationPlan": {
+    "description": "Header for the implementation plan card and detail sheet"
+  },
+  "viewFullPlan": "プラン全体を表示",
+  "@viewFullPlan": {
+    "description": "Button to open the full implementation plan"
+  },
+  "gitViewFile": "ファイルを表示",
+  "@gitViewFile": {
+    "description": "Git action menu label to open the full file"
+  },
+  "gitViewFileSubtitle": "現在のファイル全体を開く",
+  "@gitViewFileSubtitle": {
+    "description": "Subtitle for the git View File action"
+  },
+  "gitStage": "ステージ",
+  "@gitStage": {
+    "description": "Git action label to stage a file or hunk"
+  },
+  "gitUnstage": "ステージ解除",
+  "@gitUnstage": {
+    "description": "Git action label to unstage a file or hunk"
+  },
+  "gitRevert": "取り消す",
+  "@gitRevert": {
+    "description": "Git action label to revert/discard changes"
+  },
+  "gitRequestChange": "変更を依頼",
+  "@gitRequestChange": {
+    "description": "Git action label to send a file or hunk back to the agent"
+  },
+  "gitRequestChangeFileSubtitle": "このファイルをフィードバック付きでAIに戻す",
+  "@gitRequestChangeFileSubtitle": {
+    "description": "Subtitle for Request Change on a file"
+  },
+  "gitRequestChangeHunkSubtitle": "このハンクをフィードバック付きでAIに戻す",
+  "@gitRequestChangeHunkSubtitle": {
+    "description": "Subtitle for Request Change on a hunk"
+  },
+  "gitRevertAll": "すべて取り消す",
+  "@gitRevertAll": {
+    "description": "Git button label to revert all visible changes"
+  },
+  "gitStageAll": "すべてステージ",
+  "@gitStageAll": {
+    "description": "Git button label to stage all files"
+  },
+  "gitUnstageAll": "すべてステージ解除",
+  "@gitUnstageAll": {
+    "description": "Git button label to unstage all files"
+  },
+  "gitCommit": "コミット",
+  "@gitCommit": {
+    "description": "Git button label to commit staged changes"
+  },
+  "files": "ファイル",
+  "@files": {
+    "description": "Tooltip for the git file list button"
+  },
+  "close": "閉じる",
+  "@close": {
+    "description": "Generic close tooltip/label"
+  },
   "gitDiscardAllChangesTitle": "すべての変更を破棄しますか",
   "gitDiscardVisibleUnstagedChangesMessage": "表示中の未ステージ変更をすべて破棄します。",
   "gitDiscardChangeTitle": "この変更を破棄しますか",

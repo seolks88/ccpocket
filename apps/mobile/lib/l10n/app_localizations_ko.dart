@@ -2342,6 +2342,90 @@ class AppLocalizationsKo extends AppLocalizations {
   }
 
   @override
+  String get loadMore => '더 보기';
+
+  @override
+  String get fullScreen => '전체 화면';
+
+  @override
+  String get captureEntireDesktop => '전체 데스크톱 캡처';
+
+  @override
+  String get noWindowsFound => '창을 찾을 수 없음';
+
+  @override
+  String get screenshotSaved => '스크린샷이 저장됨';
+
+  @override
+  String get screenshotFailed => '스크린샷 실패';
+
+  @override
+  String get worktrees => '워크트리';
+
+  @override
+  String get mainRepo => '메인 저장소';
+
+  @override
+  String get removeWorktreeTitle => '워크트리 제거';
+
+  @override
+  String get noWorktreesFound => '워크트리 없음';
+
+  @override
+  String get recentFiles => '최근 파일';
+
+  @override
+  String get noRecentFiles => '최근에 연 파일이 아직 없습니다';
+
+  @override
+  String get implementationPlan => '구현 계획';
+
+  @override
+  String get viewFullPlan => '전체 계획 보기';
+
+  @override
+  String get gitViewFile => '파일 보기';
+
+  @override
+  String get gitViewFileSubtitle => '현재 파일 전체 열기';
+
+  @override
+  String get gitStage => '스테이지';
+
+  @override
+  String get gitUnstage => '스테이지 해제';
+
+  @override
+  String get gitRevert => '되돌리기';
+
+  @override
+  String get gitRequestChange => '변경 요청';
+
+  @override
+  String get gitRequestChangeFileSubtitle => '이 파일을 피드백과 함께 AI에 다시 보내기';
+
+  @override
+  String get gitRequestChangeHunkSubtitle => '이 헝크를 피드백과 함께 AI에 다시 보내기';
+
+  @override
+  String get gitRevertAll => '모두 되돌리기';
+
+  @override
+  String get gitStageAll => '모두 스테이지';
+
+  @override
+  String get gitUnstageAll => '모두 스테이지 해제';
+
+  @override
+  String get gitCommit => '커밋';
+
+  @override
+  String get files => '파일';
+
+  @override
+  String get close => '닫기';
+
+  @override
   String get gitDiscardAllChangesTitle => '모든 변경 사항을 버릴까요?';
 
   @override

@@ -2295,6 +2295,90 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get loadMore => '加载更多';
+
+  @override
+  String get fullScreen => '全屏';
+
+  @override
+  String get captureEntireDesktop => '截取整个桌面';
+
+  @override
+  String get noWindowsFound => '未找到窗口';
+
+  @override
+  String get screenshotSaved => '截图已保存';
+
+  @override
+  String get screenshotFailed => '截图失败';
+
+  @override
+  String get worktrees => '工作树';
+
+  @override
+  String get mainRepo => '主仓库';
+
+  @override
+  String get removeWorktreeTitle => '移除工作树';
+
+  @override
+  String get noWorktreesFound => '没有工作树';
+
+  @override
+  String get recentFiles => '最近的文件';
+
+  @override
+  String get noRecentFiles => '还没有最近打开的文件';
+
+  @override
+  String get implementationPlan => '实施计划';
+
+  @override
+  String get viewFullPlan => '查看完整计划';
+
+  @override
+  String get gitViewFile => '查看文件';
+
+  @override
+  String get gitViewFileSubtitle => '打开当前完整文件';
+
+  @override
+  String get gitStage => '暂存';
+
+  @override
+  String get gitUnstage => '取消暂存';
+
+  @override
+  String get gitRevert => '还原';
+
+  @override
+  String get gitRequestChange => '请求修改';
+
+  @override
+  String get gitRequestChangeFileSubtitle => '将此文件连同反馈发回 AI';
+
+  @override
+  String get gitRequestChangeHunkSubtitle => '将此代码块连同反馈发回 AI';
+
+  @override
+  String get gitRevertAll => '全部还原';
+
+  @override
+  String get gitStageAll => '全部暂存';
+
+  @override
+  String get gitUnstageAll => '全部取消暂存';
+
+  @override
+  String get gitCommit => '提交';
+
+  @override
+  String get files => '文件';
+
+  @override
+  String get close => '关闭';
+
+  @override
   String get gitDiscardAllChangesTitle => '要放弃所有更改吗？';
 
   @override

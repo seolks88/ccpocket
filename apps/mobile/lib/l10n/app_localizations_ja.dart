@@ -2321,6 +2321,90 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
+  String get loadMore => 'もっと読み込む';
+
+  @override
+  String get fullScreen => 'フルスクリーン';
+
+  @override
+  String get captureEntireDesktop => 'デスクトップ全体をキャプチャ';
+
+  @override
+  String get noWindowsFound => 'ウィンドウが見つかりません';
+
+  @override
+  String get screenshotSaved => 'スクリーンショットを保存しました';
+
+  @override
+  String get screenshotFailed => 'スクリーンショットに失敗しました';
+
+  @override
+  String get worktrees => 'ワークツリー';
+
+  @override
+  String get mainRepo => 'メインリポジトリ';
+
+  @override
+  String get removeWorktreeTitle => 'ワークツリーを削除';
+
+  @override
+  String get noWorktreesFound => 'ワークツリーがありません';
+
+  @override
+  String get recentFiles => '最近のファイル';
+
+  @override
+  String get noRecentFiles => '最近開いたファイルはまだありません';
+
+  @override
+  String get implementationPlan => '実装プラン';
+
+  @override
+  String get viewFullPlan => 'プラン全体を表示';
+
+  @override
+  String get gitViewFile => 'ファイルを表示';
+
+  @override
+  String get gitViewFileSubtitle => '現在のファイル全体を開く';
+
+  @override
+  String get gitStage => 'ステージ';
+
+  @override
+  String get gitUnstage => 'ステージ解除';
+
+  @override
+  String get gitRevert => '取り消す';
+
+  @override
+  String get gitRequestChange => '変更を依頼';
+
+  @override
+  String get gitRequestChangeFileSubtitle => 'このファイルをフィードバック付きでAIに戻す';
+
+  @override
+  String get gitRequestChangeHunkSubtitle => 'このハンクをフィードバック付きでAIに戻す';
+
+  @override
+  String get gitRevertAll => 'すべて取り消す';
+
+  @override
+  String get gitStageAll => 'すべてステージ';
+
+  @override
+  String get gitUnstageAll => 'すべてステージ解除';
+
+  @override
+  String get gitCommit => 'コミット';
+
+  @override
+  String get files => 'ファイル';
+
+  @override
+  String get close => '閉じる';
+
+  @override
   String get gitDiscardAllChangesTitle => 'すべての変更を破棄しますか';
 
   @override

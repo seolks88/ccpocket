@@ -825,7 +825,7 @@ class HomeContentState extends State<HomeContent> {
                         key: const ValueKey('load_more_button'),
                         onPressed: widget.onLoadMore,
                         icon: const Icon(Icons.expand_more, size: 18),
-                        label: const Text('Load More'),
+                        label: Text(l.loadMore),
                       ),
               ),
               const SizedBox(height: 8),

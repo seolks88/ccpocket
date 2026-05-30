@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 
+import '../../l10n/app_localizations.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/markdown_style.dart';
@@ -89,7 +90,7 @@ class _PlanHeader extends StatelessWidget {
           ),
           const SizedBox(width: AppSpacing.sm),
           Text(
-            'Implementation Plan',
+            AppLocalizations.of(context).implementationPlan,
             style: theme.textTheme.titleSmall?.copyWith(
               fontWeight: FontWeight.w600,
               color: planColor,
@@ -206,7 +207,7 @@ class _PlanFooter extends StatelessWidget {
             Icon(Icons.unfold_more, size: AppIconSize.inline, color: planColor),
             const SizedBox(width: AppSpacing.xs),
             Text(
-              'View Full Plan',
+              AppLocalizations.of(context).viewFullPlan,
               style: theme.textTheme.labelLarge?.copyWith(
                 fontWeight: FontWeight.w600,
                 color: planColor,

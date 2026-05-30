@@ -228,7 +228,8 @@ class ErrorBubble extends StatelessWidget {
           Clipboard.setData(ClipboardData(text: command));
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Copied "$command"'),
+              content: Text(AppLocalizations.of(context).copied),
+              behavior: SnackBarBehavior.floating,
               duration: const Duration(seconds: 2),
             ),
           );
@@ -433,7 +434,8 @@ class _CommandChip extends StatelessWidget {
         Clipboard.setData(ClipboardData(text: copyValue));
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Copied "$copyValue"'),
+            content: Text(AppLocalizations.of(context).copied),
+            behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 2),
           ),
         );

@@ -2,6 +2,7 @@ import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../l10n/app_localizations.dart';
 import '../../services/bridge_service.dart';
 import '../../theme/code_text_style.dart';
 import '../../widgets/sheet_handle.dart';
@@ -157,6 +158,7 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
     return BlocBuilder<ExploreCubit, ExploreState>(
       builder: (context, state) {
         _ensureHighlightedVisible();
+        final l = AppLocalizations.of(context);
         final cubit = context.read<ExploreCubit>();
         final shell = WorkspaceShellScreen.maybeOf(context);
         final chrome = resolveWorkspacePaneChrome(
@@ -181,7 +183,7 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
           appBar: chrome.wrapAppBar(
             AppBar(
               toolbarHeight: chrome.toolbarHeight,
-              title: chrome.wrapTitle(const Text('Explorer')),
+              title: chrome.wrapTitle(Text(l.explorer)),
               automaticallyImplyLeading: !widget.embedded,
               leading: chrome.wrapLeading(leading),
               leadingWidth: chrome.resolveLeadingWidth(
@@ -199,7 +201,7 @@ class _ExploreScreenBodyState extends State<_ExploreScreenBody> {
                       ? chrome.compactButtonStyle()
                       : null,
                   icon: const Icon(Icons.history),
-                  tooltip: 'Recent files',
+                  tooltip: l.recentFiles,
                 ),
               ]),
             ),
@@ -277,21 +279,25 @@ class _RecentFilesSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final subtle = Theme.of(context).colorScheme.onSurfaceVariant;
+    final l = AppLocalizations.of(context);
     return SafeArea(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           const SheetHandle(),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: Row(
               children: [
-                Icon(Icons.history, size: 18),
-                SizedBox(width: 8),
+                const Icon(Icons.history, size: 18),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Recent open files',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    l.recentFiles,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ],
@@ -299,9 +305,9 @@ class _RecentFilesSheet extends StatelessWidget {
           ),
           const Divider(height: 1),
           if (recentFiles.isEmpty)
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 20, 16, 24),
-              child: Text('No recent open files yet'),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+              child: Text(l.noRecentFiles),
             )
           else
             Flexible(

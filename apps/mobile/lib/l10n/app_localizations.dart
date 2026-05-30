@@ -4380,6 +4380,174 @@ abstract class AppLocalizations {
   /// **'復元に失敗しました: {message}'**
   String supporterRestoreFailed(String message);
 
+  /// Button label to load more sessions in the list
+  ///
+  /// In ja, this message translates to:
+  /// **'もっと読み込む'**
+  String get loadMore;
+
+  /// Screenshot option to capture the entire screen
+  ///
+  /// In ja, this message translates to:
+  /// **'フルスクリーン'**
+  String get fullScreen;
+
+  /// Subtitle for the full screen screenshot option
+  ///
+  /// In ja, this message translates to:
+  /// **'デスクトップ全体をキャプチャ'**
+  String get captureEntireDesktop;
+
+  /// Empty state when no capturable windows are found
+  ///
+  /// In ja, this message translates to:
+  /// **'ウィンドウが見つかりません'**
+  String get noWindowsFound;
+
+  /// Snackbar shown after a screenshot is saved
+  ///
+  /// In ja, this message translates to:
+  /// **'スクリーンショットを保存しました'**
+  String get screenshotSaved;
+
+  /// Snackbar shown when a screenshot fails
+  ///
+  /// In ja, this message translates to:
+  /// **'スクリーンショットに失敗しました'**
+  String get screenshotFailed;
+
+  /// Title of the git worktree list sheet
+  ///
+  /// In ja, this message translates to:
+  /// **'ワークツリー'**
+  String get worktrees;
+
+  /// Label for the main repository entry in the worktree list
+  ///
+  /// In ja, this message translates to:
+  /// **'メインリポジトリ'**
+  String get mainRepo;
+
+  /// Title for the remove worktree confirmation dialog
+  ///
+  /// In ja, this message translates to:
+  /// **'ワークツリーを削除'**
+  String get removeWorktreeTitle;
+
+  /// Empty state when no git worktrees exist
+  ///
+  /// In ja, this message translates to:
+  /// **'ワークツリーがありません'**
+  String get noWorktreesFound;
+
+  /// Label/tooltip for recently opened files in the explorer
+  ///
+  /// In ja, this message translates to:
+  /// **'最近のファイル'**
+  String get recentFiles;
+
+  /// Empty state when there are no recently opened files
+  ///
+  /// In ja, this message translates to:
+  /// **'最近開いたファイルはまだありません'**
+  String get noRecentFiles;
+
+  /// Header for the implementation plan card and detail sheet
+  ///
+  /// In ja, this message translates to:
+  /// **'実装プラン'**
+  String get implementationPlan;
+
+  /// Button to open the full implementation plan
+  ///
+  /// In ja, this message translates to:
+  /// **'プラン全体を表示'**
+  String get viewFullPlan;
+
+  /// Git action menu label to open the full file
+  ///
+  /// In ja, this message translates to:
+  /// **'ファイルを表示'**
+  String get gitViewFile;
+
+  /// Subtitle for the git View File action
+  ///
+  /// In ja, this message translates to:
+  /// **'現在のファイル全体を開く'**
+  String get gitViewFileSubtitle;
+
+  /// Git action label to stage a file or hunk
+  ///
+  /// In ja, this message translates to:
+  /// **'ステージ'**
+  String get gitStage;
+
+  /// Git action label to unstage a file or hunk
+  ///
+  /// In ja, this message translates to:
+  /// **'ステージ解除'**
+  String get gitUnstage;
+
+  /// Git action label to revert/discard changes
+  ///
+  /// In ja, this message translates to:
+  /// **'取り消す'**
+  String get gitRevert;
+
+  /// Git action label to send a file or hunk back to the agent
+  ///
+  /// In ja, this message translates to:
+  /// **'変更を依頼'**
+  String get gitRequestChange;
+
+  /// Subtitle for Request Change on a file
+  ///
+  /// In ja, this message translates to:
+  /// **'このファイルをフィードバック付きでAIに戻す'**
+  String get gitRequestChangeFileSubtitle;
+
+  /// Subtitle for Request Change on a hunk
+  ///
+  /// In ja, this message translates to:
+  /// **'このハンクをフィードバック付きでAIに戻す'**
+  String get gitRequestChangeHunkSubtitle;
+
+  /// Git button label to revert all visible changes
+  ///
+  /// In ja, this message translates to:
+  /// **'すべて取り消す'**
+  String get gitRevertAll;
+
+  /// Git button label to stage all files
+  ///
+  /// In ja, this message translates to:
+  /// **'すべてステージ'**
+  String get gitStageAll;
+
+  /// Git button label to unstage all files
+  ///
+  /// In ja, this message translates to:
+  /// **'すべてステージ解除'**
+  String get gitUnstageAll;
+
+  /// Git button label to commit staged changes
+  ///
+  /// In ja, this message translates to:
+  /// **'コミット'**
+  String get gitCommit;
+
+  /// Tooltip for the git file list button
+  ///
+  /// In ja, this message translates to:
+  /// **'ファイル'**
+  String get files;
+
+  /// Generic close tooltip/label
+  ///
+  /// In ja, this message translates to:
+  /// **'閉じる'**
+  String get close;
+
   /// No description provided for @gitDiscardAllChangesTitle.
   ///
   /// In ja, this message translates to:

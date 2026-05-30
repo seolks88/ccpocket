@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 
+import '../l10n/app_localizations.dart';
 import '../theme/markdown_style.dart';
 import 'sheet_handle.dart';
 import 'workspace_pane_chrome.dart';
@@ -27,6 +28,7 @@ class _PlanDetailContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final l = AppLocalizations.of(context);
     final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
 
     return AnimatedPadding(
@@ -47,7 +49,7 @@ class _PlanDetailContent extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Implementation Plan',
+                    l.implementationPlan,
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w600,

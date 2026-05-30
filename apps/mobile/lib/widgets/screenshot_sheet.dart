@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../l10n/app_localizations.dart';
 import '../models/messages.dart';
 import '../services/bridge_service.dart';
 import '../theme/app_theme.dart';
@@ -66,17 +67,18 @@ class _ScreenshotSheetContentState extends State<_ScreenshotSheetContent> {
       setState(() => _capturing = false);
       // Capture references before pop (context may become invalid after pop)
       final messenger = ScaffoldMessenger.of(context);
+      final l = AppLocalizations.of(context);
       if (result.success) {
         Navigator.pop(context);
         messenger.showSnackBar(
-          const SnackBar(
-            content: Text('Screenshot saved'),
-            duration: Duration(seconds: 2),
+          SnackBar(
+            content: Text(l.screenshotSaved),
+            duration: const Duration(seconds: 2),
           ),
         );
       } else {
         messenger.showSnackBar(
-          SnackBar(content: Text(result.error ?? 'Screenshot failed')),
+          SnackBar(content: Text(result.error ?? l.screenshotFailed)),
         );
       }
     });
@@ -104,6 +106,7 @@ class _ScreenshotSheetContentState extends State<_ScreenshotSheetContent> {
   Widget build(BuildContext context) {
     final appColors = Theme.of(context).extension<AppColors>()!;
     final cs = Theme.of(context).colorScheme;
+    final l = AppLocalizations.of(context);
 
     return Padding(
       padding: EdgeInsets.only(
@@ -121,10 +124,13 @@ class _ScreenshotSheetContentState extends State<_ScreenshotSheetContent> {
               children: [
                 const Icon(Icons.screenshot_monitor, size: 20),
                 const SizedBox(width: 8),
-                const Expanded(
+                Expanded(
                   child: Text(
-                    'Screenshot',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                    l.screenshot,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
                 // Refresh button
@@ -136,7 +142,7 @@ class _ScreenshotSheetContentState extends State<_ScreenshotSheetContent> {
                           setState(() => _windows = null);
                           widget.bridge.requestWindowList();
                         },
-                  tooltip: 'Refresh',
+                  tooltip: l.refresh,
                   visualDensity: VisualDensity.compact,
                 ),
               ],
@@ -156,12 +162,15 @@ class _ScreenshotSheetContentState extends State<_ScreenshotSheetContent> {
               margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               child: ListTile(
                 leading: Icon(Icons.fullscreen, size: 24, color: cs.primary),
-                title: const Text(
-                  'Full Screen',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                title: Text(
+                  l.fullScreen,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 subtitle: Text(
-                  'Capture entire desktop',
+                  l.captureEntireDesktop,
                   style: TextStyle(fontSize: 11, color: appColors.subtleText),
                 ),
                 onTap: () => _capture(mode: 'fullscreen'),
@@ -179,7 +188,7 @@ class _ScreenshotSheetContentState extends State<_ScreenshotSheetContent> {
                 padding: const EdgeInsets.all(32),
                 child: Center(
                   child: Text(
-                    'No windows found',
+                    l.noWindowsFound,
                     style: TextStyle(color: appColors.subtleText),
                   ),
                 ),

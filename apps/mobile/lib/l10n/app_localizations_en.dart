@@ -2407,6 +2407,92 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get loadMore => 'Load More';
+
+  @override
+  String get fullScreen => 'Full Screen';
+
+  @override
+  String get captureEntireDesktop => 'Capture entire desktop';
+
+  @override
+  String get noWindowsFound => 'No windows found';
+
+  @override
+  String get screenshotSaved => 'Screenshot saved';
+
+  @override
+  String get screenshotFailed => 'Screenshot failed';
+
+  @override
+  String get worktrees => 'Worktrees';
+
+  @override
+  String get mainRepo => 'main repo';
+
+  @override
+  String get removeWorktreeTitle => 'Remove Worktree';
+
+  @override
+  String get noWorktreesFound => 'No worktrees found';
+
+  @override
+  String get recentFiles => 'Recent files';
+
+  @override
+  String get noRecentFiles => 'No recent open files yet';
+
+  @override
+  String get implementationPlan => 'Implementation Plan';
+
+  @override
+  String get viewFullPlan => 'View Full Plan';
+
+  @override
+  String get gitViewFile => 'View File';
+
+  @override
+  String get gitViewFileSubtitle => 'Open the full current file';
+
+  @override
+  String get gitStage => 'Stage';
+
+  @override
+  String get gitUnstage => 'Unstage';
+
+  @override
+  String get gitRevert => 'Revert';
+
+  @override
+  String get gitRequestChange => 'Request Change';
+
+  @override
+  String get gitRequestChangeFileSubtitle =>
+      'Send this file back to AI with feedback';
+
+  @override
+  String get gitRequestChangeHunkSubtitle =>
+      'Send this hunk back to AI with feedback';
+
+  @override
+  String get gitRevertAll => 'Revert All';
+
+  @override
+  String get gitStageAll => 'Stage All';
+
+  @override
+  String get gitUnstageAll => 'Unstage All';
+
+  @override
+  String get gitCommit => 'Commit';
+
+  @override
+  String get files => 'Files';
+
+  @override
+  String get close => 'Close';
+
+  @override
   String get gitDiscardAllChangesTitle => 'Discard all changes?';
 
   @override
