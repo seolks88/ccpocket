@@ -379,12 +379,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           );
                         },
                       ),
-                      Divider(
-                        height: 1,
-                        indent: 16,
-                        endIndent: 16,
-                        color: cs.outlineVariant,
-                      ),
                     ],
                     // Theme
                     ListTile(
@@ -414,12 +408,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             context.read<SettingsCubit>().setAppLocaleId(id),
                       ),
                     ),
-                    Divider(
-                      height: 1,
-                      indent: 16,
-                      endIndent: 16,
-                      color: cs.outlineVariant,
-                    ),
                     // Voice Input
                     if (!state.hideVoiceInput) ...[
                       ListTile(
@@ -440,12 +428,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               .setSpeechLocaleId(id),
                         ),
                       ),
-                      Divider(
-                        height: 1,
-                        indent: 16,
-                        endIndent: 16,
-                        color: cs.outlineVariant,
-                      ),
                     ],
                     // Hide Voice Input
                     SwitchListTile(
@@ -457,22 +439,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           .read<SettingsCubit>()
                           .setHideVoiceInput(value),
                     ),
-                    Divider(
-                      height: 1,
-                      indent: 16,
-                      endIndent: 16,
-                      color: cs.outlineVariant,
-                    ),
                     _TextScaleTile(
                       value: state.textScale,
                       onChanged: (value) =>
                           context.read<SettingsCubit>().setTextScale(value),
-                    ),
-                    Divider(
-                      height: 1,
-                      indent: 16,
-                      endIndent: 16,
-                      color: cs.outlineVariant,
                     ),
                     SwitchListTile(
                       secondary: Icon(Icons.dns_outlined, color: cs.primary),
@@ -482,12 +452,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       onChanged: (value) => context
                           .read<SettingsCubit>()
                           .setShowBridgeNameInSessionList(value),
-                    ),
-                    Divider(
-                      height: 1,
-                      indent: 16,
-                      endIndent: 16,
-                      color: cs.outlineVariant,
                     ),
                     // New Session Tabs
                     ListTile(
@@ -507,12 +471,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             .setNewSessionTabs(tabs),
                       ),
                     ),
-                    Divider(
-                      height: 1,
-                      indent: 16,
-                      endIndent: 16,
-                      color: cs.outlineVariant,
-                    ),
                     SwitchListTile(
                       secondary: Icon(
                         Icons.drive_file_rename_outline,
@@ -524,12 +482,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       onChanged: (value) => context
                           .read<SettingsCubit>()
                           .setAutoRenameCodexSessions(value),
-                    ),
-                    Divider(
-                      height: 1,
-                      indent: 16,
-                      endIndent: 16,
-                      color: cs.outlineVariant,
                     ),
                     SwitchListTile(
                       secondary: Icon(
@@ -546,12 +498,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     if (FeatureFlags.current.isEnabled(
                       AppFeature.terminalAppIntegration,
                     )) ...[
-                      Divider(
-                        height: 1,
-                        indent: 16,
-                        endIndent: 16,
-                        color: cs.outlineVariant,
-                      ),
                       ListTile(
                         leading: Icon(Icons.terminal, color: cs.primary),
                         title: Row(
@@ -611,24 +557,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             context.read<SettingsCubit>().toggleFcm(enabled),
                       ),
                       if (state.fcmEnabled) ...[
-                        Divider(
-                          height: 1,
-                          indent: 16,
-                          endIndent: 16,
-                          color: cs.outlineVariant,
-                        ),
                         _PushPrivacyTile(
                           value: state.fcmPrivacy,
                           syncInProgress: state.fcmSyncInProgress,
                           onChanged: (enabled) => context
                               .read<SettingsCubit>()
                               .toggleFcmPrivacy(enabled),
-                        ),
-                        Divider(
-                          height: 1,
-                          indent: 16,
-                          endIndent: 16,
-                          color: cs.outlineVariant,
                         ),
                         _UpdateNotificationLanguageTile(
                           syncInProgress: state.fcmSyncInProgress,
@@ -698,12 +632,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ],
                       ),
                     ),
-                    Divider(
-                      height: 1,
-                      indent: 16,
-                      endIndent: 16,
-                      color: cs.outlineVariant,
-                    ),
                     ListTile(
                       key: const ValueKey('code_font_settings_tile'),
                       leading: const Icon(Icons.font_download_outlined),
@@ -719,12 +647,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     ),
                     if (Platform.isMacOS) ...[
-                      Divider(
-                        height: 1,
-                        indent: 16,
-                        endIndent: 16,
-                        color: cs.outlineVariant,
-                      ),
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
                         child: Column(
@@ -774,12 +696,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                       ),
                     ],
-                    Divider(
-                      height: 1,
-                      indent: 16,
-                      endIndent: 16,
-                      color: cs.outlineVariant,
-                    ),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
                       child: Column(
@@ -828,12 +744,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ],
                       ),
                     ),
-                    Divider(
-                      height: 1,
-                      indent: 16,
-                      endIndent: 16,
-                      color: cs.outlineVariant,
-                    ),
                     SwitchListTile(
                       key: const ValueKey(
                         'git_diff_focus_auto_landscape_toggle',
@@ -844,12 +754,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       onChanged: context
                           .read<SettingsCubit>()
                           .setGitDiffFocusAutoLandscape,
-                    ),
-                    Divider(
-                      height: 1,
-                      indent: 16,
-                      endIndent: 16,
-                      color: cs.outlineVariant,
                     ),
                     SwitchListTile(
                       key: const ValueKey('remote_git_status_badge_toggle'),
@@ -931,12 +835,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             mode: LaunchMode.externalApplication,
                           ),
                         ),
-                        Divider(
-                          height: 1,
-                          indent: 16,
-                          endIndent: 16,
-                          color: cs.outlineVariant,
-                        ),
                       ],
                       // Share on SNS
                       ListTile(
@@ -946,12 +844,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         onTap: () => SharePlus.instance.share(
                           ShareParams(text: l.shareText(AppConstants.shareUrl)),
                         ),
-                      ),
-                      Divider(
-                        height: 1,
-                        indent: 16,
-                        endIndent: 16,
-                        color: cs.outlineVariant,
                       ),
                       // Star on GitHub
                       ListTile(
@@ -979,20 +871,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     const _VersionTile(),
                     const _AppUpdateTile(),
                     if (_isIOSAppOnMac) ...[
-                      Divider(
-                        height: 1,
-                        indent: 16,
-                        endIndent: 16,
-                        color: cs.outlineVariant,
-                      ),
                       const _MacOSNativeAppTile(),
                     ],
-                    Divider(
-                      height: 1,
-                      indent: 16,
-                      endIndent: 16,
-                      color: cs.outlineVariant,
-                    ),
                     // GitHub Repository
                     ListTile(
                       leading: Icon(Icons.code, color: cs.onSurfaceVariant),
@@ -1003,24 +883,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         mode: LaunchMode.externalApplication,
                       ),
                     ),
-                    Divider(
-                      height: 1,
-                      indent: 16,
-                      endIndent: 16,
-                      color: cs.outlineVariant,
-                    ),
                     // Changelog
                     ListTile(
                       leading: Icon(Icons.history, color: cs.onSurfaceVariant),
                       title: Text(l.changelog),
                       trailing: const Icon(Icons.chevron_right, size: 20),
                       onTap: () => context.router.push(const ChangelogRoute()),
-                    ),
-                    Divider(
-                      height: 1,
-                      indent: 16,
-                      endIndent: 16,
-                      color: cs.outlineVariant,
                     ),
                     // Setup Guide
                     ListTile(
@@ -1032,12 +900,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       subtitle: Text(l.setupGuideSubtitle),
                       trailing: const Icon(Icons.chevron_right, size: 20),
                       onTap: () => context.router.push(SetupGuideRoute()),
-                    ),
-                    Divider(
-                      height: 1,
-                      indent: 16,
-                      endIndent: 16,
-                      color: cs.outlineVariant,
                     ),
                     // Licenses
                     ListTile(

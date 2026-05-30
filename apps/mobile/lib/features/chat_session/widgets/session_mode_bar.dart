@@ -84,14 +84,6 @@ class SessionModeBar extends StatelessWidget {
                       onBeforeRestart: onBeforeRestart,
                     ),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: VerticalDivider(
-                      width: 1,
-                      thickness: 1,
-                      color: cs.outlineVariant.withValues(alpha: 0.4),
-                    ),
-                  ),
                   ValueListenableBuilder<ReasoningEffort>(
                     valueListenable: chatCubit.modelReasoningEffortListenable,
                     builder: (context, effort, _) => ThinkingEffortChip(
@@ -100,27 +92,11 @@ class SessionModeBar extends StatelessWidget {
                           showCodexReasoningEffortMenu(context, chatCubit),
                     ),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: VerticalDivider(
-                      width: 1,
-                      thickness: 1,
-                      color: cs.outlineVariant.withValues(alpha: 0.4),
-                    ),
-                  ),
                   ValueListenableBuilder<String?>(
                     valueListenable: chatCubit.serviceTierListenable,
                     builder: (context, serviceTier, _) => ServiceTierChip(
                       serviceTier: serviceTier,
                       onTap: () => showCodexServiceTierMenu(context, chatCubit),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: VerticalDivider(
-                      width: 1,
-                      thickness: 1,
-                      color: cs.outlineVariant.withValues(alpha: 0.4),
                     ),
                   ),
                   ExecutionModeChip(
@@ -145,14 +121,6 @@ class SessionModeBar extends StatelessWidget {
                       onBeforeRestart: onBeforeRestart,
                     ),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: VerticalDivider(
-                      width: 1,
-                      thickness: 1,
-                      color: cs.outlineVariant.withValues(alpha: 0.4),
-                    ),
-                  ),
                   ValueListenableBuilder<ClaudeSessionRuntimeSettings>(
                     valueListenable: chatCubit.claudeSettingsListenable,
                     builder: (context, settings, _) => ClaudeModelChip(
@@ -164,14 +132,6 @@ class SessionModeBar extends StatelessWidget {
                       ),
                     ),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: VerticalDivider(
-                      width: 1,
-                      thickness: 1,
-                      color: cs.outlineVariant.withValues(alpha: 0.4),
-                    ),
-                  ),
                   ValueListenableBuilder<ClaudeSessionRuntimeSettings>(
                     valueListenable: chatCubit.claudeSettingsListenable,
                     builder: (context, settings, _) => ClaudeThinkingChip(
@@ -181,14 +141,6 @@ class SessionModeBar extends StatelessWidget {
                         chatCubit,
                         onBeforeRestart: onBeforeRestart,
                       ),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: VerticalDivider(
-                      width: 1,
-                      thickness: 1,
-                      color: cs.outlineVariant.withValues(alpha: 0.4),
                     ),
                   ),
                   ValueListenableBuilder<ClaudeSessionRuntimeSettings>(
@@ -214,14 +166,6 @@ class SessionModeBar extends StatelessWidget {
                       },
                     ),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: VerticalDivider(
-                      width: 1,
-                      thickness: 1,
-                      color: cs.outlineVariant.withValues(alpha: 0.4),
-                    ),
-                  ),
                   ValueListenableBuilder<ClaudeSessionRuntimeSettings>(
                     valueListenable: chatCubit.claudeSettingsListenable,
                     builder: (context, settings, _) => ClaudeBillingChip(
@@ -231,14 +175,6 @@ class SessionModeBar extends StatelessWidget {
                   ),
                 ],
                 if (!isCodex) ...[
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: VerticalDivider(
-                      width: 1,
-                      thickness: 1,
-                      color: cs.outlineVariant.withValues(alpha: 0.4),
-                    ),
-                  ),
                   SandboxModeChip(
                     currentMode: sandboxMode,
                     provider: chatCubit.provider,

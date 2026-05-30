@@ -10,8 +10,8 @@ import '../../theme/markdown_style.dart';
 ///
 /// Shares the calm, left-anchored bubble idiom with the finished assistant
 /// answer ([AssistantBubble]), but adds an explicit "live" affordance — a
-/// pulsing status dot + label header and a blinking caret — so a glance tells
-/// the user the agent is still composing its reply rather than done.
+/// pulsing status dot + label header — so a glance tells the user the agent is
+/// still composing its reply rather than done.
 class StreamingBubble extends StatefulWidget {
   final String text;
   const StreamingBubble({super.key, required this.text});
@@ -91,23 +91,6 @@ class _StreamingBubbleState extends State<StreamingBubble>
                 inlineSyntaxes: colorCodeInlineSyntaxes,
                 builders: markdownBuilders,
               ),
-            ),
-            // Blinking caret as a secondary, inline "still typing" cue.
-            AnimatedBuilder(
-              animation: _cursorController,
-              builder: (context, child) {
-                return Opacity(
-                  opacity: _cursorController.value,
-                  child: Text(
-                    '▍',
-                    style: TextStyle(
-                      fontSize: 16,
-                      height: 1,
-                      color: appColors.statusRunning,
-                    ),
-                  ),
-                );
-              },
             ),
           ],
         ),

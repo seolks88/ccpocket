@@ -1139,11 +1139,7 @@ class _SendButton extends StatelessWidget {
       opacity: opacity,
       child: Container(
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [cs.primary, cs.primary.withValues(alpha: 0.8)],
-          ),
+          color: cs.primary,
           borderRadius: BorderRadius.circular(20),
         ),
         child: IconButton(

@@ -620,6 +620,10 @@ class _GitScreenBodyState extends State<_GitScreenBody> {
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(dialogContext).colorScheme.error,
+              foregroundColor: Theme.of(dialogContext).colorScheme.onError,
+            ),
             child: const Text('Revert'),
           ),
         ],

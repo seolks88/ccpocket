@@ -341,14 +341,7 @@ class _AskUserQuestionWidgetState extends State<AskUserQuestionWidget> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            appColors.askBubble,
-            appColors.askBubble.withValues(alpha: 0.7),
-          ],
-        ),
+        color: appColors.askBubble,
         border: Border(
           top: BorderSide(color: appColors.askBubbleBorder, width: 1.5),
         ),

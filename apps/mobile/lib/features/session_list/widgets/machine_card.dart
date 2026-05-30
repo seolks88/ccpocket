@@ -153,19 +153,7 @@ class _StatusDot extends StatelessWidget {
     return Container(
       width: 12,
       height: 12,
-      decoration: BoxDecoration(
-        color: color,
-        shape: BoxShape.circle,
-        boxShadow: status == MachineStatus.online
-            ? [
-                BoxShadow(
-                  color: color.withValues(alpha: 0.4),
-                  blurRadius: 4,
-                  spreadRadius: 1,
-                ),
-              ]
-            : null,
-      ),
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
     );
   }
 }
@@ -191,6 +179,7 @@ class _MetadataLine extends StatelessWidget {
     final l = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final appColors = theme.extension<AppColors>()!;
 
     // Show error if present and not online
     if (lastError != null && status != MachineStatus.online) {
@@ -273,7 +262,7 @@ class _MetadataLine extends StatelessWidget {
         return Text.rich(
           TextSpan(children: parts),
           style: theme.textTheme.bodySmall?.copyWith(
-            color: colorScheme.outline,
+            color: appColors.subtleText,
             fontSize: isCompact ? 11 : 12,
             height: 1.25,
           ),
@@ -433,7 +422,9 @@ class _ActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final appColors = theme.extension<AppColors>()!;
 
     if (status == MachineStatus.online) {
       return FilledButton(
@@ -487,7 +478,7 @@ class _ActionButton extends StatelessWidget {
       child: Text(
         _statusText(l),
         style: TextStyle(
-          color: colorScheme.outline,
+          color: appColors.subtleText,
           fontSize: 12,
           fontWeight: FontWeight.w500,
         ),

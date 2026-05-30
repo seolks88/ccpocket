@@ -37,15 +37,6 @@ class SectionHeader extends StatelessWidget {
               if (trailing != null) ...[const Spacer(), trailing!],
             ],
           ),
-          const SizedBox(height: 4),
-          Container(
-            height: 1,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [color.withValues(alpha: 0.4), Colors.transparent],
-              ),
-            ),
-          ),
         ],
       ),
     );

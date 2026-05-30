@@ -129,12 +129,14 @@ class _TimestampWidget extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
           decoration: BoxDecoration(
-            color: appColors.subtleText.withValues(alpha: 0.08),
+            color: appColors.neutralChip,
             borderRadius: BorderRadius.circular(10),
           ),
           child: Text(
             time,
-            style: TextStyle(fontSize: 10, color: appColors.subtleText),
+            style: Theme.of(
+              context,
+            ).textTheme.labelSmall?.copyWith(color: appColors.subtleText),
           ),
         ),
       ),
@@ -277,7 +279,7 @@ class _ImageAttachmentButton extends StatelessWidget {
           bottom: 4,
         ),
         child: Material(
-          color: appColors.subtleText.withValues(alpha: 0.08),
+          color: appColors.neutralChip,
           borderRadius: BorderRadius.circular(12),
           child: InkWell(
             onTap: onTap,

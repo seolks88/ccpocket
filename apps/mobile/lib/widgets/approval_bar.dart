@@ -57,14 +57,7 @@ class ApprovalBar extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            appColors.approvalBar,
-            appColors.approvalBar.withValues(alpha: 0.7),
-          ],
-        ),
+        color: appColors.approvalBar,
         border: Border(
           top: BorderSide(color: appColors.approvalBarBorder, width: 1.5),
         ),

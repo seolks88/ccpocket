@@ -174,7 +174,9 @@ class _StandardBubble extends StatelessWidget {
                                             ? 200
                                             : 120,
                                         height: 80,
-                                        color: Colors.grey[300],
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .surfaceContainerHigh,
                                         child: const Icon(Icons.broken_image),
                                       ),
                                 ),
@@ -194,7 +196,9 @@ class _StandardBubble extends StatelessWidget {
                                                   ? 200
                                                   : 120,
                                               height: 80,
-                                              color: Colors.grey[300],
+                                              color: Theme.of(context)
+                                                  .colorScheme
+                                                  .surfaceContainerHigh,
                                               child: const Icon(
                                                 Icons.broken_image,
                                               ),

@@ -97,15 +97,16 @@ class _WorktreeListContentState extends State<_WorktreeListContent> {
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Cancel'),
           ),
-          TextButton(
+          FilledButton(
             onPressed: () {
               Navigator.pop(ctx);
               widget.bridge.removeWorktree(widget.projectPath, wt.worktreePath);
             },
-            child: Text(
-              'Remove',
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+              foregroundColor: Theme.of(ctx).colorScheme.onError,
             ),
+            child: const Text('Remove'),
           ),
         ],
       ),

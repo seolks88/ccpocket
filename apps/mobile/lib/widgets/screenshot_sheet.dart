@@ -166,7 +166,6 @@ class _ScreenshotSheetContentState extends State<_ScreenshotSheetContent> {
             // Full screen option
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(borderRadius: BorderRadius.circular(8)),
               child: ListTile(
                 leading: Icon(Icons.fullscreen, size: 24, color: cs.primary),
                 title: const Text(
@@ -211,9 +210,6 @@ class _ScreenshotSheetContentState extends State<_ScreenshotSheetContent> {
                       margin: const EdgeInsets.symmetric(
                         horizontal: 8,
                         vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(8),
                       ),
                       child: ListTile(
                         leading: Icon(
