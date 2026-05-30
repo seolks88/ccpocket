@@ -783,6 +783,8 @@ describe("SdkProcess.sendInput", () => {
   it("uses the resume session id before SDK init arrives", () => {
     const proc = new SdkProcess();
     const resolve = vi.fn();
+    const messages: ServerMessage[] = [];
+    proc.on("message", (msg) => messages.push(msg));
 
     (proc as any).inputSessionId = "resume-session";
     (proc as any).userMessageResolve = resolve;
@@ -790,11 +792,31 @@ describe("SdkProcess.sendInput", () => {
     const queued = proc.sendInput("continue");
 
     expect(queued).toBe(false);
+    expect(messages).toContainEqual({ type: "status", status: "running" });
     expect(resolve).toHaveBeenCalledWith(
       expect.objectContaining({
         type: "user",
         session_id: "resume-session",
       }),
     );
+  });
+
+  it("marks queued input as running when the SDK stream drains it", async () => {
+    const proc = new SdkProcess();
+    const messages: ServerMessage[] = [];
+    proc.on("message", (msg) => messages.push(msg));
+
+    const queued = proc.sendInput("queued turn");
+    expect(queued).toBe(true);
+
+    const stream = (proc as any).createUserMessageStream();
+    const next = await stream.next();
+
+    expect(next.value).toMatchObject({
+      type: "user",
+      message: { content: [{ type: "text", text: "queued turn" }] },
+    });
+    expect(messages).toContainEqual({ type: "status", status: "running" });
+    proc.stop();
   });
 });

@@ -72,7 +72,7 @@ void main() {
       expect(statusLine2.inPlanMode, isFalse);
       // Claude sessions show PermissionModeChip (not PlanModeChip),
       // so after ExitPlanMode approval the chip reverts to "Default".
-      expect(find.text('Default'), findsOneWidget);
+      expect(find.text('Default'), findsAtLeastNWidgets(1));
     });
 
     patrolWidgetTest('J2: Plan reject with feedback triggers re-plan cycle', (

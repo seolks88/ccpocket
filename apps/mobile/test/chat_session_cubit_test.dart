@@ -1664,6 +1664,7 @@ void main() {
       streamingCubit.appendThinking(' more');
 
       expect(streamingCubit.state.thinking, 'Thinking... more');
+      expect(streamingCubit.state.isStreaming, true);
     });
 
     test('reset clears everything', () {

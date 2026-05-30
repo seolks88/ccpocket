@@ -56,7 +56,7 @@ void main() {
       await tester.pumpWidget(buildSubject(planText: shortPlan));
 
       expect(find.text('Implementation Plan'), findsOneWidget);
-      expect(find.byIcon(Icons.assignment), findsOneWidget);
+      expect(find.byIcon(Icons.assignment_outlined), findsOneWidget);
     });
 
     testWidgets('shows section count badge', (tester) async {

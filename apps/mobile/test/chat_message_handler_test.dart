@@ -447,12 +447,24 @@ void main() {
       expect(update.sideEffects, contains(ChatSideEffect.clearPlanFeedback));
     });
 
-    test('success adds cost delta', () {
+    test('success adds cost delta and clears live streaming state', () {
+      handler.handle(
+        const ThinkingDeltaMessage(text: 'hmm'),
+        isBackground: false,
+      );
+      handler.handle(
+        const StreamDeltaMessage(text: 'partial'),
+        isBackground: false,
+      );
+
       final update = handler.handle(
         const ResultMessage(subtype: 'success', cost: 0.05),
         isBackground: false,
       );
       expect(update.costDelta, 0.05);
+      expect(update.resetStreaming, isTrue);
+      expect(handler.currentThinkingText, isEmpty);
+      expect(handler.currentStreaming, isNull);
       expect(update.sideEffects, contains(ChatSideEffect.lightHaptic));
     });
 

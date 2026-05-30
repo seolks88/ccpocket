@@ -39,14 +39,8 @@ void main() {
       // No expand icons
       expect(find.byIcon(Icons.expand_less), findsNothing);
 
-      // Category icon (12px) instead of colored dot
-      final iconFinder = find.byWidgetPredicate((w) {
-        if (w is Icon && w.size == 12) {
-          return true;
-        }
-        return false;
-      });
-      expect(iconFinder, findsOneWidget);
+      // Category icon instead of colored dot
+      expect(find.byIcon(Icons.description_outlined), findsOneWidget);
 
       // No card background (no Container with borderRadius + color)
       final cardFinder = find.byWidgetPredicate((w) {

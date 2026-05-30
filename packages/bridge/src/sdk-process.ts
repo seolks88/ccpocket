@@ -845,6 +845,7 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
     }
     const resolve = this.userMessageResolve;
     this.userMessageResolve = null;
+    this.setStatus("running");
     resolve({
       type: "user",
       session_id: this.inputSessionId ?? this._sessionId ?? "",
@@ -875,6 +876,7 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
     }
     const resolve = this.userMessageResolve;
     this.userMessageResolve = null;
+    this.setStatus("running");
 
     const content: SDKUserMsg["message"]["content"] = [];
 
@@ -1226,6 +1228,7 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
         console.log(
           `[sdk-process] Sending queued input${images ? ` with ${images.length} image(s)` : ""} (remaining: ${this.pendingInputQueue.length})`,
         );
+        this.setStatus("running");
         const content: SDKUserMsg["message"]["content"] = [];
         if (images) {
           for (const image of images) {
@@ -1440,6 +1443,11 @@ export class SdkProcess extends EventEmitter<SdkProcessEvents> {
         }
         break;
       case "user":
+        if (this.pendingPermissions.size === 0) {
+          this.setStatus("running");
+        }
+        break;
+      case "stream_event":
         if (this.pendingPermissions.size === 0) {
           this.setStatus("running");
         }

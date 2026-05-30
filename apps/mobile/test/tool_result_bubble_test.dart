@@ -44,21 +44,14 @@ void main() {
       expect(find.byIcon(Icons.expand_more), findsNothing);
       expect(find.byIcon(Icons.expand_less), findsNothing);
 
-      // The category icon should be present (12px icon replacing the old dot)
-      // For Bash tool, the icon is Icons.terminal
-      final iconFinder = find.byWidgetPredicate((w) {
-        if (w is Icon && w.size == 12) {
-          return true;
-        }
-        return false;
-      });
-      expect(iconFinder, findsOneWidget);
+      // The category icon should be present, replacing the old dot
+      expect(find.byIcon(Icons.description_outlined), findsOneWidget);
 
-      // No card-style background container with toolResultBackground
+      // No card-style bordered background; the thin accent rule is allowed.
       final cardFinder = find.byWidgetPredicate((w) {
         if (w is Container && w.decoration is BoxDecoration) {
           final deco = w.decoration as BoxDecoration;
-          return deco.borderRadius != null && deco.color != null;
+          return deco.borderRadius != null && deco.border != null;
         }
         return false;
       });

@@ -167,7 +167,7 @@ void main() {
       expect(visual.showPlanBadge, isTrue);
     });
 
-    testWidgets('displays gitBranch and lastMessage', (tester) async {
+    testWidgets('displays project title and lastMessage', (tester) async {
       final session = SessionInfo(
         id: 'test-id',
         projectPath: '/home/user/my-app',
@@ -188,15 +188,15 @@ void main() {
         ),
       );
 
-      // Git branch text
-      expect(find.text('feat/auth'), findsOneWidget);
       // Last message text
       expect(find.text('Implemented login flow'), findsOneWidget);
-      // Fork icon
-      expect(find.byIcon(Icons.fork_right), findsOneWidget);
+      // Project title is shown; the git-branch chip + fork icon were dropped
+      // from the card in the decluttered redesign.
+      expect(find.text('my-app'), findsOneWidget);
+      expect(find.byIcon(Icons.fork_right), findsNothing);
     });
 
-    testWidgets('shows explicit provider badge', (tester) async {
+    testWidgets('shows provider as a tinted glyph', (tester) async {
       final session = SessionInfo(
         id: 'codex-provider-badge',
         provider: 'codex',
@@ -210,8 +210,9 @@ void main() {
         _wrap(RunningSessionCard(session: session, onTap: () {})),
       );
 
-      expect(find.byKey(const ValueKey('provider_badge_codex')), findsOne);
-      expect(find.text('Codex'), findsOneWidget);
+      // Provider identity is now a single bare tinted glyph (Tooltip-labelled),
+      // not a keyed word pill.
+      expect(find.byTooltip('Codex'), findsOneWidget);
     });
 
     testWidgets('hides info row when gitBranch empty', (tester) async {
@@ -256,9 +257,9 @@ void main() {
         ),
       );
 
-      // Status label in bar
-      expect(find.text('Working'), findsOneWidget);
-      // Project name as badge
+      // Status eyebrow (uppercased in the redesign)
+      expect(find.text('WORKING'), findsOneWidget);
+      // Project name as the title
       expect(find.text('my-app'), findsOneWidget);
       // Stop button removed (swipe-to-stop only)
       expect(find.byIcon(Icons.stop_circle_outlined), findsNothing);
@@ -341,7 +342,7 @@ void main() {
         ),
       );
 
-      expect(find.text('Needs You'), findsOneWidget);
+      expect(find.text('NEEDS YOU'), findsOneWidget);
       expect(find.byKey(const ValueKey('session_card_queue_badge')), findsOne);
       expect(find.byIcon(Icons.stop_circle_outlined), findsOneWidget);
     });
@@ -364,12 +365,10 @@ void main() {
 
       // Plan text badge was removed; plan mode is now indicated by
       // an orbiting light on the status dot (visual only, no key).
-      expect(find.text('Working'), findsOneWidget);
+      expect(find.text('WORKING'), findsOneWidget);
     });
 
-    testWidgets('shows codex settings summary for codex provider', (
-      tester,
-    ) async {
+    testWidgets('omits codex settings meta from the card', (tester) async {
       final session = SessionInfo(
         id: 'codex-running',
         provider: 'codex',
@@ -386,11 +385,14 @@ void main() {
         _wrap(RunningSessionCard(session: session, onTap: () {})),
       );
 
-      expect(find.text('gpt-5.3-codex Default'), findsOneWidget);
-      expect(find.text('On Request'), findsOneWidget);
-      expect(find.text('Sandbox'), findsOneWidget);
-      expect(find.byIcon(Icons.tune), findsOneWidget);
-      expect(find.byIcon(Icons.shield_outlined), findsOneWidget);
+      // Model / sandbox / approval-policy meta were deliberately removed from
+      // the card; only the provider glyph carries identity now.
+      expect(find.text('gpt-5.3-codex Default'), findsNothing);
+      expect(find.text('On Request'), findsNothing);
+      expect(find.text('Sandbox'), findsNothing);
+      expect(find.byIcon(Icons.tune), findsNothing);
+      expect(find.byIcon(Icons.shield_outlined), findsNothing);
+      expect(find.byTooltip('Codex'), findsOneWidget);
     });
 
     testWidgets(
@@ -419,7 +421,16 @@ void main() {
         final theme = Theme.of(tester.element(find.byType(Card).first));
         final appColors = theme.extension<AppColors>()!;
 
-        expect(card.color, theme.colorScheme.surfaceContainerHigh);
+        // Selection adds NO fill: the card color is just the faint working
+        // status wash (same as an unselected working card), not a selection
+        // highlight. Emphasis comes from the 2.2px status-colored border only.
+        expect(
+          card.color,
+          Color.alphaBlend(
+            appColors.statusRunning.withValues(alpha: 0.035),
+            theme.colorScheme.surfaceContainerHigh,
+          ),
+        );
         expect(shape.side.width, 2.2);
         expect(
           shape.side.color,
@@ -428,7 +439,7 @@ void main() {
       },
     );
 
-    testWidgets('shows Planning label for running codex plan session', (
+    testWidgets('shows plan badge for running codex plan session', (
       tester,
     ) async {
       final session = SessionInfo(
@@ -447,8 +458,11 @@ void main() {
         _wrap(RunningSessionCard(session: session, onTap: () {})),
       );
 
-      expect(find.text('Planning'), findsOneWidget);
-      expect(find.text('gpt-5.4 Default'), findsOneWidget);
+      // Status stays WORKING; plan mode is signalled by the plan glyph, and the
+      // model meta is no longer shown on the card.
+      expect(find.text('WORKING'), findsOneWidget);
+      expect(find.byIcon(Icons.assignment_outlined), findsOneWidget);
+      expect(find.text('gpt-5.4 Default'), findsNothing);
     });
 
     testWidgets('shows agent metadata for codex sub-agent sessions', (
@@ -469,11 +483,12 @@ void main() {
         _wrap(RunningSessionCard(session: session, onTap: () {})),
       );
 
-      expect(find.text('Atlas [explorer]'), findsOneWidget);
-      expect(find.byIcon(Icons.smart_toy_outlined), findsOneWidget);
+      // Agent label rides as a dimmed suffix inside the title rich text now
+      // (the standalone smart-toy icon was removed).
+      expect(find.textContaining('Atlas [explorer]'), findsOneWidget);
     });
 
-    testWidgets('shows settings summary for claude provider with model', (
+    testWidgets('omits claude model/permission meta from the card', (
       tester,
     ) async {
       final session = SessionInfo(
@@ -491,10 +506,13 @@ void main() {
         _wrap(RunningSessionCard(session: session, onTap: () {})),
       );
 
-      expect(find.text('Opus 4.8 · default · plan-on'), findsOneWidget);
+      // Model + permission-mode summary was removed from the card; identity is
+      // carried by the provider glyph only.
+      expect(find.text('Opus 4.8 · default · plan-on'), findsNothing);
+      expect(find.byTooltip('Claude Code'), findsOneWidget);
     });
 
-    testWidgets('shows bypass-all for claude bypassPermissions mode', (
+    testWidgets('omits full-access meta for claude bypassPermissions mode', (
       tester,
     ) async {
       final session = SessionInfo(
@@ -511,10 +529,10 @@ void main() {
         _wrap(RunningSessionCard(session: session, onTap: () {})),
       );
 
-      expect(find.text('full-access'), findsOneWidget);
+      expect(find.text('full-access'), findsNothing);
     });
 
-    testWidgets('shows only mode when claude model is null', (tester) async {
+    testWidgets('omits mode meta when claude model is null', (tester) async {
       final session = SessionInfo(
         id: 'claude-no-model',
         provider: 'claude',
@@ -529,7 +547,7 @@ void main() {
         _wrap(RunningSessionCard(session: session, onTap: () {})),
       );
 
-      expect(find.text('default · plan-on'), findsOneWidget);
+      expect(find.text('default · plan-on'), findsNothing);
     });
 
     testWidgets('hides lastMessage row when empty', (tester) async {
@@ -546,9 +564,10 @@ void main() {
         _wrap(RunningSessionCard(session: session, onTap: () {})),
       );
 
-      // Git branch should show
-      expect(find.text('main'), findsOneWidget);
-      // No lastMessage text rendered (empty by default)
+      // Title shows; git branch is no longer rendered on the card, and there is
+      // no lastMessage text (empty by default).
+      expect(find.text('my-app'), findsOneWidget);
+      expect(find.text('main'), findsNothing);
     });
 
     testWidgets('shows codex plan approval area for ExitPlanMode permission', (
@@ -572,8 +591,7 @@ void main() {
         _wrap(RunningSessionCard(session: session, onTap: () {})),
       );
 
-      expect(find.text('Needs You'), findsOneWidget);
-      expect(find.text('Review plan'), findsOneWidget);
+      expect(find.text('NEEDS YOU'), findsOneWidget);
       expect(find.text('Plan'), findsNothing);
       expect(
         find.byKey(const ValueKey('codex_plan_approval_area')),
@@ -967,7 +985,6 @@ void main() {
         ),
       );
 
-      expect(find.text('Approve tool call'), findsOneWidget);
       expect(
         find.text(
           'Allow the revenuecat MCP server to run tool '
@@ -1081,7 +1098,7 @@ void main() {
   });
 
   group('RecentSessionCard', () {
-    testWidgets('shows Claude Code provider badge', (tester) async {
+    testWidgets('shows Claude Code provider as a tinted glyph', (tester) async {
       final session = RecentSession(
         sessionId: 'recent-claude',
         provider: 'claude',
@@ -1098,11 +1115,11 @@ void main() {
         _wrap(RecentSessionCard(session: session, onTap: () {})),
       );
 
-      expect(find.byKey(const ValueKey('provider_badge_claude')), findsOne);
-      expect(find.text('Claude Code'), findsOneWidget);
+      // Provider identity is a bare Tooltip-labelled glyph, not a keyed pill.
+      expect(find.byTooltip('Claude Code'), findsOneWidget);
     });
 
-    testWidgets('shows codex settings summary for codex provider', (
+    testWidgets('omits codex settings meta from the recent card', (
       tester,
     ) async {
       final session = RecentSession(
@@ -1125,12 +1142,11 @@ void main() {
         _wrap(RecentSessionCard(session: session, onTap: () {})),
       );
 
-      expect(find.text('gpt-5-codex Default'), findsOneWidget);
-      expect(find.byIcon(Icons.auto_mode_outlined), findsNothing);
-      expect(find.text('Auto Review'), findsNothing);
-      expect(find.text('On Request'), findsNothing);
-      expect(find.text('Sandbox Off'), findsOneWidget);
-      expect(find.byIcon(Icons.warning_amber), findsOneWidget);
+      // Model / sandbox / reviewer meta were removed from the recent card too.
+      expect(find.text('gpt-5-codex Default'), findsNothing);
+      expect(find.text('Sandbox Off'), findsNothing);
+      expect(find.byIcon(Icons.warning_amber), findsNothing);
+      expect(find.byTooltip('Codex'), findsOneWidget);
     });
 
     testWidgets('calls onLongPress callback', (tester) async {

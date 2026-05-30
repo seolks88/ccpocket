@@ -8,6 +8,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import 'package:ccpocket/features/explore/state/explore_cubit.dart';
 import 'package:ccpocket/features/explore/widgets/explore_empty_state.dart';
+import 'package:ccpocket/l10n/app_localizations.dart';
 import 'package:ccpocket/models/messages.dart';
 import 'package:ccpocket/services/bridge_service.dart';
 import 'package:ccpocket/theme/app_theme.dart';
@@ -186,6 +187,8 @@ void main() {
         RepositoryProvider<BridgeService>.value(
           value: bridge,
           child: MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
             theme: AppTheme.darkTheme,
             home: const ExploreScreen(
               sessionId: 'session-1',
@@ -202,7 +205,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Recent open files'), findsOneWidget);
+      expect(find.text('Recent files'), findsOneWidget);
       expect(find.text('Current location'), findsNothing);
       expect(find.text('Project root'), findsNothing);
 

@@ -66,13 +66,52 @@ void main() {
       ]);
       await pumpN($.tester);
 
-      // ThinkingDelta accumulates in the StreamingStateCubit's thinking
-      // field (not rendered as a visible widget during streaming — only
-      // finalized ThinkingContent in AssistantServerMessage renders a
-      // ThinkingBubble). Verify the cubit state directly.
+      // Thinking-only turns still need a visible live affordance so Claude
+      // workflows do not look stuck while text output has not started.
+      expect($('Thinking...'), findsOneWidget);
       final element = $.tester.element(find.byType(Scaffold).first);
       final cubit = element.read<StreamingStateCubit>();
       expect(cubit.state.thinking, 'Thinking... more');
+      expect(cubit.state.isStreaming, isTrue);
+    });
+
+    patrolWidgetTest('G4: Claude running without deltas shows activity', (
+      $,
+    ) async {
+      await $.pumpWidget(await buildTestChatScreen(bridge: bridge));
+      await pumpN($.tester);
+
+      await emitAndPump($.tester, bridge, [
+        const StatusMessage(status: ProcessStatus.running),
+      ]);
+      await pumpN($.tester);
+
+      expect($('Working...'), findsOneWidget);
+    });
+
+    patrolWidgetTest('G5: result clears thinking-only live activity', (
+      $,
+    ) async {
+      await $.pumpWidget(await buildTestChatScreen(bridge: bridge));
+      await pumpN($.tester);
+
+      await emitAndPump($.tester, bridge, [
+        const StatusMessage(status: ProcessStatus.running),
+        const ThinkingDeltaMessage(text: 'reviewing files'),
+      ]);
+      await pumpN($.tester);
+      expect($('Thinking...'), findsOneWidget);
+      expect($('reviewing files'), findsOneWidget);
+
+      await emitAndPump($.tester, bridge, [
+        const ResultMessage(subtype: 'success'),
+        const StatusMessage(status: ProcessStatus.idle),
+      ]);
+      await pumpN($.tester);
+
+      expect($('Thinking...'), findsNothing);
+      expect($('reviewing files'), findsNothing);
+      expect($('Working...'), findsNothing);
     });
   });
 }

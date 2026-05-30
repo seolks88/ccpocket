@@ -277,11 +277,11 @@ void main() {
       expect(find.byKey(const ValueKey('send_button')), findsOneWidget);
       expect(find.byKey(const ValueKey('stop_button')), findsNothing);
 
-      // Send button should be disabled (onPressed is null)
-      final iconButton = tester.widget<IconButton>(
+      // Send button should be disabled (tap handler is null)
+      final sendButton = tester.widget<InkWell>(
         find.byKey(const ValueKey('send_button')),
       );
-      expect(iconButton.onPressed, isNull);
+      expect(sendButton.onTap, isNull);
     });
 
     testWidgets('text field is disabled when starting', (tester) async {

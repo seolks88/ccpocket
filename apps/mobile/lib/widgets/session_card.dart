@@ -99,13 +99,18 @@ class _RunningSessionCardState extends State<RunningSessionCard> {
     );
     final isReadyUnseen =
         visualStatus.primary == SessionPrimaryStatus.ready && widget.isUnseen;
+    final isNeedsYou = visualStatus.primary == SessionPrimaryStatus.needsYou;
+    // Four glanceable status hues: Working=blue, Needs You=ember (highest
+    // urgency), Done (ready & unseen)=green (a positive "go look"), Idle
+    // (ready & seen)=muted warm grey. Done now carries a real hue instead of
+    // the old near-black onSurface so it never reads as "another grey" beside
+    // Idle. Done/Idle have no approval area, so statusColor here only drives
+    // the dot/word/rail/tint/selected-border for those two states.
     final statusColor = switch (visualStatus.primary) {
       SessionPrimaryStatus.working => appColors.statusRunning,
       SessionPrimaryStatus.needsYou => appColors.statusApproval,
       SessionPrimaryStatus.ready =>
-        isReadyUnseen
-            ? Theme.of(context).colorScheme.onSurface
-            : appColors.statusIdle,
+        isReadyUnseen ? appColors.statusOnline : appColors.statusIdle,
     };
     // Split the today-collapsed grey "Ready" into Done (just-finished, unseen)
     // vs Idle (long-idle) purely from the already-passed isUnseen flag — no
@@ -119,11 +124,26 @@ class _RunningSessionCardState extends State<RunningSessionCard> {
             SessionPrimaryStatus.needsYou => visualStatus.label,
             SessionPrimaryStatus.ready => 'Idle',
           };
-    // Rail alpha so an approval visually shouts over a busy-but-fine session.
+    // Leading rail: bolder + glowing for the states that should shout (Needs
+    // You first, then Done); Idle is deliberately thinner + fainter so it reads
+    // as "dead". An approval thus visually shouts over a busy-but-fine session.
     final railAlpha = switch (visualStatus.primary) {
       SessionPrimaryStatus.needsYou => 1.0,
       SessionPrimaryStatus.working => 0.92,
-      SessionPrimaryStatus.ready => isReadyUnseen ? 1.0 : 0.5,
+      SessionPrimaryStatus.ready => isReadyUnseen ? 1.0 : 0.4,
+    };
+    final railWidth = switch (visualStatus.primary) {
+      SessionPrimaryStatus.needsYou => 5.0,
+      SessionPrimaryStatus.ready => isReadyUnseen ? 4.0 : 3.0,
+      SessionPrimaryStatus.working => 4.0,
+    };
+    final railGlow = isNeedsYou || isReadyUnseen;
+    // Faint status wash so active cards aren't flat grey; Idle stays plain
+    // surface. Kept very low-alpha (no gradient/shadow) — hierarchy, not noise.
+    final tintAlpha = switch (visualStatus.primary) {
+      SessionPrimaryStatus.needsYou => 0.06,
+      SessionPrimaryStatus.working => 0.035,
+      SessionPrimaryStatus.ready => isReadyUnseen ? 0.04 : 0.0,
     };
 
     final permission = session.pendingPermission;
@@ -149,13 +169,21 @@ class _RunningSessionCardState extends State<RunningSessionCard> {
       session.lastMessage.replaceAll(RegExp(r'\s+'), ' ').trim(),
     );
     final colorScheme = Theme.of(context).colorScheme;
+    // Opaque solid card with the faint status wash blended in (alphaBlend keeps
+    // it fully opaque so the rounded-corner clip / 1px border stay crisp).
+    final cardColor = tintAlpha > 0
+        ? Color.alphaBlend(
+            statusColor.withValues(alpha: tintAlpha),
+            colorScheme.surfaceContainerHigh,
+          )
+        : colorScheme.surfaceContainerHigh;
     final card = Card(
       margin: const EdgeInsets.symmetric(
         vertical: AppSpacing.xs,
         horizontal: 0,
       ),
       elevation: 0,
-      color: colorScheme.surfaceContainerHigh,
+      color: cardColor,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(
@@ -179,11 +207,11 @@ class _RunningSessionCardState extends State<RunningSessionCard> {
               left: 0,
               top: 0,
               bottom: 0,
-              width: 4,
+              width: railWidth,
               child: _StatusRail(
                 color: statusColor,
                 alpha: railAlpha,
-                glow: isReadyUnseen,
+                glow: railGlow,
               ),
             ),
             Padding(
@@ -192,7 +220,8 @@ class _RunningSessionCardState extends State<RunningSessionCard> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Row 1 — status + identity (single line).
+                  // Line 1 — status eyebrow + time: a slim meta strip so the
+                  // title on Line 2 below gets the full card width.
                   Row(
                     children: [
                       _StatusDot(
@@ -202,11 +231,12 @@ class _RunningSessionCardState extends State<RunningSessionCard> {
                       ),
                       const SizedBox(width: AppSpacing.xs),
                       Text(
-                        statusWord,
+                        statusWord.toUpperCase(),
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          fontWeight: isReadyUnseen
+                          fontWeight: isReadyUnseen || isNeedsYou
                               ? FontWeight.w800
                               : FontWeight.w700,
+                          letterSpacing: 0.5,
                           color: statusColor,
                         ),
                       ),
@@ -221,18 +251,43 @@ class _RunningSessionCardState extends State<RunningSessionCard> {
                           color: appColors.statusPlan,
                         ),
                       ],
-                      const SizedBox(width: AppSpacing.sm),
-                      // Provider identity is carried ONCE here as a bare tinted
-                      // glyph (no word pill), so the title stays neutral text.
+                      const Spacer(),
+                      // Meta trailing: queued-input badge + the small elapsed
+                      // timestamp, pushed to the right by the Spacer.
+                      if (queuedInput != null) ...[
+                        _QueuedInputBadge(item: queuedInput),
+                        const SizedBox(width: AppSpacing.sm),
+                      ],
+                      // Flexible so the timestamp ellipsizes (rather than
+                      // overflowing) if the eyebrow + badge crowd a narrow card.
+                      Flexible(
+                        child: Text(
+                          elapsed,
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(color: appColors.subtleText),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  // Line 2 — identity: provider glyph + the full-width title.
+                  // Provider is carried ONCE here as a bare tinted glyph (no
+                  // word pill), so the title stays neutral text. The inline Stop
+                  // control stays on the right when shown (shell/desktop only).
+                  Row(
+                    children: [
                       _ProviderGlyph(provider: provider),
-                      const SizedBox(width: AppSpacing.xs),
+                      const SizedBox(width: AppSpacing.sm),
                       Expanded(
                         child: Hero(
                           tag: 'project_name_${session.id}',
                           child: Material(
                             type: MaterialType.transparency,
                             child: _SessionTitle(
-                              title: session.name != null &&
+                              title:
+                                  session.name != null &&
                                       session.name!.isNotEmpty
                                   ? session.name!
                                   : projectName,
@@ -247,27 +302,10 @@ class _RunningSessionCardState extends State<RunningSessionCard> {
                           ),
                         ),
                       ),
-                      if (queuedInput != null) ...[
-                        const SizedBox(width: 6),
-                        _QueuedInputBadge(item: queuedInput),
-                      ],
                       if (widget.onStop != null) ...[
-                        const SizedBox(width: 6),
+                        const SizedBox(width: AppSpacing.sm),
                         _RunningSessionStopButton(onPressed: widget.onStop!),
                       ],
-                      const SizedBox(width: AppSpacing.sm),
-                      Flexible(
-                        child: Text(
-                          elapsed,
-                          style: Theme.of(
-                            context,
-                          ).textTheme.labelSmall?.copyWith(
-                            color: appColors.subtleText,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
                     ],
                   ),
                   // Approval area (shown when waiting for permission). The
@@ -275,95 +313,106 @@ class _RunningSessionCardState extends State<RunningSessionCard> {
                   // only its position moved to inside this Column.
                   if (hasPermission) ...[
                     const SizedBox(height: AppSpacing.sm),
-              isCodexSession
-                  ? (isPlanApproval
-                        ? _CodexPlanApprovalArea(
-                            statusColor: statusColor,
-                            canOpenPlan: _extractPlanText(permission) != null,
-                            onOpenPlan: () => _openPlanSheet(permission),
-                            onApprove: () => widget.onApprove?.call(
-                              permission.toolUseId,
-                              clearContext: false,
-                            ),
-                            onReject: () =>
-                                widget.onReject?.call(permission.toolUseId),
-                          )
-                        : hasQuestionPrompt
-                        ? _AskUserArea(
-                            permission: permission,
-                            statusColor: statusColor,
-                            onAnswer: (result) => widget.onAnswer?.call(
-                              permission.toolUseId,
-                              result,
-                            ),
-                            onTap: widget.onTap,
-                          )
-                        : _ToolApprovalArea(
-                            permission: permission,
-                            statusColor: statusColor,
-                            isCodex: isCodexSession,
-                            onApprove: () => widget.onApprove?.call(
-                              permission.toolUseId,
-                              clearContext: false,
-                            ),
-                            onApproveAlways: widget.onApproveAlways == null
-                                ? null
-                                : () => widget.onApproveAlways!(
+                    isCodexSession
+                        ? (isPlanApproval
+                              ? _CodexPlanApprovalArea(
+                                  statusColor: statusColor,
+                                  canOpenPlan:
+                                      _extractPlanText(permission) != null,
+                                  onOpenPlan: () => _openPlanSheet(permission),
+                                  onApprove: () => widget.onApprove?.call(
+                                    permission.toolUseId,
+                                    clearContext: false,
+                                  ),
+                                  onReject: () => widget.onReject?.call(
                                     permission.toolUseId,
                                   ),
-                            onReject: () =>
-                                widget.onReject?.call(permission.toolUseId),
-                          ))
-                  : switch (permission.toolName) {
-                      'AskUserQuestion' ||
-                      'McpElicitation' when hasQuestionPrompt => _AskUserArea(
-                        permission: permission,
-                        statusColor: statusColor,
-                        onAnswer: (result) =>
-                            widget.onAnswer?.call(permission.toolUseId, result),
-                        onTap: widget.onTap,
-                      ),
-                      'ExitPlanMode' => _PlanApprovalArea(
-                        statusColor: statusColor,
-                        planFeedbackController: _planFeedbackController,
-                        canOpenPlan: _extractPlanText(permission) != null,
-                        onOpenPlan: () => _openPlanSheet(permission),
-                        onApprove: () => widget.onApprove?.call(
-                          permission.toolUseId,
-                          clearContext: false,
-                        ),
-                        onApproveClearContext: () => widget.onApprove?.call(
-                          permission.toolUseId,
-                          clearContext: true,
-                        ),
-                        onKeepPlanning: () {
-                          final feedback = _planFeedbackController.text.trim();
-                          widget.onReject?.call(
-                            permission.toolUseId,
-                            message: feedback.isNotEmpty ? feedback : null,
-                          );
-                          _planFeedbackController.clear();
-                        },
-                      ),
-                      _ => _ToolApprovalArea(
-                        permission: permission,
-                        statusColor: statusColor,
-                        isCodex: isCodexSession,
-                        onApprove: () => widget.onApprove?.call(
-                          permission.toolUseId,
-                          clearContext: false,
-                        ),
-                        onApproveAlways: () =>
-                            widget.onApproveAlways?.call(permission.toolUseId),
-                        onReject: () =>
-                            widget.onReject?.call(permission.toolUseId),
-                      ),
-                    },
+                                )
+                              : hasQuestionPrompt
+                              ? _AskUserArea(
+                                  permission: permission,
+                                  statusColor: statusColor,
+                                  onAnswer: (result) => widget.onAnswer?.call(
+                                    permission.toolUseId,
+                                    result,
+                                  ),
+                                  onTap: widget.onTap,
+                                )
+                              : _ToolApprovalArea(
+                                  permission: permission,
+                                  statusColor: statusColor,
+                                  isCodex: isCodexSession,
+                                  onApprove: () => widget.onApprove?.call(
+                                    permission.toolUseId,
+                                    clearContext: false,
+                                  ),
+                                  onApproveAlways:
+                                      widget.onApproveAlways == null
+                                      ? null
+                                      : () => widget.onApproveAlways!(
+                                          permission.toolUseId,
+                                        ),
+                                  onReject: () => widget.onReject?.call(
+                                    permission.toolUseId,
+                                  ),
+                                ))
+                        : switch (permission.toolName) {
+                            'AskUserQuestion' || 'McpElicitation'
+                                when hasQuestionPrompt =>
+                              _AskUserArea(
+                                permission: permission,
+                                statusColor: statusColor,
+                                onAnswer: (result) => widget.onAnswer?.call(
+                                  permission.toolUseId,
+                                  result,
+                                ),
+                                onTap: widget.onTap,
+                              ),
+                            'ExitPlanMode' => _PlanApprovalArea(
+                              statusColor: statusColor,
+                              planFeedbackController: _planFeedbackController,
+                              canOpenPlan: _extractPlanText(permission) != null,
+                              onOpenPlan: () => _openPlanSheet(permission),
+                              onApprove: () => widget.onApprove?.call(
+                                permission.toolUseId,
+                                clearContext: false,
+                              ),
+                              onApproveClearContext: () =>
+                                  widget.onApprove?.call(
+                                    permission.toolUseId,
+                                    clearContext: true,
+                                  ),
+                              onKeepPlanning: () {
+                                final feedback = _planFeedbackController.text
+                                    .trim();
+                                widget.onReject?.call(
+                                  permission.toolUseId,
+                                  message: feedback.isNotEmpty
+                                      ? feedback
+                                      : null,
+                                );
+                                _planFeedbackController.clear();
+                              },
+                            ),
+                            _ => _ToolApprovalArea(
+                              permission: permission,
+                              statusColor: statusColor,
+                              isCodex: isCodexSession,
+                              onApprove: () => widget.onApprove?.call(
+                                permission.toolUseId,
+                                clearContext: false,
+                              ),
+                              onApproveAlways: () => widget.onApproveAlways
+                                  ?.call(permission.toolUseId),
+                              onReject: () =>
+                                  widget.onReject?.call(permission.toolUseId),
+                            ),
+                          },
                   ],
                   // Row 2 — preview (the anchor). Clamps to 1 line only while
                   // an approval area is open so an actionable card stays
                   // compact; otherwise the medium 2-line preview.
-                  const SizedBox(height: AppSpacing.sm),
+                  const SizedBox(height: 6),
                   _SessionMessage(
                     text: displayMessage,
                     maxLines: hasPermission ? 1 : 2,
@@ -2308,7 +2357,10 @@ class _SessionTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final appColors = theme.extension<AppColors>()!;
+    // Slightly under titleMedium(16) so the title leads without feeling heavy;
+    // weight + the muted preview below carry the hierarchy, not raw size.
     final titleStyle = theme.textTheme.titleMedium?.copyWith(
+      fontSize: 15,
       fontWeight: FontWeight.w600,
       color: theme.colorScheme.onSurface,
     );
@@ -2366,15 +2418,19 @@ class _SessionMessage extends StatelessWidget {
     final hasText = text.isNotEmpty;
     return Text(
       hasText ? text : AppLocalizations.of(context).noPromptHistoryYet,
+      // Secondary to the title: 13px and slightly dimmed so it supports rather
+      // than competes (a full-strength 14px 2-line block read as heavy).
       style: hasText
           ? theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurface,
-              height: 1.4,
+              fontSize: 13,
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
+              height: 1.35,
             )
           : theme.textTheme.bodyMedium?.copyWith(
+              fontSize: 13,
               color: appColors.subtleText,
               fontStyle: FontStyle.italic,
-              height: 1.4,
+              height: 1.35,
             ),
       maxLines: maxLines,
       overflow: TextOverflow.ellipsis,
@@ -2449,10 +2505,7 @@ class RecentSessionCard extends StatelessWidget {
               top: 0,
               bottom: 0,
               width: 4,
-              child: _StatusRail(
-                color: colorScheme.outlineVariant,
-                alpha: 0.6,
-              ),
+              child: _StatusRail(color: colorScheme.outlineVariant, alpha: 0.6),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 10, AppSpacing.md, 10),
@@ -2464,7 +2517,7 @@ class RecentSessionCard extends StatelessWidget {
                   Row(
                     children: [
                       _ProviderGlyph(provider: provider),
-                      const SizedBox(width: AppSpacing.xs),
+                      const SizedBox(width: AppSpacing.sm),
                       Expanded(
                         child: _SessionTitle(
                           title:
@@ -2482,7 +2535,12 @@ class RecentSessionCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: AppSpacing.sm),
-                      Flexible(
+                      // Cap the timestamp width so the title (Expanded) always
+                      // wins the leftover space — a long "M/D HH:MM–M/D HH:MM"
+                      // range ellipsizes inside its 132px box instead of
+                      // squeezing the title.
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 132),
                         child: Text(
                           dateStr,
                           style: theme.textTheme.labelSmall?.copyWith(
@@ -2490,13 +2548,14 @@ class RecentSessionCard extends StatelessWidget {
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.end,
                         ),
                       ),
                     ],
                   ),
                   // Row 2 — preview (the anchor). Keep the draftText italic
                   // override branch; both obey the medium 2-line cap.
-                  const SizedBox(height: AppSpacing.sm),
+                  const SizedBox(height: 6),
                   if (draftText != null && draftText!.isNotEmpty)
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2516,9 +2575,10 @@ class RecentSessionCard extends StatelessWidget {
                           child: Text(
                             draftText!,
                             style: theme.textTheme.bodyMedium?.copyWith(
+                              fontSize: 13,
                               fontStyle: FontStyle.italic,
                               color: appColors.subtleText,
-                              height: 1.4,
+                              height: 1.35,
                             ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
