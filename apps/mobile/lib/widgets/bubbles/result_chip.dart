@@ -70,11 +70,9 @@ class ResultChip extends StatelessWidget {
                 vertical: AppSpacing.bubblePaddingV,
                 horizontal: AppSpacing.bubblePaddingH,
               ),
-              constraints: BoxConstraints(
-                maxWidth:
-                    MediaQuery.of(context).size.width *
-                    AppSpacing.maxBubbleWidthFraction,
-              ),
+              // Full width so result tables / code blocks / wide markdown are
+              // readable rather than squeezed into a narrow bubble.
+              width: double.infinity,
               decoration: BoxDecoration(
                 color: appColors.assistantBubble,
                 borderRadius: AppSpacing.assistantBubbleBorderRadius,

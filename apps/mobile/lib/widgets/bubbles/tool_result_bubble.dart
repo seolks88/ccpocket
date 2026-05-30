@@ -616,10 +616,11 @@ class _CollapsedToolResult extends StatelessWidget {
         onLongPress: onLongPress,
         borderRadius: BorderRadius.circular(AppSpacing.codeRadius),
         child: ConstrainedBox(
-          // The painted row stays compact, but the hit area meets the 44px
-          // minimum so adjacent rows are not mis-tapped.
+          // Compact, space-efficient log row — deliberately denser than the
+          // 44px standard since tool results stack many-per-screen and density
+          // matters more than tap size for this scannable stream.
           constraints: const BoxConstraints(
-            minHeight: AppSizes.minTouchTarget,
+            minHeight: AppSizes.compactRowMinHeight,
           ),
           child: Container(
             // Failures get a subtle tint + border so they pop out of an

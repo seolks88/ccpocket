@@ -74,11 +74,9 @@ class _StreamingBubbleState extends State<StreamingBubble>
           vertical: AppSpacing.bubblePaddingV,
           horizontal: AppSpacing.bubblePaddingH,
         ),
-        constraints: BoxConstraints(
-          maxWidth:
-              MediaQuery.of(context).size.width *
-              AppSpacing.maxBubbleWidthFraction,
-        ),
+        // Full width so streamed tables / code blocks / wide markdown are
+        // readable (the answer is what you read — give it the room).
+        width: double.infinity,
         decoration: BoxDecoration(
           color: appColors.assistantBubble,
           borderRadius: AppSpacing.assistantBubbleBorderRadius,

@@ -279,33 +279,27 @@ class _DefaultLayout extends StatelessWidget {
             ),
           );
 
-    // Give the assistant's prose its own calm, left-anchored speech bubble so
-    // the answer reads as a distinct conversation turn (parity with the user
-    // bubble) instead of loose body text. Only the prose/markdown body is
-    // wrapped — embedded tool/diff/plan widgets are separate switch branches
-    // and stay outside this container.
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.symmetric(
-          vertical: AppSpacing.bubbleMarginV,
-          horizontal: AppSpacing.bubbleMarginH,
-        ),
-        padding: const EdgeInsets.symmetric(
-          vertical: AppSpacing.bubblePaddingV,
-          horizontal: AppSpacing.bubblePaddingH,
-        ),
-        constraints: BoxConstraints(
-          maxWidth:
-              MediaQuery.of(context).size.width *
-              AppSpacing.maxBubbleWidthFraction,
-        ),
-        decoration: BoxDecoration(
-          color: appColors.assistantBubble,
-          borderRadius: AppSpacing.assistantBubbleBorderRadius,
-        ),
-        child: body,
+    // Give the assistant's answer a calm, FULL-WIDTH surface so it reads as a
+    // distinct turn without capping width: wide content (tables, code blocks,
+    // diffs) needs the whole row. The user's own prompt keeps the narrow bubble
+    // — the agent's answer is what you read, so it gets the room. Only the
+    // prose/markdown body is wrapped; embedded tool/diff/plan widgets are
+    // separate switch branches and stay outside this container.
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.symmetric(
+        vertical: AppSpacing.bubbleMarginV,
+        horizontal: AppSpacing.bubbleMarginH,
       ),
+      padding: const EdgeInsets.symmetric(
+        vertical: AppSpacing.bubblePaddingV,
+        horizontal: AppSpacing.bubblePaddingH,
+      ),
+      decoration: BoxDecoration(
+        color: appColors.assistantBubble,
+        borderRadius: AppSpacing.assistantBubbleBorderRadius,
+      ),
+      child: body,
     );
   }
 }
@@ -549,11 +543,13 @@ class _ToolUseCollapsed extends StatelessWidget {
         onTap: onTap,
         onLongPress: onLongPress,
         borderRadius: BorderRadius.circular(AppSpacing.codeRadius),
-        // The painted row stays compact, but the hit area meets the 44px
-        // minimum so adjacent tool rows are not mis-tapped (parity with the
-        // collapsed result row).
+        // Compact, space-efficient log row (parity with the collapsed result
+        // row) — deliberately denser than 44px since tool calls stack
+        // many-per-screen and density matters for this scannable stream.
         child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: AppSizes.minTouchTarget),
+          constraints: const BoxConstraints(
+            minHeight: AppSizes.compactRowMinHeight,
+          ),
           child: ToolRowHeader(
             icon: getToolCategoryIcon(category),
             accent: getToolCategoryColor(category, appColors),
