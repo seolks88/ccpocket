@@ -15,6 +15,7 @@ import '../theme/app_motion.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_theme.dart';
 import '../theme/provider_style.dart';
+import 'sheet_handle.dart';
 import 'workspace_pane_chrome.dart';
 
 /// Result returned when the user submits the new session sheet.
@@ -1412,7 +1413,6 @@ class _NewSessionSheetContentState extends State<_NewSessionSheetContent> {
 
   @override
   Widget build(BuildContext context) {
-    final appColors = Theme.of(context).extension<AppColors>()!;
     return Focus(
       onKeyEvent: _handleKeyEvent,
       child: AnimatedPadding(
@@ -1426,7 +1426,7 @@ class _NewSessionSheetContentState extends State<_NewSessionSheetContent> {
             mainAxisSize: MainAxisSize.max,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _DragHandle(appColors: appColors),
+              const SheetHandle(),
               _SheetTitle(
                 provider: _provider,
                 lockProvider: widget.lockProvider,
@@ -1472,29 +1472,6 @@ class _NewSessionSheetContentState extends State<_NewSessionSheetContent> {
 // ---------------------------------------------------------------------------
 // Extracted StatelessWidget classes
 // ---------------------------------------------------------------------------
-
-class _DragHandle extends StatelessWidget {
-  final AppColors appColors;
-
-  const _DragHandle({required this.appColors});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Container(
-          width: 32,
-          height: 4,
-          decoration: BoxDecoration(
-            color: appColors.subtleText.withValues(alpha: 0.3),
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 class _SheetTitle extends StatelessWidget {
   final Provider provider;

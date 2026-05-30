@@ -82,7 +82,11 @@ class _PlanHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(Icons.assignment, size: AppIconSize.inline, color: planColor),
+          Icon(
+            Icons.assignment_outlined,
+            size: AppIconSize.inline,
+            color: planColor,
+          ),
           const SizedBox(width: AppSpacing.sm),
           Text(
             'Implementation Plan',

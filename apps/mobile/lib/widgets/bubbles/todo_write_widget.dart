@@ -170,25 +170,35 @@ class _TodoWriteWidgetState extends State<TodoWriteWidget> {
             ],
           ),
 
-          // Expand / collapse control
+          // Expand / collapse control. The label stays compact, but the hit
+          // area meets the 44px minimum so the toggle isn't a hairline target.
           if (hasOverflow)
             GestureDetector(
               onTap: _toggleExpanded,
               behavior: HitTestBehavior.opaque,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                child: Text(
-                  _expanded ? 'Show less' : '... and $hiddenCount more',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: appColors.subtleText,
-                    fontStyle: FontStyle.italic,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  minHeight: AppSizes.minTouchTarget,
+                ),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.md,
+                    ),
+                    child: Text(
+                      _expanded ? 'Show less' : '... and $hiddenCount more',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: appColors.subtleText,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
                   ),
                 ),
               ),
             ),
 
-          const SizedBox(height: 4),
+          const SizedBox(height: AppSpacing.xs),
         ],
       ),
     );

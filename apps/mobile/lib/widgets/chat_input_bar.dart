@@ -9,8 +9,26 @@ import '../utils/platform_helper.dart';
 import '../utils/diff_parser.dart';
 import '../theme/app_motion.dart';
 import '../theme/app_spacing.dart';
+import '../theme/app_theme.dart';
 import '../theme/code_text_style.dart';
 import 'bubbles/image_preview.dart';
+
+/// Horizontal inset shared by the composer container and the completion /
+/// mention overlays. Kept in one place so the overlay width can be derived
+/// from the same value and can't drift from the field padding.
+///
+/// The overlay (in `chat_input_with_overlays.dart`) anchors at this inset and
+/// sizes its follower to `screenWidth - 2 * _kComposerHPadding`.
+const double _kComposerHPadding = AppSpacing.sm;
+
+/// Painted size of a composer control. The *hit area* is grown to
+/// [AppSizes.minTouchTarget] via [_ComposerIconButton]; the glyph/pill stays
+/// this compact to preserve density.
+const double _kComposerButtonSize = 36;
+
+/// Painted size of the prominent action controls (send / stop / voice) — a
+/// touch larger than the toolbar glyphs so the primary action reads first.
+const double _kComposerActionButtonSize = 40;
 
 /// Bottom input bar with slash-command button, text field, and action buttons.
 ///
@@ -99,10 +117,10 @@ class ChatInputBar extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     return Container(
       padding: EdgeInsets.only(
-        left: 8,
-        right: 8,
-        top: 8,
-        bottom: MediaQuery.of(context).padding.bottom + 8,
+        left: _kComposerHPadding,
+        right: _kComposerHPadding,
+        top: AppSpacing.sm,
+        bottom: MediaQuery.of(context).padding.bottom + AppSpacing.sm,
       ),
       decoration: BoxDecoration(
         color: cs.surface,
@@ -134,7 +152,7 @@ class ChatInputBar extends StatelessWidget {
             onIndent: onIndent,
             onDedent: onDedent,
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: AppSpacing.xs),
           Row(
             children: [
               AnimatedSwitcher(
@@ -150,22 +168,22 @@ class ChatInputBar extends StatelessWidget {
                         enabled: canDedent,
                       ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: AppSpacing.sm),
               _IndentButton(onTap: onIndent),
-              const SizedBox(width: 8),
+              const SizedBox(width: AppSpacing.sm),
               _MentionButton(onTap: onMention, enabled: !isInMentionContext),
               if (showDollarButton) ...[
-                const SizedBox(width: 8),
+                const SizedBox(width: AppSpacing.sm),
                 _DollarButton(onTap: onDollarMention ?? () {}),
               ],
-              const SizedBox(width: 8),
+              const SizedBox(width: AppSpacing.sm),
               _AttachButton(
                 hasAttachment: attachedImages.isNotEmpty,
                 imageCount: attachedImages.length,
                 onTap: onAttachImage,
               ),
               if (onShowPromptHistory != null) ...[
-                const SizedBox(width: 8),
+                const SizedBox(width: AppSpacing.sm),
                 _HistoryButton(onTap: onShowPromptHistory!),
               ],
               const Spacer(),
@@ -175,7 +193,7 @@ class ChatInputBar extends StatelessWidget {
                   isTranscribing: isTranscribing,
                   onTap: onToggleVoice,
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: AppSpacing.sm),
               ],
               _ActionButton(
                 status: status,
@@ -192,6 +210,93 @@ class ChatInputBar extends StatelessWidget {
   }
 }
 
+/// Unified composer control: one radius/color recipe with a hit area grown to
+/// [AppSizes.minTouchTarget]. The painted pill stays [_kComposerButtonSize] so
+/// density is preserved while every control clears the 44px touch standard.
+///
+/// Used by the toolbar icon buttons and the send / stop / voice buttons so the
+/// composer's tap targets all resolve to a single recipe.
+class _ComposerIconButton extends StatelessWidget {
+  const _ComposerIconButton({
+    this.buttonKey,
+    required this.tooltip,
+    required this.color,
+    required this.onTap,
+    required this.child,
+    this.onLongPress,
+    this.enabled = true,
+    this.paintOwnSurface = false,
+    this.size = _kComposerButtonSize,
+  });
+
+  final Key? buttonKey;
+  final String tooltip;
+
+  /// Fill behind the glyph, painted on the compact pill (not the hit area).
+  /// Pass [Colors.transparent] together with [paintOwnSurface] when [child]
+  /// paints its own surface (e.g. the voice button's animated container).
+  final Color color;
+  final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
+
+  /// Painted glyph/content, centered inside the compact pill.
+  final Widget child;
+
+  /// When false the control is dimmed and its callbacks are disabled.
+  final bool enabled;
+
+  /// When true the child supplies its own sized/decorated surface; this widget
+  /// only contributes the shared radius + grown hit area.
+  final bool paintOwnSurface;
+
+  /// Painted pill size (the hit area is always >= [AppSizes.minTouchTarget]).
+  /// Defaults to the toolbar size; send/stop pass [_kComposerActionButtonSize]
+  /// so the primary actions stay prominent and match the voice surface.
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    // Compact painted pill — stays [size] (~36) so density is preserved.
+    final pill = paintOwnSurface
+        ? child
+        : Container(
+            width: size,
+            height: size,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(AppRadius.xl),
+            ),
+            child: child,
+          );
+
+    // Transparent hit area grown to the 44px standard; the InkWell splash
+    // covers the full target while the colored pill above stays compact.
+    Widget control = Material(
+      color: Colors.transparent,
+      child: InkWell(
+        key: buttonKey,
+        borderRadius: BorderRadius.circular(AppRadius.xl),
+        onTap: enabled ? onTap : null,
+        onLongPress: enabled ? onLongPress : null,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            minWidth: AppSizes.minTouchTarget,
+            minHeight: AppSizes.minTouchTarget,
+          ),
+          child: Center(child: pill),
+        ),
+      ),
+    );
+
+    if (!enabled) {
+      control = Opacity(opacity: 0.4, child: control);
+    }
+
+    return Tooltip(message: tooltip, child: control);
+  }
+}
+
 class _IndentButton extends StatelessWidget {
   const _IndentButton({required this.onTap});
   final VoidCallback onTap;
@@ -200,26 +305,15 @@ class _IndentButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l = AppLocalizations.of(context);
-    return Tooltip(
-      message: l.tooltipIndent,
-      child: Material(
-        color: cs.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(20),
-        child: InkWell(
-          key: const ValueKey('indent_button'),
-          borderRadius: BorderRadius.circular(20),
-          onTap: onTap,
-          child: Container(
-            width: 36,
-            height: 36,
-            alignment: Alignment.center,
-            child: Icon(
-              Icons.format_indent_increase,
-              size: 18,
-              color: cs.primary,
-            ),
-          ),
-        ),
+    return _ComposerIconButton(
+      buttonKey: const ValueKey('indent_button'),
+      tooltip: l.tooltipIndent,
+      color: cs.surfaceContainerHigh,
+      onTap: onTap,
+      child: Icon(
+        Icons.format_indent_increase,
+        size: AppIconSize.action,
+        color: cs.primary,
       ),
     );
   }
@@ -234,28 +328,15 @@ class _DedentButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l = AppLocalizations.of(context);
-    return Tooltip(
-      message: l.tooltipDedent,
-      child: Opacity(
-        opacity: enabled ? 1.0 : 0.4,
-        child: Material(
-          color: cs.surfaceContainerHigh,
-          borderRadius: BorderRadius.circular(20),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(20),
-            onTap: enabled ? onTap : null,
-            child: Container(
-              width: 36,
-              height: 36,
-              alignment: Alignment.center,
-              child: Icon(
-                Icons.format_indent_decrease,
-                size: 18,
-                color: cs.primary,
-              ),
-            ),
-          ),
-        ),
+    return _ComposerIconButton(
+      tooltip: l.tooltipDedent,
+      color: cs.surfaceContainerHigh,
+      enabled: enabled,
+      onTap: onTap,
+      child: Icon(
+        Icons.format_indent_decrease,
+        size: AppIconSize.action,
+        color: cs.primary,
       ),
     );
   }
@@ -269,27 +350,16 @@ class _SlashCommandButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l = AppLocalizations.of(context);
-    return Tooltip(
-      message: l.tooltipSlashCommand,
-      child: Material(
-        color: cs.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(20),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(20),
-          onTap: onTap,
-          child: Container(
-            width: 36,
-            height: 36,
-            alignment: Alignment.center,
-            child: Text(
-              '/',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: cs.primary,
-              ),
-            ),
-          ),
+    return _ComposerIconButton(
+      tooltip: l.tooltipSlashCommand,
+      color: cs.surfaceContainerHigh,
+      onTap: onTap,
+      child: Text(
+        '/',
+        style: TextStyle(
+          fontSize: AppIconSize.action,
+          fontWeight: FontWeight.bold,
+          color: cs.primary,
         ),
       ),
     );
@@ -305,31 +375,18 @@ class _MentionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l = AppLocalizations.of(context);
-    return Tooltip(
-      message: l.tooltipMention,
-      child: Opacity(
-        opacity: enabled ? 1.0 : 0.4,
-        child: Material(
-          color: cs.surfaceContainerHigh,
-          borderRadius: BorderRadius.circular(20),
-          child: InkWell(
-            key: const ValueKey('mention_button'),
-            borderRadius: BorderRadius.circular(20),
-            onTap: enabled ? onTap : null,
-            child: Container(
-              width: 36,
-              height: 36,
-              alignment: Alignment.center,
-              child: Text(
-                '@',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: cs.primary,
-                ),
-              ),
-            ),
-          ),
+    return _ComposerIconButton(
+      buttonKey: const ValueKey('mention_button'),
+      tooltip: l.tooltipMention,
+      color: cs.surfaceContainerHigh,
+      enabled: enabled,
+      onTap: onTap,
+      child: Text(
+        '@',
+        style: TextStyle(
+          fontSize: AppIconSize.action,
+          fontWeight: FontWeight.bold,
+          color: cs.primary,
         ),
       ),
     );
@@ -344,28 +401,17 @@ class _DollarButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l = AppLocalizations.of(context);
-    return Tooltip(
-      message: l.tooltipDollarMention,
-      child: Material(
-        color: cs.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(20),
-        child: InkWell(
-          key: const ValueKey('dollar_button'),
-          borderRadius: BorderRadius.circular(20),
-          onTap: onTap,
-          child: Container(
-            width: 36,
-            height: 36,
-            alignment: Alignment.center,
-            child: Text(
-              r'$',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: cs.primary,
-              ),
-            ),
-          ),
+    return _ComposerIconButton(
+      buttonKey: const ValueKey('dollar_button'),
+      tooltip: l.tooltipDollarMention,
+      color: cs.surfaceContainerHigh,
+      onTap: onTap,
+      child: Text(
+        r'$',
+        style: TextStyle(
+          fontSize: AppIconSize.action,
+          fontWeight: FontWeight.bold,
+          color: cs.primary,
         ),
       ),
     );
@@ -386,53 +432,50 @@ class _AttachButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l = AppLocalizations.of(context);
-    return Tooltip(
-      message: l.tooltipAttachImage,
-      child: Material(
-        color: hasAttachment ? cs.primaryContainer : cs.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(20),
-        child: InkWell(
-          key: const ValueKey('attach_image_button'),
-          borderRadius: BorderRadius.circular(20),
-          onTap: onTap,
-          child: Container(
-            width: 36,
-            height: 36,
-            alignment: Alignment.center,
-            child: hasAttachment
-                ? Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      Icon(Icons.image, size: 18, color: cs.onPrimaryContainer),
-                      if (imageCount > 1)
-                        Positioned(
-                          top: -6,
-                          right: -8,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 4,
-                              vertical: 1,
-                            ),
-                            decoration: BoxDecoration(
-                              color: cs.primary,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              '$imageCount',
-                              style: TextStyle(
-                                fontSize: 9,
-                                fontWeight: FontWeight.bold,
-                                color: cs.onPrimary,
-                              ),
-                            ),
-                          ),
+    return _ComposerIconButton(
+      buttonKey: const ValueKey('attach_image_button'),
+      tooltip: l.tooltipAttachImage,
+      color: hasAttachment ? cs.primaryContainer : cs.surfaceContainerHigh,
+      onTap: onTap,
+      child: hasAttachment
+          ? Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(
+                  Icons.image,
+                  size: AppIconSize.action,
+                  color: cs.onPrimaryContainer,
+                ),
+                if (imageCount > 1)
+                  Positioned(
+                    top: -6,
+                    right: -8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.xs,
+                        vertical: 1,
+                      ),
+                      decoration: BoxDecoration(
+                        color: cs.primary,
+                        borderRadius: BorderRadius.circular(AppRadius.sm),
+                      ),
+                      child: Text(
+                        '$imageCount',
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                          color: cs.onPrimary,
                         ),
-                    ],
-                  )
-                : Icon(Icons.image_outlined, size: 18, color: cs.primary),
-          ),
-        ),
-      ),
+                      ),
+                    ),
+                  ),
+              ],
+            )
+          : Icon(
+              Icons.image_outlined,
+              size: AppIconSize.action,
+              color: cs.primary,
+            ),
     );
   }
 }
@@ -445,20 +488,64 @@ class _HistoryButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l = AppLocalizations.of(context);
+    return _ComposerIconButton(
+      buttonKey: const ValueKey('prompt_history_button'),
+      tooltip: l.tooltipPromptHistory,
+      color: cs.surfaceContainerHigh,
+      onTap: onTap,
+      child: Icon(Icons.history, size: AppIconSize.action, color: cs.primary),
+    );
+  }
+}
+
+/// Theme-aware dismiss control for the image / diff preview chips.
+///
+/// Replaces the old `Colors.black54` circle + white glyph with a neutral
+/// theme chip behind a [cs.onSurface] glyph. The painted dot stays compact; a
+/// transparent hit area grows the target to [AppSizes.minTouchTarget].
+class _PreviewDismissButton extends StatelessWidget {
+  const _PreviewDismissButton({
+    required this.tooltip,
+    required this.onTap,
+    this.alignment = Alignment.center,
+  });
+
+  final String tooltip;
+  final VoidCallback? onTap;
+
+  /// Where the compact dot sits inside the 44px hit box. Anchored to
+  /// [Alignment.topRight] on image chips so the dot stays in the corner while
+  /// the hit area extends inward over the thumbnail.
+  final Alignment alignment;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final appColors = Theme.of(context).extension<AppColors>()!;
     return Tooltip(
-      message: l.tooltipPromptHistory,
-      child: Material(
-        color: cs.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(20),
-        child: InkWell(
-          key: const ValueKey('prompt_history_button'),
-          borderRadius: BorderRadius.circular(20),
-          onTap: onTap,
-          child: Container(
-            width: 36,
-            height: 36,
-            alignment: Alignment.center,
-            child: Icon(Icons.history, size: 18, color: cs.primary),
+      message: tooltip,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            minWidth: AppSizes.minTouchTarget,
+            minHeight: AppSizes.minTouchTarget,
+          ),
+          child: Align(
+            alignment: alignment,
+            child: Container(
+              decoration: BoxDecoration(
+                color: appColors.neutralChip,
+                shape: BoxShape.circle,
+              ),
+              padding: const EdgeInsets.all(AppSpacing.xs),
+              child: Icon(
+                Icons.close,
+                size: AppIconSize.inline,
+                color: cs.onSurface,
+              ),
+            ),
           ),
         ),
       ),
@@ -475,7 +562,7 @@ class _ImagePreview extends StatelessWidget {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
       child: SizedBox(
         height: 80,
         child: ListView.separated(
@@ -494,7 +581,7 @@ class _ImagePreview extends StatelessWidget {
                     ),
                   ),
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
                     child: Image.memory(
                       images[index].bytes,
                       height: 80,
@@ -504,25 +591,12 @@ class _ImagePreview extends StatelessWidget {
                   ),
                 ),
                 Positioned(
-                  top: 4,
-                  right: 4,
-                  child: Tooltip(
-                    message: l.tooltipRemoveImage,
-                    child: GestureDetector(
-                      onTap: () => onClearImage?.call(index),
-                      child: Container(
-                        decoration: const BoxDecoration(
-                          color: Colors.black54,
-                          shape: BoxShape.circle,
-                        ),
-                        padding: const EdgeInsets.all(4),
-                        child: const Icon(
-                          Icons.close,
-                          size: 14,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
+                  top: AppSpacing.xs,
+                  right: AppSpacing.xs,
+                  child: _PreviewDismissButton(
+                    tooltip: l.tooltipRemoveImage,
+                    alignment: Alignment.topRight,
+                    onTap: () => onClearImage?.call(index),
                   ),
                 ),
               ],
@@ -582,17 +656,17 @@ class _DiffPreview extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(10),
+        margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+        padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
           color: cs.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(AppRadius.md),
           border: Border.all(color: cs.outline.withValues(alpha: 0.3)),
         ),
         child: Row(
           children: [
-            Icon(Icons.difference, size: 20, color: cs.primary),
-            const SizedBox(width: 8),
+            Icon(Icons.difference, size: AppIconSize.action, color: cs.primary),
+            const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -618,21 +692,8 @@ class _DiffPreview extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(width: 8),
-            Tooltip(
-              message: l.tooltipClearDiff,
-              child: GestureDetector(
-                onTap: onClear,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.black54,
-                    shape: BoxShape.circle,
-                  ),
-                  padding: const EdgeInsets.all(4),
-                  child: const Icon(Icons.close, size: 14, color: Colors.white),
-                ),
-              ),
-            ),
+            const SizedBox(width: AppSpacing.sm),
+            _PreviewDismissButton(tooltip: l.tooltipClearDiff, onTap: onClear),
           ],
         ),
       ),
@@ -974,8 +1035,11 @@ class _InputTextFieldState extends State<_InputTextField> {
           ),
         ),
         isDense: true,
+        // 24px pill radius is intentional for the multiline field (no AppRadius
+        // step matches); vertical 10 keeps the compact height. Only the
+        // horizontal inset is routed through the spacing scale.
         contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
+          horizontal: AppSpacing.lg,
           vertical: 10,
         ),
       ),
@@ -1024,22 +1088,17 @@ class _StopButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l = AppLocalizations.of(context);
-    return Tooltip(
-      message: l.tapInterruptHoldStop,
-      child: Material(
-        color: cs.error,
-        borderRadius: BorderRadius.circular(20),
-        child: InkWell(
-          key: const ValueKey('stop_button'),
-          onTap: onInterrupt,
-          onLongPress: onStop,
-          borderRadius: BorderRadius.circular(20),
-          child: SizedBox(
-            width: 40,
-            height: 40,
-            child: Icon(Icons.stop_rounded, color: cs.onError, size: 20),
-          ),
-        ),
+    return _ComposerIconButton(
+      buttonKey: const ValueKey('stop_button'),
+      tooltip: l.tapInterruptHoldStop,
+      size: _kComposerActionButtonSize,
+      color: cs.error,
+      onTap: onInterrupt,
+      onLongPress: onStop,
+      child: Icon(
+        Icons.stop_rounded,
+        color: cs.onError,
+        size: AppIconSize.action,
       ),
     );
   }
@@ -1059,66 +1118,64 @@ class _VoiceButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l = AppLocalizations.of(context);
-    return Tooltip(
-      message: isTranscribing
+    // The voice control keeps its bespoke animated surface (border + recording
+    // glow + transcribing spinner). _ComposerIconButton only contributes the
+    // shared radius + 44px hit area; the painted container stays compact.
+    return _ComposerIconButton(
+      buttonKey: const ValueKey('voice_button'),
+      tooltip: isTranscribing
           ? l.tooltipTranscribingVoiceInput
           : isRecording
           ? l.tooltipStopRecording
           : l.tooltipVoiceInput,
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(22),
-        child: InkWell(
-          key: const ValueKey('voice_button'),
+      color: Colors.transparent,
+      paintOwnSurface: true,
+      onTap: isTranscribing ? null : onTap,
+      child: AnimatedContainer(
+        duration: motionDuration(context, AppMotion.standard),
+        curve: AppMotion.curve,
+        width: 40,
+        height: 40,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: isRecording
+              ? cs.error
+              : isTranscribing
+              ? cs.primaryContainer.withValues(alpha: 0.72)
+              : cs.surfaceContainerHigh,
           borderRadius: BorderRadius.circular(22),
-          onTap: isTranscribing ? null : onTap,
-          child: AnimatedContainer(
-            duration: motionDuration(context, AppMotion.standard),
-            curve: AppMotion.curve,
-            width: 40,
-            height: 40,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: isRecording
-                  ? cs.error
-                  : isTranscribing
-                  ? cs.primaryContainer.withValues(alpha: 0.72)
-                  : cs.surfaceContainerHigh,
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(
-                color: isRecording
-                    ? cs.error
-                    : isTranscribing
-                    ? cs.primary.withValues(alpha: 0.42)
-                    : cs.outlineVariant.withValues(alpha: 0.32),
-              ),
-              boxShadow: [
-                if (isRecording || isTranscribing)
-                  BoxShadow(
-                    color: (isRecording ? cs.error : cs.primary).withValues(
-                      alpha: 0.22,
-                    ),
-                    blurRadius: 14,
-                    spreadRadius: 1,
-                  ),
-              ],
-            ),
-            child: isTranscribing
-                ? SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: cs.primary,
-                    ),
-                  )
-                : Icon(
-                    isRecording ? Icons.stop : Icons.mic,
-                    size: 18,
-                    color: isRecording ? cs.onError : cs.primary,
-                  ),
+          border: Border.all(
+            color: isRecording
+                ? cs.error
+                : isTranscribing
+                ? cs.primary.withValues(alpha: 0.42)
+                : cs.outlineVariant.withValues(alpha: 0.32),
           ),
+          boxShadow: [
+            if (isRecording || isTranscribing)
+              BoxShadow(
+                color: (isRecording ? cs.error : cs.primary).withValues(
+                  alpha: 0.22,
+                ),
+                blurRadius: 14,
+                spreadRadius: 1,
+              ),
+          ],
         ),
+        child: isTranscribing
+            ? SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: cs.primary,
+                ),
+              )
+            : Icon(
+                isRecording ? Icons.stop : Icons.mic,
+                size: 18,
+                color: isRecording ? cs.onError : cs.primary,
+              ),
       ),
     );
   }
@@ -1133,22 +1190,18 @@ class _SendButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l = AppLocalizations.of(context);
-    final opacity = enabled ? 1.0 : 0.4;
-    return Opacity(
-      opacity: opacity,
-      child: Container(
-        decoration: BoxDecoration(
-          color: cs.primary,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: IconButton(
-          key: const ValueKey('send_button'),
-          tooltip: l.tooltipSendMessage,
-          onPressed: enabled ? onSend : null,
-          icon: Icon(Icons.arrow_upward, color: cs.onPrimary, size: 20),
-          constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-          padding: EdgeInsets.zero,
-        ),
+    // Solid primary fill (Wave 1 — no gradient); hit area grown to 44px.
+    return _ComposerIconButton(
+      buttonKey: const ValueKey('send_button'),
+      tooltip: l.tooltipSendMessage,
+      size: _kComposerActionButtonSize,
+      color: cs.primary,
+      enabled: enabled,
+      onTap: onSend,
+      child: Icon(
+        Icons.arrow_upward,
+        color: cs.onPrimary,
+        size: AppIconSize.action,
       ),
     );
   }

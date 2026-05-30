@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../models/messages.dart';
 import '../services/bridge_service.dart';
 import '../theme/app_theme.dart';
+import 'sheet_handle.dart';
 import 'workspace_pane_chrome.dart';
 
 /// Shows a bottom sheet listing git worktrees for a project.
@@ -124,20 +125,7 @@ class _WorktreeListContentState extends State<_WorktreeListContent> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Drag handle
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Container(
-                width: 32,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: appColors.subtleText.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-          ),
+          const SheetHandle(),
           // Title
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),

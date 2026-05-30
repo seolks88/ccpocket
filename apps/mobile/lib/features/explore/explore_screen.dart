@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../services/bridge_service.dart';
 import '../../theme/code_text_style.dart';
+import '../../widgets/sheet_handle.dart';
 import '../../widgets/workspace_pane_chrome.dart';
 import '../file_peek/file_peek_sheet.dart';
 import '../session_list/workspace_shell_screen.dart';
@@ -280,15 +281,7 @@ class _RecentFilesSheet extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            margin: const EdgeInsets.only(top: 8),
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: subtle.withValues(alpha: 0.3),
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
+          const SheetHandle(),
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: Row(

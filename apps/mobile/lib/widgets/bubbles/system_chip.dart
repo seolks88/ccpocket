@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/messages.dart';
 import '../../theme/app_theme.dart';
 import '../codex_environment_summary.dart';
+import 'chip_pill.dart';
 
 class SystemChip extends StatelessWidget {
   final SystemMessage message;
@@ -18,8 +19,10 @@ class SystemChip extends StatelessWidget {
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 6),
-        child: Chip(
-          label: isCodexStarted
+        child: ChipPill(
+          backgroundColor: appColors.systemChip,
+          label: label,
+          child: isCodexStarted
               ? CodexEnvironmentSummary(
                   leadingLabel: 'Session started',
                   model: message.model,
@@ -30,11 +33,7 @@ class SystemChip extends StatelessWidget {
                   sandboxMode: message.sandboxMode,
                   showDefaultReasoning: true,
                 )
-              : Text(label!, style: const TextStyle(fontSize: 12)),
-          backgroundColor: appColors.systemChip,
-          side: BorderSide.none,
-          padding: EdgeInsets.zero,
-          visualDensity: VisualDensity.compact,
+              : null,
         ),
       ),
     );

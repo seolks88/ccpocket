@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/code_text_style.dart';
 import '../../utils/diff_parser.dart';
+import 'tool_row_header.dart';
 
 /// Maximum number of diff lines shown inline before truncation.
 const _maxInlineLines = 20;
@@ -53,7 +55,7 @@ class InlineEditDiff extends StatelessWidget {
       children: [
         // Diff lines
         ClipRRect(
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(AppSpacing.codeRadius),
           child: Container(
             color: appColors.codeBackground,
             child: Column(
@@ -74,15 +76,8 @@ class InlineEditDiff extends StatelessWidget {
           GestureDetector(
             onTap: onTapFullDiff,
             child: Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                '... $remaining more lines',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: appColors.subtleText,
-                  fontStyle: FontStyle.italic,
-                ),
-              ),
+              padding: const EdgeInsets.only(top: AppSpacing.xs),
+              child: MoreLinesHint(remaining: remaining),
             ),
           ),
       ],

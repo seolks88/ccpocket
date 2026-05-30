@@ -13,6 +13,7 @@ import '../../theme/code_text_style.dart';
 import '../../utils/tool_categories.dart';
 import '../google_search_text_selection.dart';
 import 'image_preview.dart';
+import 'tool_row_header.dart';
 
 /// Three-level expansion state for tool result content.
 enum ToolResultExpansion { collapsed, preview, expanded }
@@ -82,8 +83,6 @@ class ToolResultBubble extends StatefulWidget {
 class ToolResultBubbleState extends State<ToolResultBubble> {
   late ToolResultExpansion _expansion;
   bool _restoredFromStorage = false;
-
-  static const _previewLines = 5;
 
   @override
   void initState() {
@@ -570,60 +569,6 @@ class _ToolStatusVisuals {
   }
 }
 
-/// Shared header used by both the collapsed row and the expanded card so the
-/// "icon + tool name + summary + trailing" recipe stays identical and any
-/// future tweak lands once. Behaviour-free: pure layout.
-class _ToolRowHeader extends StatelessWidget {
-  final _ToolStatusVisuals visuals;
-  final String name;
-  final String summaryText;
-  final double iconSize;
-  final Widget? trailing;
-
-  const _ToolRowHeader({
-    required this.visuals,
-    required this.name,
-    required this.summaryText,
-    required this.iconSize,
-    this.trailing,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final appColors = Theme.of(context).extension<AppColors>()!;
-    final textTheme = Theme.of(context).textTheme;
-    final isError = visuals.isError;
-
-    return Row(
-      children: [
-        Icon(visuals.icon, size: iconSize, color: visuals.accent),
-        const SizedBox(width: AppSpacing.sm),
-        Text(
-          name,
-          style: textTheme.labelMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-            // Tint the name on failure so the call reads as failed even when
-            // the glyph scrolls past the eye.
-            color: isError ? appColors.errorText : null,
-          ),
-        ),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(
-          child: Text(
-            summaryText,
-            style: textTheme.labelSmall?.copyWith(
-              color: isError ? appColors.errorText : appColors.subtleText,
-              fontStyle: visuals.muted ? FontStyle.italic : FontStyle.normal,
-            ),
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-        ?trailing,
-      ],
-    );
-  }
-}
-
 /// Collapsed: inline log row. A >=44px hit area, a glyph-backed status tint,
 /// and a thin left accent rule that visually ties the result to the call that
 /// produced it (call -> result reads as a pair).
@@ -704,8 +649,11 @@ class _CollapsedToolResult extends StatelessWidget {
                   ),
                 ),
                 Expanded(
-                  child: _ToolRowHeader(
-                    visuals: visuals,
+                  child: ToolRowHeader(
+                    icon: visuals.icon,
+                    accent: visuals.accent,
+                    isError: visuals.isError,
+                    muted: visuals.muted,
                     name: toolName ?? l.toolResult,
                     summaryText: status == ToolResultStatus.empty
                         ? '(no output)'
@@ -743,7 +691,7 @@ class _ExpandedToolResult extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onLongPress;
 
-  static const _previewLines = ToolResultBubbleState._previewLines;
+  static const _previewLines = toolPreviewLines;
 
   const _ExpandedToolResult({
     required this.message,
@@ -808,8 +756,11 @@ class _ExpandedToolResult extends StatelessWidget {
                 const SizedBox(height: AppSpacing.sm),
               ],
               // Header row -- shared recipe with the collapsed row.
-              _ToolRowHeader(
-                visuals: visuals,
+              ToolRowHeader(
+                icon: visuals.icon,
+                accent: visuals.accent,
+                isError: visuals.isError,
+                muted: visuals.muted,
                 name: toolName ?? l.toolResult,
                 summaryText: summary,
                 iconSize: AppIconSize.chip,
@@ -844,13 +795,8 @@ class _ExpandedToolResult extends StatelessWidget {
                       if (hasMore)
                         Padding(
                           padding: const EdgeInsets.only(top: AppSpacing.xs),
-                          child: Text(
-                            '... ${lines.length - _previewLines} more lines',
-                            style: Theme.of(context).textTheme.labelSmall
-                                ?.copyWith(
-                                  fontStyle: FontStyle.italic,
-                                  color: appColors.subtleText,
-                                ),
+                          child: MoreLinesHint(
+                            remaining: lines.length - _previewLines,
                           ),
                         ),
                     ] else if (expansion ==

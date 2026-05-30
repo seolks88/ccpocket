@@ -27,6 +27,7 @@ import 'message_action_bar.dart';
 import 'plan_card.dart';
 import 'thinking_bubble.dart';
 import 'todo_write_widget.dart';
+import 'tool_row_header.dart';
 
 const _imageGenerationToolName = 'ImageGeneration';
 
@@ -543,41 +544,27 @@ class _ToolUseCollapsed extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.bubbleMarginH,
-        vertical: 1,
       ),
       child: InkWell(
         onTap: onTap,
         onLongPress: onLongPress,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 2),
-          child: Row(
-            children: [
-              // Category icon
-              Icon(
-                getToolCategoryIcon(category),
-                size: 12,
-                color: getToolCategoryColor(category, appColors),
-              ),
-              const SizedBox(width: 6),
-              // Tool name
-              Text(
-                name,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(width: 8),
-              // Input summary
-              Expanded(
-                child: Text(
-                  inputSummary,
-                  style: TextStyle(fontSize: 11, color: appColors.subtleText),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              Icon(Icons.chevron_right, size: 14, color: appColors.subtleText),
-            ],
+        borderRadius: BorderRadius.circular(AppSpacing.codeRadius),
+        // The painted row stays compact, but the hit area meets the 44px
+        // minimum so adjacent tool rows are not mis-tapped (parity with the
+        // collapsed result row).
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: AppSizes.minTouchTarget),
+          child: ToolRowHeader(
+            icon: getToolCategoryIcon(category),
+            accent: getToolCategoryColor(category, appColors),
+            name: name,
+            summaryText: inputSummary,
+            iconSize: AppIconSize.chip,
+            trailing: Icon(
+              Icons.chevron_right,
+              size: AppIconSize.chip,
+              color: appColors.subtleText,
+            ),
           ),
         ),
       ),
@@ -596,7 +583,7 @@ class _ToolUseCard extends StatelessWidget {
   final VoidCallback onLongPress;
   final VoidCallback onOpenGitScreen;
 
-  static const _previewLines = 5;
+  static const _previewLines = toolPreviewLines;
 
   const _ToolUseCard({
     required this.name,
@@ -620,7 +607,7 @@ class _ToolUseCard extends StatelessWidget {
 
     return Container(
       margin: const EdgeInsets.symmetric(
-        vertical: 2,
+        vertical: AppSpacing.bubbleMarginV,
         horizontal: AppSpacing.bubbleMarginH,
       ),
       child: InkWell(
@@ -628,7 +615,7 @@ class _ToolUseCard extends StatelessWidget {
         onLongPress: onLongPress,
         borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
         child: Container(
-          padding: const EdgeInsets.all(10),
+          padding: const EdgeInsets.all(AppSpacing.md),
           decoration: BoxDecoration(
             color: appColors.toolBubble,
             borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
@@ -637,38 +624,27 @@ class _ToolUseCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  Icon(
-                    getToolCategoryIcon(category),
-                    size: 14,
-                    color: getToolCategoryColor(category, appColors),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    name,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
+              // Header row -- shared recipe with the tool-result card.
+              ToolRowHeader(
+                icon: getToolCategoryIcon(category),
+                accent: getToolCategoryColor(category, appColors),
+                name: name,
+                summaryText: inputSummary,
+                iconSize: AppIconSize.chip,
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (diffFile != null) ...[
+                      _DiffStatsMini(diffFile: diffFile, appColors: appColors),
+                      const SizedBox(width: AppSpacing.xs),
+                    ],
+                    Icon(
+                      chevronIcon,
+                      size: AppIconSize.inline,
+                      color: appColors.subtleText,
                     ),
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      inputSummary,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: appColors.subtleText,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  if (diffFile != null) ...[
-                    _DiffStatsMini(diffFile: diffFile, appColors: appColors),
-                    const SizedBox(width: 4),
                   ],
-                  Icon(chevronIcon, size: 16, color: appColors.subtleText),
-                ],
+                ),
               ),
               // Expanded body. No height-settle here on purpose: edit-tool
               // bodies stream their content in, so an AnimatedSize would chase
@@ -676,7 +652,7 @@ class _ToolUseCard extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SizedBox(height: 6),
+                  const SizedBox(height: AppSpacing.sm),
                   if (diffFile != null)
                     InlineEditDiff(
                       diffFile: diffFile,
@@ -701,11 +677,9 @@ class _ToolUseCard extends StatelessWidget {
     if (expansion == ToolUseExpansion.expanded) {
       return SelectableText(
         fullText,
-        style: codeTextSettingsOf(context).style(
-          fontSize: 11,
-          color: appColors.toolResultTextExpanded,
-          height: 1.4,
-        ),
+        style: codeTextSettingsOf(
+          context,
+        ).style(color: appColors.toolResultTextExpanded),
         contextMenuBuilder: googleSearchSelectableTextContextMenuBuilder,
       );
     }
@@ -719,25 +693,16 @@ class _ToolUseCard extends StatelessWidget {
       children: [
         Text(
           previewText,
-          style: codeTextSettingsOf(context).style(
-            fontSize: 11,
-            color: appColors.toolResultText,
-            height: 1.4,
-          ),
+          style: codeTextSettingsOf(
+            context,
+          ).style(color: appColors.toolResultText),
           maxLines: _previewLines,
           overflow: TextOverflow.ellipsis,
         ),
         if (hasMore)
           Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text(
-              '... ${lines.length - _previewLines} more lines',
-              style: TextStyle(
-                fontSize: 10,
-                fontStyle: FontStyle.italic,
-                color: appColors.subtleText,
-              ),
-            ),
+            padding: const EdgeInsets.only(top: AppSpacing.xs),
+            child: MoreLinesHint(remaining: lines.length - _previewLines),
           ),
       ],
     );

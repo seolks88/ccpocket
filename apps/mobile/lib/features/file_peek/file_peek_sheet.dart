@@ -19,6 +19,7 @@ import '../../theme/markdown_style.dart'
         highlightToTextSpans,
         markdownBuilders;
 import '../../widgets/bubbles/image_preview.dart';
+import '../../widgets/sheet_handle.dart';
 import '../../widgets/workspace_pane_chrome.dart';
 
 /// Resolves a potentially partial file path against the project's file list,
@@ -102,15 +103,7 @@ Future<String?> _showFilePickerSheet(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            margin: const EdgeInsets.only(top: 8),
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: appColors.subtleText.withValues(alpha: 0.3),
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
+          const SheetHandle(),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: Row(
@@ -274,16 +267,7 @@ class _FilePeekContentState extends State<_FilePeekContent> {
 
     return Column(
       children: [
-        // Drag handle
-        Container(
-          margin: const EdgeInsets.only(top: 8),
-          width: 40,
-          height: 4,
-          decoration: BoxDecoration(
-            color: appColors.subtleText.withValues(alpha: 0.3),
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
+        const SheetHandle(),
         // Header
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),

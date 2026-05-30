@@ -5,6 +5,7 @@ import '../../models/messages.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/markdown_style.dart';
+import 'chip_pill.dart';
 
 class ResultChip extends StatelessWidget {
   final ResultMessage message;
@@ -94,13 +95,7 @@ class ResultChip extends StatelessWidget {
         Center(
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 6),
-            child: Chip(
-              label: Text(label, style: const TextStyle(fontSize: 12)),
-              backgroundColor: chipColor,
-              side: BorderSide.none,
-              padding: EdgeInsets.zero,
-              visualDensity: VisualDensity.compact,
-            ),
+            child: ChipPill(backgroundColor: chipColor, label: label),
           ),
         ),
       ],

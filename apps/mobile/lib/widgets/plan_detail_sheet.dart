@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 
-import '../theme/app_theme.dart';
 import '../theme/markdown_style.dart';
+import 'sheet_handle.dart';
 import 'workspace_pane_chrome.dart';
 
 /// Shows a full-screen bottom sheet with the complete plan text.
@@ -26,7 +26,6 @@ class _PlanDetailContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final appColors = Theme.of(context).extension<AppColors>()!;
     final cs = Theme.of(context).colorScheme;
     final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
 
@@ -38,20 +37,7 @@ class _PlanDetailContent extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Drag handle
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Container(
-                width: 32,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: appColors.subtleText.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-          ),
+          const SheetHandle(),
           // Header
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
