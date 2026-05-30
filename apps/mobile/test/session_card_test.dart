@@ -491,7 +491,7 @@ void main() {
         _wrap(RunningSessionCard(session: session, onTap: () {})),
       );
 
-      expect(find.text('Opus 4.8  default  plan-on'), findsOneWidget);
+      expect(find.text('Opus 4.8 · default · plan-on'), findsOneWidget);
     });
 
     testWidgets('shows bypass-all for claude bypassPermissions mode', (
@@ -529,7 +529,7 @@ void main() {
         _wrap(RunningSessionCard(session: session, onTap: () {})),
       );
 
-      expect(find.text('default  plan-on'), findsOneWidget);
+      expect(find.text('default · plan-on'), findsOneWidget);
     });
 
     testWidgets('hides lastMessage row when empty', (tester) async {
