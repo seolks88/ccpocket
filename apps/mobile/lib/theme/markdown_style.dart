@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import '../core/logger.dart';
 import '../l10n/app_localizations.dart';
 import '../widgets/google_search_text_selection.dart';
+import 'app_spacing.dart';
 import 'app_theme.dart';
 import 'code_text_style.dart';
 
@@ -79,21 +80,71 @@ Future<void> handleMarkdownLink(String text, String? href, String title) async {
 MarkdownStyleSheet buildMarkdownStyle(BuildContext context) {
   final appColors = Theme.of(context).extension<AppColors>()!;
   final theme = Theme.of(context);
+  final textTheme = theme.textTheme;
   final colorScheme = theme.colorScheme;
-  final baseStyle = theme.textTheme.bodyMedium ?? const TextStyle();
+  final baseStyle = textTheme.bodyMedium ?? const TextStyle();
   final codeSettings = codeTextSettingsOf(context);
-  final tableLineColor = colorScheme.outlineVariant.withValues(
-    alpha: theme.brightness == Brightness.dark ? 0.85 : 1,
+
+  // Prose rhythm. Answers render full-width, so generous line-height keeps long
+  // paragraphs readable without feeling loose. Headings get a touch of top
+  // padding so sections separate from the prose above without a heavy rule.
+  const proseLineHeight = 1.5;
+  final proseStyle = baseStyle.copyWith(height: proseLineHeight);
+
+  // Heading scale, anchored to the textTheme rather than flutter_markdown's
+  // defaults (which flatten h4/h5/h6 to one size). Proportional, not oversized
+  // for a chat surface: h1 ≈ titleLarge, tapering down to body for h6.
+  final headingColor = colorScheme.onSurface;
+  TextStyle heading(double fontSize, FontWeight weight) => baseStyle.copyWith(
+    fontSize: fontSize,
+    fontWeight: weight,
+    height: 1.3,
+    color: headingColor,
   );
-  final tableRowColor = colorScheme.surfaceContainerHigh.withValues(
-    alpha: theme.brightness == Brightness.dark ? 0.45 : 0.7,
+  final h1 = heading(textTheme.titleLarge?.fontSize ?? 22, FontWeight.w700);
+  final h2 = heading(20, FontWeight.w700);
+  final h3 = heading(18, FontWeight.w600);
+  final h4 = heading(16, FontWeight.w600);
+  final h5 = heading(15, FontWeight.w600);
+  final h6 = heading(14, FontWeight.w600);
+  const headingTopPadding = EdgeInsets.only(top: AppSpacing.sm);
+  const tightHeadingTopPadding = EdgeInsets.only(top: AppSpacing.xs);
+
+  // Tables: 1px borders in the warm-neutral outline color, a bold header row
+  // (via tableHead), comfortable cell padding, and a *very* subtle zebra stripe
+  // so the eye can track rows across a wide, horizontally-scrolled table. The
+  // stripe is a low-alpha surface tint — restrained, not a heavy fill.
+  final tableLineColor = colorScheme.outlineVariant;
+  final tableStripeColor = colorScheme.onSurface.withValues(
+    alpha: theme.brightness == Brightness.dark ? 0.05 : 0.035,
   );
   final tableTextStyle = baseStyle.copyWith(height: 1.35);
 
   return MarkdownStyleSheet.fromTheme(theme).copyWith(
-    p: baseStyle,
+    a: baseStyle.copyWith(
+      color: colorScheme.primary,
+      decoration: TextDecoration.underline,
+      decorationColor: colorScheme.primary.withValues(alpha: 0.4),
+    ),
+    p: proseStyle,
+    // Inter-block rhythm is governed uniformly by blockSpacing (kept at the
+    // package default of 8 so list items don't drift apart); in-paragraph
+    // readability comes from the 1.5 line-height above. Headings add their own
+    // top padding on top of blockSpacing for section separation.
     strong: baseStyle.copyWith(fontWeight: FontWeight.w700),
     em: baseStyle.copyWith(fontStyle: FontStyle.italic),
+    h1: h1,
+    h1Padding: headingTopPadding,
+    h2: h2,
+    h2Padding: headingTopPadding,
+    h3: h3,
+    h3Padding: headingTopPadding,
+    h4: h4,
+    h4Padding: tightHeadingTopPadding,
+    h5: h5,
+    h5Padding: tightHeadingTopPadding,
+    h6: h6,
+    h6Padding: tightHeadingTopPadding,
     code: codeSettings.style(
       color: baseStyle.color,
       fontWeight: FontWeight.w600,
@@ -101,23 +152,38 @@ MarkdownStyleSheet buildMarkdownStyle(BuildContext context) {
     ),
     codeblockDecoration: BoxDecoration(
       color: appColors.codeBackground,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(AppSpacing.codeRadius),
       border: Border.all(color: appColors.codeBorder),
     ),
-    codeblockPadding: const EdgeInsets.all(12),
+    codeblockPadding: const EdgeInsets.all(AppSpacing.md),
+    blockquote: proseStyle.copyWith(color: appColors.subtleText),
     blockquoteDecoration: BoxDecoration(
-      border: Border(left: BorderSide(color: appColors.subtleText, width: 3)),
+      border: Border(
+        left: BorderSide(color: colorScheme.outlineVariant, width: 3),
+      ),
     ),
-    blockquotePadding: const EdgeInsets.only(left: 12, top: 4, bottom: 4),
-    listBullet: baseStyle.copyWith(fontSize: 14),
+    blockquotePadding: const EdgeInsets.only(
+      left: AppSpacing.md,
+      top: AppSpacing.xs,
+      bottom: AppSpacing.xs,
+    ),
+    listBullet: proseStyle.copyWith(color: appColors.subtleText),
+    listBulletPadding: const EdgeInsets.only(right: AppSpacing.sm),
+    listIndent: AppSpacing.xl,
     tableHead: tableTextStyle.copyWith(fontWeight: FontWeight.w700),
     tableBody: tableTextStyle,
     tableHeadAlign: TextAlign.left,
-    tablePadding: const EdgeInsets.symmetric(vertical: 8),
-    tableBorder: TableBorder.all(color: tableLineColor, width: 0.8),
+    tablePadding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+    tableBorder: TableBorder.all(color: tableLineColor, width: 1),
     tableColumnWidth: const IntrinsicColumnWidth(),
-    tableCellsPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-    tableCellsDecoration: BoxDecoration(color: tableRowColor),
+    tableCellsPadding: const EdgeInsets.symmetric(
+      horizontal: AppSpacing.md,
+      vertical: AppSpacing.sm + 2,
+    ),
+    // flutter_markdown applies this decoration to alternating body rows (the
+    // header and odd rows get none), giving a faint zebra stripe. Kept very
+    // low-alpha so it aids row tracking without adding visual weight.
+    tableCellsDecoration: BoxDecoration(color: tableStripeColor),
     tableVerticalAlignment: TableCellVerticalAlignment.top,
     tableScrollbarThumbVisibility: false,
   );
@@ -279,7 +345,7 @@ class FencedCodeBlockBuilder extends MarkdownElementBuilder {
       width: double.infinity,
       decoration: BoxDecoration(
         color: appColors.codeBackground,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(AppSpacing.codeRadius),
         border: Border.all(color: appColors.codeBorder),
       ),
       child: GestureDetector(
@@ -290,11 +356,13 @@ class FencedCodeBlockBuilder extends MarkdownElementBuilder {
           children: [
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
+              // Comfortable-but-tight padding; extra top inset leaves room for
+              // the language label chip when a fence language is present.
               padding: EdgeInsets.fromLTRB(
-                12,
-                hasExplicitLanguage ? 20 : 12,
-                12,
-                12,
+                AppSpacing.md,
+                hasExplicitLanguage ? AppSpacing.xl : AppSpacing.md,
+                AppSpacing.md,
+                AppSpacing.md,
               ),
               child: SelectableText.rich(
                 TextSpan(style: baseStyle, children: highlightedSpans),

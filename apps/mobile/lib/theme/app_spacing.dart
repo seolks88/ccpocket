@@ -45,11 +45,6 @@ abstract class AppSizes {
   /// Minimum touch target per WCAG 2.5.5 / Apple HIG (44x44 logical px).
   /// The painted control may look smaller; the *hit area* must meet this.
   static const double minTouchTarget = 44;
-
-  /// Compact tap-row height for dense, many-per-screen log rows (tool call /
-  /// result). Deliberately below [minTouchTarget]: density is prioritized for
-  /// this scannable stream content; primary actions still use [minTouchTarget].
-  static const double compactRowMinHeight = 32;
 }
 
 /// Icon sizing scale. Pairs with the 24px iconTheme default.

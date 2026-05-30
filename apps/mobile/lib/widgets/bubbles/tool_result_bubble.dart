@@ -606,8 +606,6 @@ class _CollapsedToolResult extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.bubbleMarginH,
-        // Tighter vertical rhythm pulls the result up toward its call.
-        vertical: 1,
       ),
       child: InkWell(
         // Tap-to-expand only when there is genuinely more to reveal; long-press
@@ -615,62 +613,58 @@ class _CollapsedToolResult extends StatelessWidget {
         onTap: onTap,
         onLongPress: onLongPress,
         borderRadius: BorderRadius.circular(AppSpacing.codeRadius),
-        child: ConstrainedBox(
-          // Compact, space-efficient log row — deliberately denser than the
-          // 44px standard since tool results stack many-per-screen and density
-          // matters more than tap size for this scannable stream.
-          constraints: const BoxConstraints(
-            minHeight: AppSizes.compactRowMinHeight,
+        // Terminal-log density: the row hugs its single-line content (~22px)
+        // with no min-height floor, so results stack tight with zero dead
+        // space. Density is prioritised over a 44px tap target for this
+        // scannable many-per-screen stream; long-press (copy) stays available.
+        child: Container(
+          // Failures get a subtle tint + border so they pop out of an
+          // otherwise-neutral stream; successes stay chrome-free.
+          decoration: isError
+              ? BoxDecoration(
+                  color: appColors.errorBubble,
+                  borderRadius: BorderRadius.circular(AppSpacing.codeRadius),
+                  border: Border.all(color: appColors.errorBubbleBorder),
+                )
+              : null,
+          padding: EdgeInsets.symmetric(
+            horizontal: isError ? AppSpacing.sm : 0,
+            vertical: AppSpacing.xs,
           ),
-          child: Container(
-            // Failures get a subtle tint + border so they pop out of an
-            // otherwise-neutral stream; successes stay chrome-free.
-            decoration: isError
-                ? BoxDecoration(
-                    color: appColors.errorBubble,
-                    borderRadius: BorderRadius.circular(AppSpacing.codeRadius),
-                    border: Border.all(color: appColors.errorBubbleBorder),
-                  )
-                : null,
-            padding: EdgeInsets.symmetric(
-              horizontal: isError ? AppSpacing.sm : 0,
-              vertical: AppSpacing.xs,
-            ),
-            child: Row(
-              children: [
-                // Left accent rule: shared hue with the status glyph ties the
-                // result to its call.
-                Container(
-                  width: 2,
-                  height: 16,
-                  margin: const EdgeInsets.only(right: AppSpacing.sm),
-                  decoration: BoxDecoration(
-                    color: visuals.accent.withValues(alpha: 0.6),
-                    borderRadius: BorderRadius.circular(1),
-                  ),
+          child: Row(
+            children: [
+              // Left accent rule: shared hue with the status glyph ties the
+              // result to its call.
+              Container(
+                width: 2,
+                height: 16,
+                margin: const EdgeInsets.only(right: AppSpacing.sm),
+                decoration: BoxDecoration(
+                  color: visuals.accent.withValues(alpha: 0.6),
+                  borderRadius: BorderRadius.circular(1),
                 ),
-                Expanded(
-                  child: ToolRowHeader(
-                    icon: visuals.icon,
-                    accent: visuals.accent,
-                    isError: visuals.isError,
-                    muted: visuals.muted,
-                    name: toolName ?? l.toolResult,
-                    summaryText: status == ToolResultStatus.empty
-                        ? '(no output)'
-                        : summary,
-                    iconSize: AppIconSize.chip,
-                    trailing: hasExpandableContent
-                        ? Icon(
-                            Icons.chevron_right,
-                            size: AppIconSize.chip,
-                            color: appColors.subtleText,
-                          )
-                        : null,
-                  ),
+              ),
+              Expanded(
+                child: ToolRowHeader(
+                  icon: visuals.icon,
+                  accent: visuals.accent,
+                  isError: visuals.isError,
+                  muted: visuals.muted,
+                  name: toolName ?? l.toolResult,
+                  summaryText: status == ToolResultStatus.empty
+                      ? '(no output)'
+                      : summary,
+                  iconSize: AppIconSize.chip,
+                  trailing: hasExpandableContent
+                      ? Icon(
+                          Icons.chevron_right,
+                          size: AppIconSize.chip,
+                          color: appColors.subtleText,
+                        )
+                      : null,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -783,15 +777,23 @@ class _ExpandedToolResult extends StatelessWidget {
                   children: [
                     if (expansion == ToolResultExpansion.preview) ...[
                       const SizedBox(height: AppSpacing.xs),
-                      Text(
-                        previewText,
-                        style: codeSettings.style(
-                          color: isError
-                              ? appColors.errorText
-                              : appColors.toolResultText,
+                      // Long lines scroll horizontally (terminal-log feel)
+                      // instead of wrapping into a tall block; maxLines still
+                      // caps the peek at N *logical* lines, and the "N more
+                      // lines" hint carries the vertical truncation.
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Text(
+                          previewText,
+                          style: codeSettings.style(
+                            color: isError
+                                ? appColors.errorText
+                                : appColors.toolResultText,
+                          ),
+                          softWrap: false,
+                          maxLines: _previewLines,
+                          overflow: TextOverflow.clip,
                         ),
-                        maxLines: _previewLines,
-                        overflow: TextOverflow.ellipsis,
                       ),
                       if (hasMore)
                         Padding(
@@ -803,15 +805,20 @@ class _ExpandedToolResult extends StatelessWidget {
                     ] else if (expansion ==
                         ToolResultExpansion.expanded) ...[
                       const SizedBox(height: AppSpacing.xs),
-                      SelectableText(
-                        content,
-                        style: codeSettings.style(
-                          color: isError
-                              ? appColors.errorText
-                              : appColors.toolResultTextExpanded,
+                      // Long lines scroll horizontally instead of wrapping, so
+                      // code/log output stays readable line-for-line.
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: SelectableText(
+                          content,
+                          style: codeSettings.style(
+                            color: isError
+                                ? appColors.errorText
+                                : appColors.toolResultTextExpanded,
+                          ),
+                          contextMenuBuilder:
+                              googleSearchSelectableTextContextMenuBuilder,
                         ),
-                        contextMenuBuilder:
-                            googleSearchSelectableTextContextMenuBuilder,
                       ),
                     ],
                   ],

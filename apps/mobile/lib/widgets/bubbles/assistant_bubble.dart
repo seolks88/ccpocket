@@ -543,13 +543,13 @@ class _ToolUseCollapsed extends StatelessWidget {
         onTap: onTap,
         onLongPress: onLongPress,
         borderRadius: BorderRadius.circular(AppSpacing.codeRadius),
-        // Compact, space-efficient log row (parity with the collapsed result
-        // row) — deliberately denser than 44px since tool calls stack
-        // many-per-screen and density matters for this scannable stream.
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(
-            minHeight: AppSizes.compactRowMinHeight,
-          ),
+        // Terminal-log density (parity with the collapsed result row): the row
+        // hugs its single-line header with no min-height floor, just a hair of
+        // vertical padding for rhythm. Density is prioritised over a 44px tap
+        // target for this many-per-screen scannable stream; long-press (copy)
+        // stays available.
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
           child: ToolRowHeader(
             icon: getToolCategoryIcon(category),
             accent: getToolCategoryColor(category, appColors),
@@ -671,12 +671,17 @@ class _ToolUseCard extends StatelessWidget {
     final hasMore = lines.length > _previewLines;
 
     if (expansion == ToolUseExpansion.expanded) {
-      return SelectableText(
-        fullText,
-        style: codeTextSettingsOf(
-          context,
-        ).style(color: appColors.toolResultTextExpanded),
-        contextMenuBuilder: googleSearchSelectableTextContextMenuBuilder,
+      // Long lines scroll horizontally instead of wrapping, so code/JSON
+      // input stays readable line-for-line (terminal-log feel).
+      return SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: SelectableText(
+          fullText,
+          style: codeTextSettingsOf(
+            context,
+          ).style(color: appColors.toolResultTextExpanded),
+          contextMenuBuilder: googleSearchSelectableTextContextMenuBuilder,
+        ),
       );
     }
 
@@ -687,13 +692,19 @@ class _ToolUseCard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          previewText,
-          style: codeTextSettingsOf(
-            context,
-          ).style(color: appColors.toolResultText),
-          maxLines: _previewLines,
-          overflow: TextOverflow.ellipsis,
+        // Long lines scroll horizontally; maxLines still caps the peek at N
+        // *logical* lines and the "N more lines" hint carries the truncation.
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Text(
+            previewText,
+            style: codeTextSettingsOf(
+              context,
+            ).style(color: appColors.toolResultText),
+            softWrap: false,
+            maxLines: _previewLines,
+            overflow: TextOverflow.clip,
+          ),
         ),
         if (hasMore)
           Padding(
