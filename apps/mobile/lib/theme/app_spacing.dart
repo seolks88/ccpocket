@@ -54,3 +54,29 @@ abstract class AppIconSize {
   static const double action = 20; // app-bar / row actions
   static const double normal = 24; // default icon
 }
+
+/// Corner-radius scale (4pt-aligned). Reconciles the ad-hoc radius set
+/// (8/10/12/13/16/18/20/24) into four steps; pills stay 999.
+abstract class AppRadius {
+  static const double sm = 8; // chips, code blocks
+  static const double md = 12; // inputs, small cards, segments
+  static const double lg = 16; // cards, sheets (matches the Card theme)
+  static const double xl = 20; // large / feature surfaces
+}
+
+/// Elevation tokens — exactly two muted, NEUTRAL shadows.
+///
+/// The app is otherwise flat + 1px outlineVariant border; use these only for
+/// genuinely floating surfaces (composer bar, scroll-to-bottom, overlays).
+/// No colored or multi-layer shadows.
+abstract class AppElevation {
+  /// Soft lift for a resting floating surface (e.g. the composer bar).
+  static const List<BoxShadow> card = [
+    BoxShadow(color: Color(0x0F000000), blurRadius: 12, offset: Offset(0, 4)),
+  ];
+
+  /// Slightly stronger lift for transient overlays (menus, scroll button).
+  static const List<BoxShadow> overlay = [
+    BoxShadow(color: Color(0x1A000000), blurRadius: 20, offset: Offset(0, 8)),
+  ];
+}
