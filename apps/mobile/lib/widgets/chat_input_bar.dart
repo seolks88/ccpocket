@@ -521,7 +521,9 @@ class _PreviewDismissButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final appColors = Theme.of(context).extension<AppColors>()!;
+    final neutralChip =
+        Theme.of(context).extension<AppColors>()?.neutralChip ??
+        cs.surfaceContainerHighest;
     return Tooltip(
       message: tooltip,
       child: GestureDetector(
@@ -536,7 +538,7 @@ class _PreviewDismissButton extends StatelessWidget {
             alignment: alignment,
             child: Container(
               decoration: BoxDecoration(
-                color: appColors.neutralChip,
+                color: neutralChip,
                 shape: BoxShape.circle,
               ),
               padding: const EdgeInsets.all(AppSpacing.xs),

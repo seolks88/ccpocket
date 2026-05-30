@@ -18,16 +18,20 @@ import '../state/chat_session_cubit.dart';
 /// (the bar is positioned over the chat list, so without this the first
 /// conversation lines scroll underneath it and get clipped).
 ///
-/// Breakdown: chip hit area ([AppSizes.minTouchTarget]) + inner container
-/// vertical padding ([_kBarContainerPaddingV] * 2) + outer vertical padding
+/// Breakdown: mode-chip height ([_kModeChipHeight]) + inner container vertical
+/// padding ([_kBarContainerPaddingV] * 2) + outer vertical padding
 /// ([_kBarOuterPaddingV] * 2).
 const double kSessionModeBarHeight =
-    AppSizes.minTouchTarget +
+    _kModeChipHeight +
     (_kBarContainerPaddingV * 2) +
     (_kBarOuterPaddingV * 2);
 
+/// Mode-chip tap height. Deliberately slimmer than the global 44px touch target
+/// so the always-visible top control bar reads thin and elegant. Tap targets
+/// stay usable at 28px for this dense, persistent strip.
+const double _kModeChipHeight = 28;
 const double _kBarContainerPaddingV = 2;
-const double _kBarOuterPaddingV = 6;
+const double _kBarOuterPaddingV = 3;
 
 class SessionModeBar extends StatelessWidget {
   final Future<void> Function()? onBeforeRestart;
@@ -1789,9 +1793,10 @@ class _ClaudeUsageRow extends StatelessWidget {
 
 /// Canonical mode-bar chip primitive.
 ///
-/// The painted pill stays visually compact, but the InkWell hit area is forced
-/// to at least [AppSizes.minTouchTarget] tall so every chip is comfortably
-/// tappable one-handed. Toggle-style chips (no chevron) pass [tinted] so an
+/// The painted pill stays visually compact, and the InkWell hit area is sized
+/// to [_kModeChipHeight] (a slim 28px — thinner than the global 44px target so
+/// this persistent top bar stays elegant, while still tappable one-handed).
+/// Toggle-style chips (no chevron) pass [tinted] so an
 /// active state reads as a filled background rather than relying on the
 /// presence/absence of a chevron alone.
 class _SessionChip extends StatelessWidget {
@@ -1821,7 +1826,7 @@ class _SessionChip extends StatelessWidget {
     final pill = Container(
       // Visually compact: padding stays small so the painted pill does not
       // grow even though the hit area below is 44px tall.
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: tinted
           ? BoxDecoration(
               color: color.withValues(alpha: 0.14),
@@ -1865,10 +1870,11 @@ class _SessionChip extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
-          // Force a >=44px tap/ripple area without enlarging the pill.
+          // Slim, elegant tap height for the always-visible top bar — thinner
+          // than the global 44px target by design (see [_kModeChipHeight]).
           child: ConstrainedBox(
             constraints: const BoxConstraints(
-              minHeight: AppSizes.minTouchTarget,
+              minHeight: _kModeChipHeight,
             ),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 2),
