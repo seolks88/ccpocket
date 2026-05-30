@@ -519,22 +519,29 @@ class _MachineEditSheetState extends State<MachineEditSheet> {
                             ),
                           ),
                         ),
-                        child: SwitchListTile(
-                          title: Text(
-                            l.machineEditUseSecureConnection,
-                            style: const TextStyle(fontWeight: FontWeight.w500),
-                          ),
-                          subtitle: Text(
-                            l.machineEditUseSecureConnectionSubtitle,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: colorScheme.onSurfaceVariant,
+                        child: Material(
+                          color: Colors.transparent,
+                          borderRadius: BorderRadius.circular(16),
+                          clipBehavior: Clip.antiAlias,
+                          child: SwitchListTile(
+                            title: Text(
+                              l.machineEditUseSecureConnection,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
-                          ),
-                          value: _useSsl,
-                          onChanged: (v) => setState(() => _useSsl = v),
-                          secondary: const Icon(Icons.lock),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
+                            subtitle: Text(
+                              l.machineEditUseSecureConnectionSubtitle,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                            value: _useSsl,
+                            onChanged: (v) => setState(() => _useSsl = v),
+                            secondary: const Icon(Icons.lock),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
                           ),
                         ),
                       ),
@@ -558,23 +565,29 @@ class _MachineEditSheetState extends State<MachineEditSheet> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            SwitchListTile(
-                              title: Text(
-                                l.machineEditEnableSshRemoteStartup,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w500,
+                            Material(
+                              color: Colors.transparent,
+                              borderRadius: BorderRadius.circular(16),
+                              clipBehavior: Clip.antiAlias,
+                              child: SwitchListTile(
+                                title: Text(
+                                  l.machineEditEnableSshRemoteStartup,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w500,
+                                  ),
                                 ),
-                              ),
-                              subtitle: Text(
-                                l.machineEditEnableSshRemoteStartupSubtitle,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: colorScheme.onSurfaceVariant,
+                                subtitle: Text(
+                                  l.machineEditEnableSshRemoteStartupSubtitle,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
                                 ),
-                              ),
-                              value: _sshEnabled,
-                              onChanged: (v) => setState(() => _sshEnabled = v),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
+                                value: _sshEnabled,
+                                onChanged: (v) =>
+                                    setState(() => _sshEnabled = v),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
                               ),
                             ),
                           ],
@@ -697,26 +710,31 @@ class _MachineEditSheetState extends State<MachineEditSheet> {
                               ),
                             ),
                           ),
-                          child: SwitchListTile(
-                            key: const ValueKey('ssh_jump_toggle'),
-                            title: Text(
-                              l.machineEditUseSshJumpHost,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w500,
+                          child: Material(
+                            color: Colors.transparent,
+                            borderRadius: BorderRadius.circular(16),
+                            clipBehavior: Clip.antiAlias,
+                            child: SwitchListTile(
+                              key: const ValueKey('ssh_jump_toggle'),
+                              title: Text(
+                                l.machineEditUseSshJumpHost,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                ),
                               ),
-                            ),
-                            subtitle: Text(
-                              l.machineEditUseSshJumpHostSubtitle,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: colorScheme.onSurfaceVariant,
+                              subtitle: Text(
+                                l.machineEditUseSshJumpHostSubtitle,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
                               ),
-                            ),
-                            value: _sshJumpEnabled,
-                            onChanged: (v) =>
-                                setState(() => _sshJumpEnabled = v),
-                            secondary: const Icon(Icons.hub),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
+                              value: _sshJumpEnabled,
+                              onChanged: (v) =>
+                                  setState(() => _sshJumpEnabled = v),
+                              secondary: const Icon(Icons.hub),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
                             ),
                           ),
                         ),

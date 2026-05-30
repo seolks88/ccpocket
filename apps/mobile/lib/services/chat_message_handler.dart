@@ -981,8 +981,9 @@ class ChatMessageHandler {
     if (isBackground && !isStopped) {
       effects.add(ChatSideEffect.notifySessionComplete);
     }
+    currentStreaming = null;
+    currentThinkingText = '';
     if (isStopped) {
-      currentStreaming = null;
       effects.add(ChatSideEffect.clearPlanFeedback);
     }
     return ChatStateUpdate(
@@ -991,7 +992,7 @@ class ChatMessageHandler {
       costDelta: cost,
       resetPending: isStopped,
       resetAsk: isStopped,
-      resetStreaming: isStopped,
+      resetStreaming: true,
       inPlanMode: isStopped
           ? false
           : (isCodex && subtype == 'success')

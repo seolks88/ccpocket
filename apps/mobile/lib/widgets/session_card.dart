@@ -10,7 +10,6 @@ import '../theme/code_text_style.dart';
 import '../theme/provider_style.dart';
 import '../utils/command_parser.dart';
 import 'adaptive_context_menu.dart';
-import 'codex_environment_summary.dart';
 import 'plan_detail_sheet.dart';
 import 'expandable_summary_text.dart';
 import 'session_visual_status.dart';
@@ -108,6 +107,24 @@ class _RunningSessionCardState extends State<RunningSessionCard> {
             ? Theme.of(context).colorScheme.onSurface
             : appColors.statusIdle,
     };
+    // Split the today-collapsed grey "Ready" into Done (just-finished, unseen)
+    // vs Idle (long-idle) purely from the already-passed isUnseen flag — no
+    // change to session_visual_status.dart. Working/Needs You keep the existing
+    // hardcoded-English visualStatus.label path; Done/Idle are added the same
+    // way (the sibling labels are raw English literals, not AppLocalizations).
+    final statusWord = isReadyUnseen
+        ? 'Done'
+        : switch (visualStatus.primary) {
+            SessionPrimaryStatus.working => visualStatus.label,
+            SessionPrimaryStatus.needsYou => visualStatus.label,
+            SessionPrimaryStatus.ready => 'Idle',
+          };
+    // Rail alpha so an approval visually shouts over a busy-but-fine session.
+    final railAlpha = switch (visualStatus.primary) {
+      SessionPrimaryStatus.needsYou => 1.0,
+      SessionPrimaryStatus.working => 0.92,
+      SessionPrimaryStatus.ready => isReadyUnseen ? 1.0 : 0.5,
+    };
 
     final permission = session.pendingPermission;
     final hasPermission = permission != null;
@@ -152,82 +169,112 @@ class _RunningSessionCardState extends State<RunningSessionCard> {
       child: InkWell(
         onTap: widget.onTap,
         onLongPress: widget.onShowActions == null ? widget.onLongPress : null,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Stack(
           children: [
-            // Status bar with gradient
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    statusColor.withValues(alpha: 0.15),
-                    statusColor.withValues(alpha: 0.04),
-                  ],
-                ),
-              ),
-              child: Row(
-                children: [
-                  _StatusDot(
-                    color: statusColor,
-                    animate: visualStatus.animate,
-                    glow: isReadyUnseen,
-                  ),
-                  const SizedBox(width: AppSpacing.xs + 2),
-                  Text(
-                    visualStatus.label,
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      fontWeight: isReadyUnseen
-                          ? FontWeight.w800
-                          : FontWeight.w700,
-                      color: statusColor,
-                    ),
-                  ),
-                  // Plan-mode signal: a calm, static (motion-safe) marker that
-                  // replaced the deleted orbiting glow. Keeps the primary status
-                  // color on the dot/label; adds a plan-tinted glyph.
-                  if (visualStatus.showPlanBadge) ...[
-                    const SizedBox(width: AppSpacing.xs),
-                    Icon(
-                      Icons.assignment_outlined,
-                      size: AppIconSize.chip,
-                      color: appColors.statusPlan,
-                    ),
-                  ],
-                  if (visualStatus.detail != null) ...[
-                    const SizedBox(width: AppSpacing.xs + 2),
-                    Flexible(
-                      child: Text(
-                        visualStatus.detail!,
-                        // Detail rendered in subtleText (not a faded status
-                        // color) to keep 11px text legible; meaning is carried
-                        // by the dot + colored label, not this line.
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: appColors.subtleText,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                  const Spacer(),
-                  _ProviderBadge(provider: provider),
-                  if (queuedInput != null) ...[
-                    const SizedBox(width: 6),
-                    _QueuedInputBadge(item: queuedInput),
-                  ],
-                  if (widget.onStop != null) ...[
-                    const SizedBox(width: 6),
-                    _RunningSessionStopButton(onPressed: widget.onStop!),
-                  ],
-                ],
+            // Full-height status rail on the leading edge. A Positioned strip
+            // (left, full height) so it spans the real card height (no
+            // IntrinsicHeight) and follows the Card's rounded corners (it sits
+            // inside the clipped child).
+            Positioned(
+              left: 0,
+              top: 0,
+              bottom: 0,
+              width: 4,
+              child: _StatusRail(
+                color: statusColor,
+                alpha: railAlpha,
+                glow: isReadyUnseen,
               ),
             ),
-            // Approval area (shown when waiting for permission)
-            if (hasPermission)
+            Padding(
+              // Left inset clears the 4px rail; values from AppSpacing.
+              padding: const EdgeInsets.fromLTRB(16, 10, AppSpacing.md, 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Row 1 — status + identity (single line).
+                  Row(
+                    children: [
+                      _StatusDot(
+                        color: statusColor,
+                        animate: visualStatus.animate,
+                        glow: isReadyUnseen,
+                      ),
+                      const SizedBox(width: AppSpacing.xs),
+                      Text(
+                        statusWord,
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          fontWeight: isReadyUnseen
+                              ? FontWeight.w800
+                              : FontWeight.w700,
+                          color: statusColor,
+                        ),
+                      ),
+                      // Plan-mode signal: a calm, static (motion-safe) marker.
+                      // Keeps the primary status color on the dot/label; adds a
+                      // plan-tinted glyph.
+                      if (visualStatus.showPlanBadge) ...[
+                        const SizedBox(width: AppSpacing.xs),
+                        Icon(
+                          Icons.assignment_outlined,
+                          size: AppIconSize.chip,
+                          color: appColors.statusPlan,
+                        ),
+                      ],
+                      const SizedBox(width: AppSpacing.sm),
+                      // Provider identity is carried ONCE here as a bare tinted
+                      // glyph (no word pill), so the title stays neutral text.
+                      _ProviderGlyph(provider: provider),
+                      const SizedBox(width: AppSpacing.xs),
+                      Expanded(
+                        child: Hero(
+                          tag: 'project_name_${session.id}',
+                          child: Material(
+                            type: MaterialType.transparency,
+                            child: _SessionTitle(
+                              title: session.name != null &&
+                                      session.name!.isNotEmpty
+                                  ? session.name!
+                                  : projectName,
+                              projectSuffix:
+                                  session.name != null &&
+                                      session.name!.isNotEmpty &&
+                                      session.name! != projectName
+                                  ? projectName
+                                  : null,
+                              agentLabel: agentLabel,
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (queuedInput != null) ...[
+                        const SizedBox(width: 6),
+                        _QueuedInputBadge(item: queuedInput),
+                      ],
+                      if (widget.onStop != null) ...[
+                        const SizedBox(width: 6),
+                        _RunningSessionStopButton(onPressed: widget.onStop!),
+                      ],
+                      const SizedBox(width: AppSpacing.sm),
+                      Flexible(
+                        child: Text(
+                          elapsed,
+                          style: Theme.of(
+                            context,
+                          ).textTheme.labelSmall?.copyWith(
+                            color: appColors.subtleText,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  // Approval area (shown when waiting for permission). The
+                  // entire provider x toolName switch below is lifted verbatim;
+                  // only its position moved to inside this Column.
+                  if (hasPermission) ...[
+                    const SizedBox(height: AppSpacing.sm),
               isCodexSession
                   ? (isPlanApproval
                         ? _CodexPlanApprovalArea(
@@ -312,84 +359,14 @@ class _RunningSessionCardState extends State<RunningSessionCard> {
                             widget.onReject?.call(permission.toolUseId),
                       ),
                     },
-            // Content (same structure as RecentSessionCard)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Title row: session name + project chip (neutral).
-                  // Provider identity is carried ONCE by the labeled
-                  // _ProviderBadge in the status bar above, so the chips here
-                  // stay neutral to avoid double-encoding the provider.
-                  Row(
-                    children: [
-                      // Left-aligned group: name + project
-                      Expanded(
-                        child: Row(
-                          children: [
-                            if (session.name != null &&
-                                session.name!.isNotEmpty) ...[
-                              Flexible(child: _NameChip(label: session.name!)),
-                              const SizedBox(width: AppSpacing.sm),
-                            ],
-                            Hero(
-                              tag: 'project_name_${session.id}',
-                              child: Material(
-                                color: Colors.transparent,
-                                child: _ProjectChip(label: projectName),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (agentLabel != null) ...[
-                    const SizedBox(height: AppSpacing.sm),
-                    _AgentLabel(label: agentLabel),
                   ],
-                  // Last message — the visual anchor of the card.
-                  const SizedBox(height: AppSpacing.xs),
-                  _SessionMessage(text: displayMessage),
-                  const SizedBox(height: AppSpacing.xs),
-                  if (isCodexSession)
-                    CodexEnvironmentSummary(
-                      leadingLabel:
-                          (session.status == 'running' ||
-                                  session.status == 'starting') &&
-                              session.resolvedPlanMode
-                          ? 'Planning'
-                          : null,
-                      model: session.codexModel,
-                      reasoningEffort: session.codexModelReasoningEffort,
-                      approvalPolicy: session.codexApprovalPolicy,
-                      approvalsReviewer: session.codexApprovalsReviewer,
-                      sandboxMode: session.codexSandboxMode,
-                      showDefaultReasoning: true,
-                      compact: true,
-                    )
-                  else
-                    Text(
-                      _buildSettingsSummary(
-                        isCodex: false,
-                        model: session.model,
-                        permissionMode: session.effectivePermissionMode,
-                        executionMode: session.resolvedExecutionMode.value,
-                        planMode: session.resolvedPlanMode,
-                      ),
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: appColors.subtleText,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  // Meta Row: branch + worktree (left) + elapsed (right)
-                  const SizedBox(height: AppSpacing.xs),
-                  _SessionMetaRow(
-                    branch: session.gitBranch,
-                    hasWorktree: session.worktreePath != null,
-                    trailingText: elapsed,
+                  // Row 2 — preview (the anchor). Clamps to 1 line only while
+                  // an approval area is open so an actionable card stays
+                  // compact; otherwise the medium 2-line preview.
+                  const SizedBox(height: AppSpacing.sm),
+                  _SessionMessage(
+                    text: displayMessage,
+                    maxLines: hasPermission ? 1 : 2,
                   ),
                 ],
               ),
@@ -2228,6 +2205,136 @@ class _StatusDotPainter extends CustomPainter {
       oldDelegate.animate != animate;
 }
 
+/// Full-height 4px status spine on a card's leading edge. Painted via a
+/// [CustomPaint] so the optional [glow] can use the same soft [MaskFilter.blur]
+/// the status dot uses. Placed in a leading [Positioned] (left/top/bottom,
+/// width 4) so it fills the real card height with no IntrinsicHeight pass; it
+/// sits inside the Card's clipped child, so it follows the rounded corners.
+class _StatusRail extends StatelessWidget {
+  final Color color;
+  final double alpha;
+  final bool glow;
+
+  const _StatusRail({
+    required this.color,
+    required this.alpha,
+    this.glow = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Sized by the parent (a Positioned(left/top/bottom, width: 4)); Size.infinite
+    // resolves to those tight constraints so the spine spans the full card
+    // height without an IntrinsicHeight pass.
+    return CustomPaint(
+      size: Size.infinite,
+      painter: _StatusRailPainter(color: color, alpha: alpha, glow: glow),
+    );
+  }
+}
+
+class _StatusRailPainter extends CustomPainter {
+  final Color color;
+  final double alpha;
+  final bool glow;
+
+  _StatusRailPainter({
+    required this.color,
+    required this.alpha,
+    required this.glow,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    if (glow) {
+      final glowPaint = Paint()
+        ..color = color.withValues(alpha: 0.4)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5);
+      canvas.drawRect(rect, glowPaint);
+    }
+    final paint = Paint()..color = color.withValues(alpha: alpha);
+    canvas.drawRect(rect, paint);
+  }
+
+  @override
+  bool shouldRepaint(_StatusRailPainter oldDelegate) =>
+      oldDelegate.color != color ||
+      oldDelegate.alpha != alpha ||
+      oldDelegate.glow != glow;
+}
+
+/// Provider identity as a single bare tinted icon glyph (no word pill),
+/// exposing the provider's full label via Semantics/Tooltip.
+class _ProviderGlyph extends StatelessWidget {
+  final Provider provider;
+
+  const _ProviderGlyph({required this.provider});
+
+  @override
+  Widget build(BuildContext context) {
+    final style = providerStyleFor(context, provider);
+    final label = provider.label;
+    return Semantics(
+      label: '$label session',
+      child: Tooltip(
+        message: label,
+        child: Icon(
+          style.icon,
+          size: AppIconSize.chip,
+          color: style.foreground,
+        ),
+      ),
+    );
+  }
+}
+
+/// The single inline identity title: the bold session [title] (name when
+/// present, else project name) with an optional dimmed `· <projectSuffix>`
+/// (shown when a name is present and differs from the project) and an optional
+/// dimmed `· <agentLabel>` (multi-agent only), all on one ellipsizing line.
+class _SessionTitle extends StatelessWidget {
+  final String title;
+  final String? projectSuffix;
+  final String? agentLabel;
+
+  const _SessionTitle({
+    required this.title,
+    this.projectSuffix,
+    this.agentLabel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final appColors = theme.extension<AppColors>()!;
+    final titleStyle = theme.textTheme.titleMedium?.copyWith(
+      fontWeight: FontWeight.w600,
+      color: theme.colorScheme.onSurface,
+    );
+    final suffixStyle = theme.textTheme.labelMedium?.copyWith(
+      color: appColors.subtleText,
+    );
+    final agentStyle = theme.textTheme.labelSmall?.copyWith(
+      color: appColors.subtleText,
+    );
+    return Text.rich(
+      TextSpan(
+        text: title,
+        style: titleStyle,
+        children: [
+          if (projectSuffix != null)
+            TextSpan(text: '  ·  $projectSuffix', style: suffixStyle),
+          if (agentLabel != null)
+            TextSpan(text: '  ·  $agentLabel', style: agentStyle),
+        ],
+      ),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+    );
+  }
+}
+
 String? _formatAgentLabel(String? nickname, String? role) {
   final trimmedNickname = nickname?.trim();
   final trimmedRole = role?.trim();
@@ -2238,142 +2345,6 @@ String? _formatAgentLabel(String? nickname, String? role) {
   return hasNickname ? trimmedNickname : '[$trimmedRole]';
 }
 
-class _AgentLabel extends StatelessWidget {
-  final String label;
-
-  const _AgentLabel({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    final color = Theme.of(context).colorScheme.onSurfaceVariant;
-    return Row(
-      children: [
-        Icon(Icons.smart_toy_outlined, size: AppIconSize.chip, color: color),
-        const SizedBox(width: AppSpacing.xs),
-        Flexible(
-          child: Text(
-            label,
-            style: Theme.of(
-              context,
-            ).textTheme.labelMedium?.copyWith(color: color),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _ProviderBadge extends StatelessWidget {
-  final Provider provider;
-
-  const _ProviderBadge({required this.provider});
-
-  @override
-  Widget build(BuildContext context) {
-    final style = providerStyleFor(context, provider);
-    final label = provider.label;
-    return Semantics(
-      label: '$label session',
-      child: Tooltip(
-        message: label,
-        child: Container(
-          key: ValueKey('provider_badge_${provider.value}'),
-          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-          decoration: BoxDecoration(
-            color: style.background,
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: style.border, width: 0.6),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(style.icon, size: AppIconSize.chip - 2, color: style.foreground),
-              const SizedBox(width: AppSpacing.xs),
-              Text(
-                label,
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: style.foreground,
-                  height: 1,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Neutral session-name chip. Shared by both card types so the "session name"
-/// concept renders identically. Intentionally neutral (never provider-tinted).
-class _NameChip extends StatelessWidget {
-  final String label;
-
-  const _NameChip({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.xs + 2,
-        vertical: 2,
-      ),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colorScheme.outlineVariant, width: 0.5),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(
-          context,
-        ).textTheme.labelMedium?.copyWith(color: colorScheme.onSurfaceVariant),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-    );
-  }
-}
-
-/// Neutral project chip. Provider identity is carried ONCE by [_ProviderBadge],
-/// so the project chip is rendered neutral here to avoid double-encoding the
-/// provider via color.
-class _ProjectChip extends StatelessWidget {
-  final String label;
-
-  const _ProjectChip({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.xs + 2,
-        vertical: 2,
-      ),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colorScheme.outlineVariant, width: 0.5),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(
-          context,
-        ).textTheme.labelMedium?.copyWith(color: colorScheme.onSurface),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-    );
-  }
-}
-
 /// The message preview — the visual anchor of a session card. Shared by both
 /// card types so the most-read line is styled identically. When [text] is
 /// empty, renders a designed muted-italic placeholder instead of a literal
@@ -2381,7 +2352,12 @@ class _ProjectChip extends StatelessWidget {
 class _SessionMessage extends StatelessWidget {
   final String text;
 
-  const _SessionMessage({required this.text});
+  /// Preview line cap. Defaults to 2 (the "medium" anchor) so existing call
+  /// sites are unaffected; the session list passes 1 only while an approval
+  /// area is open so an actionable card stays compact.
+  final int maxLines;
+
+  const _SessionMessage({required this.text, this.maxLines = 2});
 
   @override
   Widget build(BuildContext context) {
@@ -2400,69 +2376,8 @@ class _SessionMessage extends StatelessWidget {
               fontStyle: FontStyle.italic,
               height: 1.4,
             ),
-      maxLines: 2,
+      maxLines: maxLines,
       overflow: TextOverflow.ellipsis,
-    );
-  }
-}
-
-/// Shared metadata row: git branch (+ optional worktree marker) on the left,
-/// a trailing timestamp on the right. Demoted to subtleText so the eye lands
-/// on status -> message -> metadata.
-class _SessionMetaRow extends StatelessWidget {
-  final String branch;
-  final bool hasWorktree;
-  final String trailingText;
-
-  const _SessionMetaRow({
-    required this.branch,
-    this.hasWorktree = false,
-    required this.trailingText,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final appColors = Theme.of(context).extension<AppColors>()!;
-    final metaStyle = Theme.of(
-      context,
-    ).textTheme.labelSmall?.copyWith(color: appColors.subtleText);
-    return Row(
-      children: [
-        Expanded(
-          child: Row(
-            children: [
-              if (branch.isNotEmpty) ...[
-                Icon(
-                  Icons.fork_right,
-                  size: AppIconSize.chip,
-                  color: appColors.subtleText,
-                ),
-                const SizedBox(width: AppSpacing.xs / 2),
-                Flexible(
-                  child: Text(
-                    branch,
-                    style: metaStyle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-              if (hasWorktree) ...[
-                const SizedBox(width: AppSpacing.md),
-                Icon(
-                  Icons.account_tree_outlined,
-                  size: AppIconSize.chip - 2,
-                  color: appColors.subtleText,
-                ),
-                const SizedBox(width: AppSpacing.xs / 2),
-                Text('worktree', style: metaStyle),
-              ],
-            ],
-          ),
-        ),
-        const SizedBox(width: AppSpacing.sm),
-        Text(trailingText, style: metaStyle),
-      ],
     );
   }
 }
@@ -2497,7 +2412,6 @@ class RecentSessionCard extends StatelessWidget {
     final colorScheme = theme.colorScheme;
     final appColors = theme.extension<AppColors>()!;
     final provider = providerFromRaw(session.provider);
-    final isCodex = session.provider == 'codex';
     final agentLabel = _formatAgentLabel(
       session.agentNickname,
       session.agentRole,
@@ -2526,45 +2440,63 @@ class RecentSessionCard extends StatelessWidget {
         onLongPress: isProcessing || onShowActions != null ? null : onLongPress,
         child: Stack(
           children: [
+            // Neutral hairline rail: keeps the leading spine continuous with
+            // the live Running cards but is clearly NOT a live status color
+            // (history, not live). A Positioned strip (left, full height) ->
+            // follows the clipped rounded corners, no IntrinsicHeight.
+            Positioned(
+              left: 0,
+              top: 0,
+              bottom: 0,
+              width: 4,
+              child: _StatusRail(
+                color: colorScheme.outlineVariant,
+                alpha: 0.6,
+              ),
+            ),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.fromLTRB(16, 10, AppSpacing.md, 10),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Title Row
+                  // Row 1 — identity (single line). No live status dot/word;
+                  // provider as a bare tinted glyph, then the title, then time.
                   Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
+                      _ProviderGlyph(provider: provider),
+                      const SizedBox(width: AppSpacing.xs),
                       Expanded(
-                        child: Row(
-                          children: [
-                            // Provider identity is carried ONCE here by the
-                            // labeled badge; the name/project chips stay
-                            // neutral to avoid double-encoding the provider.
-                            _ProviderBadge(provider: provider),
-                            const SizedBox(width: AppSpacing.sm),
-                            if (session.name != null &&
-                                session.name!.isNotEmpty) ...[
-                              Flexible(child: _NameChip(label: session.name!)),
-                              const SizedBox(width: AppSpacing.sm),
-                            ],
-                            if (!hideProjectBadge) ...[
-                              Flexible(
-                                child: _ProjectChip(label: session.projectName),
-                              ),
-                            ],
-                          ],
+                        child: _SessionTitle(
+                          title:
+                              session.name != null && session.name!.isNotEmpty
+                              ? session.name!
+                              : session.projectName,
+                          projectSuffix:
+                              !hideProjectBadge &&
+                                  session.name != null &&
+                                  session.name!.isNotEmpty &&
+                                  session.name! != session.projectName
+                              ? session.projectName
+                              : null,
+                          agentLabel: agentLabel,
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      Flexible(
+                        child: Text(
+                          dateStr,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: appColors.subtleText,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],
                   ),
-                  if (agentLabel != null) ...[
-                    const SizedBox(height: AppSpacing.sm),
-                    _AgentLabel(label: agentLabel),
-                  ],
+                  // Row 2 — preview (the anchor). Keep the draftText italic
+                  // override branch; both obey the medium 2-line cap.
                   const SizedBox(height: AppSpacing.sm),
-
-                  // Body Content — the message preview is the visual anchor.
                   if (draftText != null && draftText!.isNotEmpty)
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2597,29 +2529,8 @@ class RecentSessionCard extends StatelessWidget {
                   else
                     _SessionMessage(
                       text: _displayTextForMode(session, displayMode),
+                      maxLines: 2,
                     ),
-
-                  if (isCodex) ...[
-                    const SizedBox(height: AppSpacing.xs + 2),
-                    CodexEnvironmentSummary(
-                      model: session.codexModel,
-                      reasoningEffort: session.codexModelReasoningEffort,
-                      approvalPolicy: session.codexApprovalPolicy,
-                      approvalsReviewer: session.codexApprovalsReviewer,
-                      sandboxMode: session.codexSandboxMode,
-                      showDefaultReasoning: true,
-                      showApprovalMode: false,
-                      compact: true,
-                    ),
-                  ],
-
-                  const SizedBox(height: AppSpacing.sm),
-
-                  // Meta Row: branch (left) + date (right)
-                  _SessionMetaRow(
-                    branch: session.gitBranch,
-                    trailingText: dateStr,
-                  ),
                 ],
               ),
             ),
@@ -2726,30 +2637,4 @@ class RecentSessionCard extends StatelessWidget {
       return '';
     }
   }
-}
-
-/// Build a compact settings summary for Claude session cards.
-String _buildSettingsSummary({
-  required bool isCodex,
-  String? model,
-  String? permissionMode,
-  String? executionMode,
-  bool planMode = false,
-}) {
-  if (isCodex) return model ?? '';
-  final parts = <String>[
-    if (permissionMode == PermissionMode.auto.value)
-      'auto'
-    else if (executionMode == 'fullAccess')
-      'full-access'
-    else if (executionMode == 'acceptEdits')
-      'accept-edits'
-    else
-      'default',
-    if (planMode) 'plan-on',
-  ];
-  if (model != null && model.isNotEmpty) {
-    return [displayLabelForClaudeModel(model), ...parts].join(' · ');
-  }
-  return parts.join(' · ');
 }

@@ -15,7 +15,15 @@ import '../../theme/markdown_style.dart';
 /// still composing its reply rather than done.
 class StreamingBubble extends StatefulWidget {
   final String text;
-  const StreamingBubble({super.key, required this.text});
+  final String thinking;
+  final bool showPlaceholder;
+
+  const StreamingBubble({
+    super.key,
+    required this.text,
+    this.thinking = '',
+    this.showPlaceholder = false,
+  });
 
   @override
   State<StreamingBubble> createState() => _StreamingBubbleState();
@@ -58,10 +66,19 @@ class _StreamingBubbleState extends State<StreamingBubble>
 
   @override
   Widget build(BuildContext context) {
-    if (widget.text.isEmpty) return const SizedBox.shrink();
+    final trimmedText = widget.text.trim();
+    final trimmedThinking = widget.thinking.trim();
+    final hasText = trimmedText.isNotEmpty;
+    final hasThinking = trimmedThinking.isNotEmpty;
+    if (!hasText && !hasThinking && !widget.showPlaceholder) {
+      return const SizedBox.shrink();
+    }
 
     final appColors = Theme.of(context).extension<AppColors>()!;
     final textTheme = Theme.of(context).textTheme;
+    final liveLabel = hasThinking && !hasText
+        ? 'Thinking...'
+        : AppLocalizations.of(context).working;
 
     return Align(
       alignment: Alignment.centerLeft,
@@ -90,25 +107,51 @@ class _StreamingBubbleState extends State<StreamingBubble>
             _LiveHeader(
               controller: _cursorController,
               color: appColors.statusRunning,
-              label: AppLocalizations.of(context).working,
+              label: liveLabel,
               labelStyle: textTheme.labelMedium?.copyWith(
                 color: appColors.statusRunning,
                 fontWeight: FontWeight.w600,
               ),
             ),
-            const SizedBox(height: AppSpacing.sm),
-            suppressMarkdownScrollbarIndicators(
-              context,
-              child: MarkdownBody(
-                data: widget.text,
-                styleSheet: buildMarkdownStyle(context),
-                onTapLink: handleMarkdownLink,
-                inlineSyntaxes: colorCodeInlineSyntaxes,
-                builders: markdownBuilders,
+            if (hasText) ...[
+              const SizedBox(height: AppSpacing.sm),
+              suppressMarkdownScrollbarIndicators(
+                context,
+                child: MarkdownBody(
+                  data: widget.text,
+                  styleSheet: buildMarkdownStyle(context),
+                  onTapLink: handleMarkdownLink,
+                  inlineSyntaxes: colorCodeInlineSyntaxes,
+                  builders: markdownBuilders,
+                ),
               ),
-            ),
+            ] else if (hasThinking) ...[
+              const SizedBox(height: AppSpacing.sm),
+              _ThinkingPreview(text: trimmedThinking),
+            ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ThinkingPreview extends StatelessWidget {
+  final String text;
+
+  const _ThinkingPreview({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    final appColors = Theme.of(context).extension<AppColors>()!;
+    final preview = text.length > 180 ? '${text.substring(0, 180)}...' : text;
+    return Text(
+      preview,
+      maxLines: 3,
+      overflow: TextOverflow.ellipsis,
+      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+        color: appColors.subtleText,
+        height: 1.35,
       ),
     );
   }
@@ -136,10 +179,7 @@ class _LiveHeader extends StatelessWidget {
     final dot = Container(
       width: 8,
       height: 8,
-      decoration: BoxDecoration(
-        color: color,
-        shape: BoxShape.circle,
-      ),
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
     );
     return Row(
       mainAxisSize: MainAxisSize.min,

@@ -22,6 +22,7 @@ import '../../../theme/app_theme.dart';
 import '../../../theme/provider_style.dart';
 import '../../../router/app_router.dart';
 import '../../../widgets/session_card.dart';
+import '../../../widgets/session_visual_status.dart';
 import '../../../widgets/workspace_pane_chrome.dart';
 import '../state/session_list_cubit.dart';
 import '../state/session_list_state.dart';
@@ -34,6 +35,25 @@ import 'bridge_update_banner.dart';
 import 'macos_native_app_banner.dart';
 import 'session_reconnect_banner.dart';
 import 'support_banner.dart';
+
+/// Presentational status-sort rank for the Running section. Lower floats to
+/// the top: Needs You (0) -> Working (1) -> Done (ready & unseen, 2) -> Idle
+/// (ready & seen, 3). Derived from the SAME [sessionVisualStatusFor] state
+/// machine the card uses; NO change to the cubit/state. The Done/Idle split
+/// reads the already-known unseen flag, mirroring the card.
+int _statusSortRank(SessionInfo session, {required bool isUnseen}) {
+  final visualStatus = sessionVisualStatusFor(
+    rawStatus: session.status,
+    permissionMode: session.effectivePermissionMode,
+    planMode: session.resolvedPlanMode,
+    pendingPermission: session.pendingPermission,
+  );
+  return switch (visualStatus.primary) {
+    SessionPrimaryStatus.needsYou => 0,
+    SessionPrimaryStatus.working => 1,
+    SessionPrimaryStatus.ready => isUnseen ? 2 : 3,
+  };
+}
 
 class HomeContent extends StatefulWidget {
   final BridgeConnectionState connectionState;
@@ -447,6 +467,111 @@ class HomeContentState extends State<HomeContent> {
     );
   }
 
+  /// Coarse date bucket for the Recent date-group subheaders, ordered newest
+  /// first: 0=Today, 1=Yesterday, 2=This week (last 7 days), 3=Earlier. Buckets
+  /// on [RecentSession.modified]; falls back to the last bucket on a missing or
+  /// unparseable timestamp so it never crashes or hides a card.
+  int _recentDateBucket(String modifiedIso) {
+    if (modifiedIso.isEmpty) return 3;
+    final DateTime dt;
+    try {
+      dt = DateTime.parse(modifiedIso).toLocal();
+    } catch (_) {
+      return 3;
+    }
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final dtDate = DateTime(dt.year, dt.month, dt.day);
+    final dayDiff = today.difference(dtDate).inDays;
+    if (dayDiff <= 0) return 0; // today (or a future-dated stamp)
+    if (dayDiff == 1) return 1; // yesterday
+    if (dayDiff < 7) return 2; // this week
+    return 3; // earlier
+  }
+
+  String _recentDateBucketLabel(int bucket, AppLocalizations l) {
+    // Hardcoded English to match the sibling status words ('Working'/'Needs
+    // You'/'Done'/'Idle') which are raw English literals, not AppLocalizations.
+    // If these need localizing later, add l10n keys + run gen-l10n.
+    return switch (bucket) {
+      0 => 'TODAY',
+      1 => 'YESTERDAY',
+      2 => 'THIS WEEK',
+      _ => 'EARLIER',
+    };
+  }
+
+  /// Builds the Recent list as date-grouped cards: a quiet subheader is emitted
+  /// before each non-empty Today/Yesterday/This week/Earlier bucket, then each
+  /// session's Slidable+RecentSessionCard exactly as before (keys, archive
+  /// swipe, displayMode, draft, isProcessing, callbacks all unchanged).
+  List<Widget> _buildGroupedRecentCards(
+    BuildContext context,
+    List<RecentSession> sessions,
+    AppLocalizations l,
+  ) {
+    final children = <Widget>[];
+    final emittedBuckets = <int>{};
+    for (final session in sessions) {
+      final bucket = _recentDateBucket(session.modified);
+      // Emit each bucket's subheader at most once, the first time that bucket
+      // appears. Tracking already-emitted buckets (rather than only comparing
+      // to the previous item) avoids double-emitting a header if the filtered
+      // list is not strictly newest-first.
+      if (emittedBuckets.add(bucket)) {
+        children.add(
+          _DateGroupSubheader(label: _recentDateBucketLabel(bucket, l)),
+        );
+      }
+      children.add(
+        Slidable(
+          key: ValueKey('recent_session_${session.sessionId}'),
+          endActionPane: ActionPane(
+            motion: const BehindMotion(),
+            extentRatio: 0.18,
+            children: [
+              CustomSlidableAction(
+                onPressed: (_) => widget.onArchiveSession(session),
+                backgroundColor: Colors.transparent,
+                padding: EdgeInsets.zero,
+                child: Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.error,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.archive_outlined,
+                    color: Colors.white,
+                    size: 22,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          child: RecentSessionCard(
+            session: session,
+            displayMode: _displayMode,
+            // Only running sessions show the active selection state.
+            isSelected: false,
+            draftText: context.read<DraftService>().getDraft(
+              session.sessionId,
+            ),
+            isProcessing: widget.archivingSessionIds.contains(
+              session.sessionId,
+            ),
+            onTap: () => widget.onResumeSession(session),
+            onLongPress: () => widget.onLongPressRecentSession(session, null),
+            onShowActions: (position) =>
+                widget.onLongPressRecentSession(session, position),
+          ),
+        ),
+      );
+    }
+    return children;
+  }
+
   @override
   Widget build(BuildContext context) {
     final shell = WorkspaceShellScreen.maybeOf(context);
@@ -536,6 +661,40 @@ class HomeContentState extends State<HomeContent> {
         widget.namedOnly ||
         widget.searchQuery.isNotEmpty;
 
+    // Presentational, STABLE status-sort over a LOCAL COPY of the running
+    // sessions so "Needs You" floats to the top. Tie-break by original index so
+    // same-status cards keep server order and ONLY cross-status transitions
+    // move; element identity (and the plan-feedback TextField state) survives
+    // because the ValueKey('running_session_<id>') travels with each card. The
+    // cubit/state is untouched.
+    final indexedSessions = widget.sessions.indexed.toList();
+    indexedSessions.sort((a, b) {
+      final rankA = _statusSortRank(
+        a.$2,
+        isUnseen: widget.unseenSessionIds.contains(a.$2.id),
+      );
+      final rankB = _statusSortRank(
+        b.$2,
+        isUnseen: widget.unseenSessionIds.contains(b.$2.id),
+      );
+      if (rankA != rankB) return rankA.compareTo(rankB);
+      return a.$1.compareTo(b.$1);
+    });
+    final sortedSessions = [for (final entry in indexedSessions) entry.$2];
+
+    // Count sessions awaiting the user (rank 0) for the optional Running
+    // SectionHeader trailing badge.
+    final needsYouCount = widget.sessions
+        .where(
+          (s) =>
+              _statusSortRank(
+                s,
+                isUnseen: widget.unseenSessionIds.contains(s.id),
+              ) ==
+              0,
+        )
+        .length;
+
     if (!hasRunningSessions && !hasRecentSessions && !hasActiveFilter) {
       // Show skeleton while initial data is loading
       if (widget.isInitialLoading) {
@@ -598,6 +757,17 @@ class HomeContentState extends State<HomeContent> {
             icon: Icons.play_circle_filled,
             label: l.running,
             color: appColors.statusOnline,
+            trailing: needsYouCount > 0
+                ? Text(
+                    '$needsYouCount need you',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.2,
+                      color: appColors.statusApproval,
+                    ),
+                  )
+                : null,
           ),
           const SizedBox(height: 4),
           for (final action in widget.offlinePendingActions)
@@ -610,7 +780,7 @@ class HomeContentState extends State<HomeContent> {
                   ? null
                   : () => widget.onCancelOfflinePendingAction!(action.id),
             ),
-          for (final session in widget.sessions)
+          for (final session in sortedSessions)
             Slidable(
               key: ValueKey('running_session_${session.id}'),
               endActionPane: ActionPane(
@@ -764,51 +934,7 @@ class HomeContentState extends State<HomeContent> {
                 subtitle: hasActiveFilter ? l.adjustFiltersAndSearch : null,
               )
             else
-              for (final session in filteredSessions)
-                Slidable(
-                  key: ValueKey('recent_session_${session.sessionId}'),
-                  endActionPane: ActionPane(
-                    motion: const BehindMotion(),
-                    extentRatio: 0.18,
-                    children: [
-                      CustomSlidableAction(
-                        onPressed: (_) => widget.onArchiveSession(session),
-                        backgroundColor: Colors.transparent,
-                        padding: EdgeInsets.zero,
-                        child: Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.error,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.archive_outlined,
-                            color: Colors.white,
-                            size: 22,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  child: RecentSessionCard(
-                    session: session,
-                    displayMode: _displayMode,
-                    // Only running sessions show the active selection state.
-                    isSelected: false,
-                    draftText: context.read<DraftService>().getDraft(
-                      session.sessionId,
-                    ),
-                    isProcessing: widget.archivingSessionIds.contains(
-                      session.sessionId,
-                    ),
-                    onTap: () => widget.onResumeSession(session),
-                    onLongPress: () =>
-                        widget.onLongPressRecentSession(session, null),
-                    onShowActions: (position) =>
-                        widget.onLongPressRecentSession(session, position),
-                  ),
-                ),
+              ..._buildGroupedRecentCards(context, filteredSessions, l),
             if (widget.hasMoreSessions) ...[
               const SizedBox(height: 8),
               Center(
@@ -917,6 +1043,33 @@ class _ProviderAuthStatusChip extends StatelessWidget {
     if (trimmed == null || trimmed.isEmpty) return null;
     if (trimmed.length == 1) return trimmed.toUpperCase();
     return '${trimmed[0].toUpperCase()}${trimmed.substring(1).toLowerCase()}';
+  }
+}
+
+/// Quiet date-group subheader for the Recent list (Today/Yesterday/This
+/// week/Earlier). Mirrors [SectionHeader]'s caps typography but without a
+/// leading icon and in subtleText, so it reads as a soft divider rather than a
+/// second primary section.
+class _DateGroupSubheader extends StatelessWidget {
+  final String label;
+
+  const _DateGroupSubheader({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final appColors = Theme.of(context).extension<AppColors>()!;
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, top: 12, bottom: 6),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.8,
+          color: appColors.subtleText,
+        ),
+      ),
+    );
   }
 }
 

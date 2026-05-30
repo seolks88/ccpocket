@@ -6,6 +6,7 @@ import 'package:scroll_to_index/scroll_to_index.dart';
 import '../../../models/messages.dart';
 import '../../../providers/bridge_cubits.dart';
 import '../../../services/bridge_service.dart';
+import '../../../widgets/bubbles/streaming_bubble.dart';
 import '../../../widgets/message_bubble.dart';
 import '../../file_peek/file_peek_sheet.dart';
 import '../../message_images/message_images_screen.dart';
@@ -33,6 +34,11 @@ bool shouldShowForkForAssistant(List<ChatEntry> entries, int entryIndex) {
   }
   return false;
 }
+
+bool _isActiveClaudeStatus(ProcessStatus status) =>
+    status == ProcessStatus.running ||
+    status == ProcessStatus.starting ||
+    status == ProcessStatus.compacting;
 
 /// Displays the chat message list with [ListView.builder] (reverse: true).
 ///
@@ -192,7 +198,13 @@ class _ChatMessageListState extends State<ChatMessageList> {
     final hasStreaming = context.select<StreamingStateCubit, bool>(
       (cubit) => cubit.state.isStreaming,
     );
-    final totalCount = allEntries.length + (hasStreaming ? 1 : 0);
+    final sessionStatus = context.select<ChatSessionCubit, ProcessStatus>(
+      (cubit) => cubit.state.status,
+    );
+    final showClaudeActivity =
+        !widget.isCodex && _isActiveClaudeStatus(sessionStatus);
+    final showLiveActivity = hasStreaming || showClaudeActivity;
+    final totalCount = allEntries.length + (showLiveActivity ? 1 : 0);
 
     return NotificationListener<ScrollNotification>(
       onNotification: (notification) {
@@ -221,21 +233,23 @@ class _ChatMessageListState extends State<ChatMessageList> {
           final entryIndex = totalCount - 1 - index;
 
           // Streaming entry is at totalCount - 1 (index 0 in reverse)
-          if (hasStreaming && entryIndex == allEntries.length) {
+          if (showLiveActivity && entryIndex == allEntries.length) {
             // Scoped BlocBuilder: only this widget rebuilds on streaming deltas
             return BlocBuilder<StreamingStateCubit, StreamingState>(
               builder: (context, streamingState) {
-                if (!streamingState.isStreaming) {
+                final hasVisibleStreamContent =
+                    streamingState.text.trim().isNotEmpty ||
+                    streamingState.thinking.trim().isNotEmpty;
+                final hasLiveStream =
+                    hasVisibleStreamContent || streamingState.isStreaming;
+                if (!hasLiveStream && !showClaudeActivity) {
                   return const SizedBox.shrink();
                 }
-                return ChatEntryWidget(
-                  entry: StreamingChatEntry(text: streamingState.text),
-                  previous: null,
-                  httpBaseUrl: widget.httpBaseUrl,
-                  onRetryMessage: null,
-                  collapseToolResults: null,
-                  hiddenToolUseIds: const {},
-                  isCodex: widget.isCodex,
+                return StreamingBubble(
+                  text: streamingState.text,
+                  thinking: streamingState.thinking,
+                  showPlaceholder:
+                      showClaudeActivity || !hasVisibleStreamContent,
                 );
               },
             );
