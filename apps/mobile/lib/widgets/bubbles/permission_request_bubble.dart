@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../models/messages.dart';
+import '../../theme/app_motion.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/code_text_style.dart';
@@ -55,15 +56,27 @@ class _PermissionRequestBubbleState extends State<PermissionRequestBubble> {
               color: appColors.subtleText,
             ),
           ),
-          if (_expanded) ...[
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              inputStr,
-              style: codeTextSettingsOf(context).style(
-                color: appColors.subtleText,
-              ),
+          // Settle the inline detail height on toggle instead of jumping.
+          // Height tween only; instant under reduced motion.
+          AnimatedSize(
+            duration: motionDuration(context, AppMotion.standard),
+            curve: AppMotion.curve,
+            alignment: Alignment.topCenter,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (_expanded) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    inputStr,
+                    style: codeTextSettingsOf(context).style(
+                      color: appColors.subtleText,
+                    ),
+                  ),
+                ],
+              ],
             ),
-          ],
+          ),
         ],
       ),
     );

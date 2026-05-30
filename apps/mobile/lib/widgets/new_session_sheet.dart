@@ -11,6 +11,7 @@ import '../l10n/app_localizations.dart';
 import '../models/messages.dart';
 import '../models/new_session_tab.dart';
 import '../services/bridge_service.dart';
+import '../theme/app_motion.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_theme.dart';
 import '../theme/provider_style.dart';
@@ -1371,8 +1372,8 @@ class _NewSessionSheetContentState extends State<_NewSessionSheetContent> {
         .clamp(0, widget.visibleTabs.length - 1);
     _pageController.animateToPage(
       page,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
+      duration: motionDuration(context, AppMotion.emphasized),
+      curve: AppMotion.curve,
     );
   }
 

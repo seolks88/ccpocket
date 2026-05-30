@@ -160,8 +160,15 @@ class _TodoWriteWidgetState extends State<TodoWriteWidget> {
               ),
           ],
 
-          // Other tasks
-          ...visibleOthers.map((item) => _TodoItemTile(item: item)),
+          // Other tasks. No height-settle on purpose: todo statuses update
+          // live as the agent works, so an AnimatedSize would animate every
+          // status change, not just the show-more/less toggle.
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ...visibleOthers.map((item) => _TodoItemTile(item: item)),
+            ],
+          ),
 
           // Expand / collapse control
           if (hasOverflow)

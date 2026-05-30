@@ -6,6 +6,7 @@ import '../../models/messages.dart';
 import 'package:auto_route/auto_route.dart';
 
 import '../../router/app_router.dart';
+import '../../theme/app_motion.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/code_text_style.dart';
@@ -818,43 +819,57 @@ class _ExpandedToolResult extends StatelessWidget {
                   color: appColors.subtleText,
                 ),
               ),
-              // Content
-              if (expansion == ToolResultExpansion.preview) ...[
-                const SizedBox(height: AppSpacing.xs),
-                Text(
-                  previewText,
-                  style: codeSettings.style(
-                    color: isError
-                        ? appColors.errorText
-                        : appColors.toolResultText,
-                  ),
-                  maxLines: _previewLines,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                if (hasMore)
-                  Padding(
-                    padding: const EdgeInsets.only(top: AppSpacing.xs),
-                    child: Text(
-                      '... ${lines.length - _previewLines} more lines',
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        fontStyle: FontStyle.italic,
-                        color: appColors.subtleText,
+              // Content — settle the height when toggling preview<->expanded
+              // instead of jumping. Height tween only; degrades to instant
+              // under reduced motion via motionDuration.
+              AnimatedSize(
+                duration: motionDuration(context, AppMotion.standard),
+                curve: AppMotion.curve,
+                alignment: Alignment.topCenter,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (expansion == ToolResultExpansion.preview) ...[
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(
+                        previewText,
+                        style: codeSettings.style(
+                          color: isError
+                              ? appColors.errorText
+                              : appColors.toolResultText,
+                        ),
+                        maxLines: _previewLines,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                  ),
-              ] else if (expansion == ToolResultExpansion.expanded) ...[
-                const SizedBox(height: AppSpacing.xs),
-                SelectableText(
-                  content,
-                  style: codeSettings.style(
-                    color: isError
-                        ? appColors.errorText
-                        : appColors.toolResultTextExpanded,
-                  ),
-                  contextMenuBuilder:
-                      googleSearchSelectableTextContextMenuBuilder,
+                      if (hasMore)
+                        Padding(
+                          padding: const EdgeInsets.only(top: AppSpacing.xs),
+                          child: Text(
+                            '... ${lines.length - _previewLines} more lines',
+                            style: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(
+                                  fontStyle: FontStyle.italic,
+                                  color: appColors.subtleText,
+                                ),
+                          ),
+                        ),
+                    ] else if (expansion ==
+                        ToolResultExpansion.expanded) ...[
+                      const SizedBox(height: AppSpacing.xs),
+                      SelectableText(
+                        content,
+                        style: codeSettings.style(
+                          color: isError
+                              ? appColors.errorText
+                              : appColors.toolResultTextExpanded,
+                        ),
+                        contextMenuBuilder:
+                            googleSearchSelectableTextContextMenuBuilder,
+                      ),
+                    ],
+                  ],
                 ),
-              ],
+              ),
             ],
           ),
         ),

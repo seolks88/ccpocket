@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../../theme/app_motion.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/markdown_style.dart';
@@ -30,7 +31,23 @@ class _StreamingBubbleState extends State<StreamingBubble>
     _cursorController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
-    )..repeat(reverse: true);
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // reducedMotion() needs a BuildContext (unavailable in initState), so the
+    // repeat() decision lives here. Also re-runs if the reduced-motion setting
+    // changes at runtime: stop blinking and settle to a solid caret.
+    if (reducedMotion(context)) {
+      if (_cursorController.isAnimating) {
+        _cursorController.stop();
+        _cursorController.reset();
+      }
+    } else if (!_cursorController.isAnimating) {
+      _cursorController.repeat(reverse: true);
+    }
   }
 
   @override
@@ -118,28 +135,32 @@ class _LiveHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final dot = Container(
+      width: 8,
+      height: 8,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+      ),
+    );
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        AnimatedBuilder(
-          animation: controller,
-          builder: (context, child) {
-            // Pulse opacity between a calm floor and full so the dot reads as
-            // alive without strobing.
-            final opacity = 0.4 + (controller.value * 0.6);
-            return Opacity(
-              opacity: opacity,
-              child: Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: color,
-                  shape: BoxShape.circle,
-                ),
-              ),
-            );
-          },
-        ),
+        // Under reduced motion the controller is parked; show a solid,
+        // non-blinking dot (the pulse's full-opacity end-state).
+        if (reducedMotion(context))
+          dot
+        else
+          AnimatedBuilder(
+            animation: controller,
+            builder: (context, child) {
+              // Pulse opacity between a calm floor and full so the dot reads as
+              // alive without strobing.
+              final opacity = 0.4 + (controller.value * 0.6);
+              return Opacity(opacity: opacity, child: child);
+            },
+            child: dot,
+          ),
         const SizedBox(width: AppSpacing.sm),
         Text(label, style: labelStyle),
       ],

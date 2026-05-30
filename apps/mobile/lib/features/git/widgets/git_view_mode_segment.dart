@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../theme/app_spacing.dart';
 import '../state/git_view_state.dart';
 
 class GitViewModeSegment extends StatelessWidget {
@@ -25,7 +26,7 @@ class GitViewModeSegment extends StatelessWidget {
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
         color: cs.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.45)),
       ),
       child: Stack(
@@ -42,7 +43,8 @@ class GitViewModeSegment extends StatelessWidget {
                 child: DecoratedBox(
                   decoration: BoxDecoration(
                     color: cs.primary,
-                    borderRadius: BorderRadius.circular(13),
+                    // Concentric with the 3px-inset AppRadius.lg outer (16-3).
+                    borderRadius: BorderRadius.circular(AppRadius.lg - 3),
                     boxShadow: [
                       BoxShadow(
                         color: cs.primary.withValues(alpha: 0.18),
@@ -102,7 +104,7 @@ class _ViewModeTabButton extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(13),
+        borderRadius: BorderRadius.circular(AppRadius.md),
         child: Center(
           child: AnimatedDefaultTextStyle(
             duration: const Duration(milliseconds: 220),

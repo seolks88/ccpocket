@@ -670,14 +670,22 @@ class _ToolUseCard extends StatelessWidget {
                   Icon(chevronIcon, size: 16, color: appColors.subtleText),
                 ],
               ),
-              const SizedBox(height: 6),
-              if (diffFile != null)
-                InlineEditDiff(
-                  diffFile: diffFile,
-                  onTapFullDiff: onOpenGitScreen,
-                )
-              else
-                _buildInputBody(context, appColors),
+              // Expanded body. No height-settle here on purpose: edit-tool
+              // bodies stream their content in, so an AnimatedSize would chase
+              // the height every frame during streaming.
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 6),
+                  if (diffFile != null)
+                    InlineEditDiff(
+                      diffFile: diffFile,
+                      onTapFullDiff: onOpenGitScreen,
+                    )
+                  else
+                    _buildInputBody(context, appColors),
+                ],
+              ),
             ],
           ),
         ),

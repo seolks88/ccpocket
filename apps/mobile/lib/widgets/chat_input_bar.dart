@@ -7,6 +7,8 @@ import '../models/messages.dart';
 import '../services/native_paste_bridge.dart';
 import '../utils/platform_helper.dart';
 import '../utils/diff_parser.dart';
+import '../theme/app_motion.dart';
+import '../theme/app_spacing.dart';
 import '../theme/code_text_style.dart';
 import 'bubbles/image_preview.dart';
 
@@ -104,13 +106,10 @@ class ChatInputBar extends StatelessWidget {
       ),
       decoration: BoxDecoration(
         color: cs.surface,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
-            blurRadius: 8,
-            offset: const Offset(0, -2),
-          ),
-        ],
+        border: Border(
+          top: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.4)),
+        ),
+        boxShadow: AppElevation.card,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -139,7 +138,7 @@ class ChatInputBar extends StatelessWidget {
           Row(
             children: [
               AnimatedSwitcher(
-                duration: const Duration(milliseconds: 200),
+                duration: motionDuration(context, AppMotion.standard),
                 child: isInputEmpty
                     ? _SlashCommandButton(
                         key: const ValueKey('slash_command_button'),
@@ -1074,8 +1073,8 @@ class _VoiceButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(22),
           onTap: isTranscribing ? null : onTap,
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            curve: Curves.easeOutCubic,
+            duration: motionDuration(context, AppMotion.standard),
+            curve: AppMotion.curve,
             width: 40,
             height: 40,
             alignment: Alignment.center,

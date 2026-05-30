@@ -7,6 +7,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../models/messages.dart';
 import '../../../services/bridge_service.dart';
+import '../../../theme/app_motion.dart';
 import '../../../theme/app_spacing.dart';
 import '../../../theme/app_theme.dart';
 import '../state/chat_session_state.dart';
@@ -232,17 +233,29 @@ class _PulsingModeBarSurfaceState extends State<_PulsingModeBarSurface>
       duration: const Duration(milliseconds: 2500),
       vsync: this,
     );
-    if (widget.inPlanMode) {
-      _controller.repeat();
-    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // reducedMotion() needs a BuildContext (unavailable in initState), so the
+    // repeat() decision lives here (also re-runs on reduced-motion changes).
+    _syncGlow();
   }
 
   @override
   void didUpdateWidget(_PulsingModeBarSurface oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.inPlanMode && !_controller.isAnimating) {
+    _syncGlow();
+  }
+
+  /// Rotates the plan-mode border glow only while in plan mode and motion is
+  /// allowed; otherwise the border is painted as a calm static tint.
+  void _syncGlow() {
+    final shouldAnimate = widget.inPlanMode && !reducedMotion(context);
+    if (shouldAnimate && !_controller.isAnimating) {
       _controller.repeat();
-    } else if (!widget.inPlanMode && _controller.isAnimating) {
+    } else if (!shouldAnimate && _controller.isAnimating) {
       _controller.stop();
       _controller.reset();
     }
@@ -261,6 +274,23 @@ class _PulsingModeBarSurfaceState extends State<_PulsingModeBarSurface>
 
     if (!widget.inPlanMode) {
       return widget.child;
+    }
+
+    // Under reduced motion the controller is parked; paint a calm static tinted
+    // border (no rotating glow dot) instead of the moving sweep.
+    if (reducedMotion(context)) {
+      return CustomPaint(
+        painter: _RotatingBorderPainter(
+          progress: 0,
+          animate: false,
+          color: appColors.statusPlan,
+          glowColor: appColors.statusPlanGlow,
+          borderRadius: 12,
+          strokeWidth: 1.5,
+          isDark: isDark,
+        ),
+        child: widget.child,
+      );
     }
 
     return AnimatedBuilder(
@@ -291,6 +321,10 @@ class _RotatingBorderPainter extends CustomPainter {
   final double strokeWidth;
   final bool isDark;
 
+  /// When false (reduced motion), only the static base border is painted and
+  /// the rotating glow dot is skipped entirely.
+  final bool animate;
+
   _RotatingBorderPainter({
     required this.progress,
     required this.color,
@@ -298,6 +332,7 @@ class _RotatingBorderPainter extends CustomPainter {
     required this.borderRadius,
     required this.strokeWidth,
     required this.isDark,
+    this.animate = true,
   });
 
   @override
@@ -311,6 +346,9 @@ class _RotatingBorderPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = strokeWidth;
     canvas.drawRRect(rrect, basePaint);
+
+    // Reduced motion: stop at the calm static tinted border.
+    if (!animate) return;
 
     // Build path from the rounded rect and find the dot position
     final path = Path()..addRRect(rrect);
@@ -372,7 +410,7 @@ class _RotatingBorderPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_RotatingBorderPainter oldDelegate) =>
-      oldDelegate.progress != progress;
+      oldDelegate.progress != progress || oldDelegate.animate != animate;
 }
 
 void showCodexPermissionsMenu(

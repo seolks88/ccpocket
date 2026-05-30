@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../../theme/app_motion.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/request_user_input.dart';
 
@@ -268,8 +269,8 @@ class _AskUserQuestionWidgetState extends State<AskUserQuestionWidget> {
   void _goToPage(int index) {
     _pageController.animateToPage(
       index,
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOut,
+      duration: motionDuration(context, AppMotion.emphasized),
+      curve: AppMotion.curve,
     );
   }
 

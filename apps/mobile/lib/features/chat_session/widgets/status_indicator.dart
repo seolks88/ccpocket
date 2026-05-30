@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 
 import '../../../models/messages.dart';
+import '../../../theme/app_motion.dart';
 import '../../../theme/app_theme.dart';
 
 /// Compact status indicator that shows a colored icon and elapsed time when running.
@@ -144,17 +145,29 @@ class _AnimatedStatusDotState extends State<_AnimatedStatusDot>
       begin: 1.0,
       end: 1.4,
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
-    if (widget.isAnimating) {
-      _controller.repeat(reverse: true);
-    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // reducedMotion() needs a BuildContext, unavailable in initState, so the
+    // repeat() decision lives here (also re-runs on reduced-motion changes).
+    _syncPulse();
   }
 
   @override
   void didUpdateWidget(_AnimatedStatusDot oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.isAnimating && !_controller.isAnimating) {
+    _syncPulse();
+  }
+
+  /// Pulses the dot only while active and motion is allowed; otherwise leaves
+  /// the calm full-size, glow-free dot.
+  void _syncPulse() {
+    final shouldAnimate = widget.isAnimating && !reducedMotion(context);
+    if (shouldAnimate && !_controller.isAnimating) {
       _controller.repeat(reverse: true);
-    } else if (!widget.isAnimating && _controller.isAnimating) {
+    } else if (!shouldAnimate && _controller.isAnimating) {
       _controller.stop();
       _controller.reset();
     }
@@ -168,6 +181,9 @@ class _AnimatedStatusDotState extends State<_AnimatedStatusDot>
 
   @override
   Widget build(BuildContext context) {
+    // Under reduced motion the controller is parked; render the calm static dot
+    // (no scale pulse, no glow) just like the idle state.
+    final animate = widget.isAnimating && !reducedMotion(context);
     return AnimatedBuilder(
       animation: _animation,
       builder: (context, child) {
@@ -180,14 +196,14 @@ class _AnimatedStatusDotState extends State<_AnimatedStatusDot>
           ),
           child: Center(
             child: Transform.scale(
-              scale: widget.isAnimating ? _animation.value : 1.0,
+              scale: animate ? _animation.value : 1.0,
               child: Container(
                 width: 8,
                 height: 8,
                 decoration: BoxDecoration(
                   color: widget.color,
                   shape: BoxShape.circle,
-                  boxShadow: widget.isAnimating
+                  boxShadow: animate
                       ? [
                           BoxShadow(
                             color: widget.color.withValues(alpha: 0.5),

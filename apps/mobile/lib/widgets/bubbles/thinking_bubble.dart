@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/app_motion.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/code_text_style.dart';
 import '../google_search_text_selection.dart';
@@ -42,17 +43,29 @@ class _ThinkingBubbleState extends State<ThinkingBubble>
     _pulseAnimation = Tween<double>(begin: 0.6, end: 1.0).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
-    if (widget.isStreaming) {
-      _pulseController.repeat(reverse: true);
-    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // reducedMotion() needs a BuildContext (unavailable in initState), so the
+    // repeat() decision lives here (also re-runs on reduced-motion changes).
+    _syncPulse();
   }
 
   @override
   void didUpdateWidget(ThinkingBubble oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.isStreaming && !_pulseController.isAnimating) {
+    _syncPulse();
+  }
+
+  /// Pulses the thinking icon only while streaming and motion is allowed;
+  /// otherwise leaves the icon solid (its full-opacity end-state).
+  void _syncPulse() {
+    final shouldAnimate = widget.isStreaming && !reducedMotion(context);
+    if (shouldAnimate && !_pulseController.isAnimating) {
       _pulseController.repeat(reverse: true);
-    } else if (!widget.isStreaming && _pulseController.isAnimating) {
+    } else if (!shouldAnimate && _pulseController.isAnimating) {
       _pulseController.stop();
       _pulseController.reset();
     }
@@ -111,8 +124,10 @@ class _ThinkingBubbleState extends State<ThinkingBubble>
               children: [
                 Row(
                   children: [
-                    // Animated icon when streaming
-                    if (widget.isStreaming)
+                    // Animated icon when streaming. Under reduced motion the
+                    // controller is parked, so fall back to the solid icon (the
+                    // pulse's full-opacity end-state).
+                    if (widget.isStreaming && !reducedMotion(context))
                       AnimatedBuilder(
                         animation: _pulseAnimation,
                         builder: (context, child) {
