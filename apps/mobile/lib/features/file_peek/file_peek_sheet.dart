@@ -146,10 +146,9 @@ Future<String?> _showFilePickerSheet(
                   subtitle: dir.isNotEmpty
                       ? Text(
                           dir,
-                          style: codeTextSettingsOf(context).style(
-                            fontSize: 12,
-                            color: appColors.subtleText,
-                          ),
+                          style: codeTextSettingsOf(
+                            context,
+                          ).style(fontSize: 12, color: appColors.subtleText),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         )
@@ -247,12 +246,17 @@ class _FilePeekContentState extends State<_FilePeekContent> {
     super.dispose();
   }
 
-  void _copyPath() {
-    Clipboard.setData(ClipboardData(text: '@${widget.filePath}'));
+  void _copyContent() {
+    final result = _result;
+    final text =
+        result != null && result.error == null && result.kind != 'image'
+        ? result.content
+        : '@${widget.filePath}';
+    Clipboard.setData(ClipboardData(text: text));
     HapticFeedback.lightImpact();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(AppLocalizations.of(context).copied),
+        content: Text(AppLocalizations.of(context).copiedToClipboard),
         duration: const Duration(seconds: 1),
       ),
     );
@@ -295,7 +299,8 @@ class _FilePeekContentState extends State<_FilePeekContent> {
                     ),
                     const SizedBox(width: 4),
                     GestureDetector(
-                      onTap: _copyPath,
+                      key: const ValueKey('file_peek_copy_button'),
+                      onTap: _copyContent,
                       child: Icon(
                         Icons.content_copy,
                         size: 14,
@@ -340,10 +345,9 @@ class _FilePeekContentState extends State<_FilePeekContent> {
               alignment: Alignment.centerLeft,
               child: Text(
                 widget.filePath,
-                style: codeTextSettingsOf(context).style(
-                  fontSize: 11,
-                  color: appColors.subtleText,
-                ),
+                style: codeTextSettingsOf(
+                  context,
+                ).style(fontSize: 11, color: appColors.subtleText),
               ),
             ),
           ),
