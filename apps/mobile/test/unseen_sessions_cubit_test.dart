@@ -23,16 +23,47 @@ void main() {
   });
 
   group('UnseenSessionsCubit', () {
-    test('idle session with no seen-at record is unseen', () async {
-      final cubit = UnseenSessionsCubit();
-      await Future<void>.delayed(Duration.zero);
+    test(
+      'first-observed idle session is baselined (not unseen); newer activity '
+      'marks it unseen',
+      () async {
+        final cubit = UnseenSessionsCubit();
+        await Future<void>.delayed(Duration.zero);
 
-      cubit.updateSessions([_session(id: 'a')]);
-      expect(cubit.state, contains('a'));
-      expect(cubit.isUnseen('a'), isTrue);
+        // First time we observe it (e.g. it already existed before launch) →
+        // baseline its activity, do NOT flag unseen. This is what prevents
+        // every pre-existing idle session from showing "Done" on cold start.
+        cubit.updateSessions([
+          _session(id: 'a', lastActivityAt: '2026-03-11T10:00:00Z'),
+        ]);
+        expect(cubit.isUnseen('a'), isFalse);
 
-      await cubit.close();
-    });
+        // Genuinely newer activity after we started tracking → unseen.
+        cubit.updateSessions([
+          _session(id: 'a', lastActivityAt: '2026-03-11T11:00:00Z'),
+        ]);
+        expect(cubit.isUnseen('a'), isTrue);
+
+        await cubit.close();
+      },
+    );
+
+    test(
+      'cold start: many pre-existing idle sessions are NOT all unseen',
+      () async {
+        final cubit = UnseenSessionsCubit();
+        await Future<void>.delayed(Duration.zero);
+
+        cubit.updateSessions([
+          _session(id: 'a', lastActivityAt: '2026-03-11T10:00:00Z'),
+          _session(id: 'b', lastActivityAt: '2026-03-11T09:00:00Z'),
+          _session(id: 'c', lastActivityAt: '2026-03-10T10:00:00Z'),
+        ]);
+        expect(cubit.state, isEmpty);
+
+        await cubit.close();
+      },
+    );
 
     test('non-idle sessions are never unseen', () async {
       final cubit = UnseenSessionsCubit();
@@ -52,7 +83,13 @@ void main() {
       final cubit = UnseenSessionsCubit();
       await Future<void>.delayed(Duration.zero);
 
-      cubit.updateSessions([_session(id: 'a')]);
+      // Baseline, then newer activity makes it unseen.
+      cubit.updateSessions([
+        _session(id: 'a', lastActivityAt: '2026-03-11T10:00:00Z'),
+      ]);
+      cubit.updateSessions([
+        _session(id: 'a', lastActivityAt: '2026-03-11T11:00:00Z'),
+      ]);
       expect(cubit.isUnseen('a'), isTrue);
 
       cubit.markSeen('a');
@@ -65,8 +102,12 @@ void main() {
       final cubit = UnseenSessionsCubit();
       await Future<void>.delayed(Duration.zero);
 
+      // Baseline, then newer activity makes it unseen.
       cubit.updateSessions([
         _session(id: 'a', lastActivityAt: '2026-03-11T10:00:00Z'),
+      ]);
+      cubit.updateSessions([
+        _session(id: 'a', lastActivityAt: '2026-03-11T11:00:00Z'),
       ]);
       expect(cubit.isUnseen('a'), isTrue);
 
@@ -102,10 +143,19 @@ void main() {
       final cubit = UnseenSessionsCubit();
       await Future<void>.delayed(Duration.zero);
 
+      // First observation baselines the idle sessions (none unseen yet).
       cubit.updateSessions([
-        _session(id: 'a'),
+        _session(id: 'a', lastActivityAt: '2026-03-11T10:00:00Z'),
         _session(id: 'b', status: 'running'),
-        _session(id: 'c'),
+        _session(id: 'c', lastActivityAt: '2026-03-11T10:00:00Z'),
+      ]);
+      expect(cubit.state, isEmpty);
+
+      // Newer activity on the idle sessions → unseen; running 'b' never is.
+      cubit.updateSessions([
+        _session(id: 'a', lastActivityAt: '2026-03-11T11:00:00Z'),
+        _session(id: 'b', status: 'running'),
+        _session(id: 'c', lastActivityAt: '2026-03-11T11:00:00Z'),
       ]);
       expect(cubit.state, {'a', 'c'});
 

@@ -555,9 +555,7 @@ class HomeContentState extends State<HomeContent> {
             displayMode: _displayMode,
             // Only running sessions show the active selection state.
             isSelected: false,
-            draftText: context.read<DraftService>().getDraft(
-              session.sessionId,
-            ),
+            draftText: context.read<DraftService>().getDraft(session.sessionId),
             isProcessing: widget.archivingSessionIds.contains(
               session.sessionId,
             ),
@@ -848,7 +846,7 @@ class HomeContentState extends State<HomeContent> {
                 ),
               ),
             ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
         ],
         if (widget.isInitialLoading ||
             hasRecentSessions ||
@@ -986,30 +984,30 @@ class _ProviderAuthStatusChip extends StatelessWidget {
       message: '${status.providerLabel}: $detail',
       child: Container(
         key: ValueKey('provider_auth_${status.provider}'),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: isHealthy ? 0.13 : 0.09),
+          color: color.withValues(alpha: isHealthy ? 0.11 : 0.08),
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: color.withValues(alpha: 0.34), width: 0.8),
+          border: Border.all(color: color.withValues(alpha: 0.3), width: 0.8),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(providerStyle.icon, size: 14, color: providerStyle.foreground),
-            const SizedBox(width: 6),
+            Icon(providerStyle.icon, size: 13, color: providerStyle.foreground),
+            const SizedBox(width: 5),
             Text(
               status.providerLabel,
               style: TextStyle(
                 fontSize: 12,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w700,
                 color: providerStyle.foreground,
                 height: 1,
               ),
             ),
-            const SizedBox(width: 6),
+            const SizedBox(width: 5),
             Icon(
               isHealthy ? Icons.verified_outlined : Icons.error_outline,
-              size: 14,
+              size: 13,
               color: color,
             ),
             const SizedBox(width: 4),
@@ -1017,7 +1015,7 @@ class _ProviderAuthStatusChip extends StatelessWidget {
               detail,
               style: TextStyle(
                 fontSize: 12,
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w600,
                 color: color,
                 height: 1,
               ),

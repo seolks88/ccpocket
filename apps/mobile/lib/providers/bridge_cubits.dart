@@ -17,8 +17,7 @@ typedef GalleryCubit = StreamCubit<List<GalleryImage>>;
 /// Separate class (not typedef) to distinguish from ProjectHistoryCubit
 /// in BlocProvider type resolution.
 class FileListCubit extends StreamCubit<List<String>> {
-  FileListCubit(List<String> initial, Stream<List<String>> stream)
-    : super(initial, stream, equals: _stringListsEqual);
+  FileListCubit(super.initial, super.stream) : super(equals: _stringListsEqual);
 }
 
 /// Project history stream as a Cubit.

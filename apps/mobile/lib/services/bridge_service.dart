@@ -574,6 +574,19 @@ class BridgeService implements BridgeServiceBase {
               case AssistantServerMessage(:final message):
                 if (sessionId != null) {
                   _patchSessionLastMessage(sessionId, message);
+                  _markSessionActive(sessionId);
+                }
+                _taggedMessageController.add((msg, sessionId));
+                _messageController.add(msg);
+              case StreamDeltaMessage():
+                if (sessionId != null) {
+                  _markSessionActive(sessionId);
+                }
+                _taggedMessageController.add((msg, sessionId));
+                _messageController.add(msg);
+              case ThinkingDeltaMessage():
+                if (sessionId != null) {
+                  _markSessionActive(sessionId);
                 }
                 _taggedMessageController.add((msg, sessionId));
                 _messageController.add(msg);
@@ -2116,6 +2129,28 @@ class BridgeService implements BridgeServiceBase {
 
   /// Update the cached [_sessions] list when a [StatusMessage] arrives,
   /// so the session list screen reflects the change in real-time.
+  /// Defensive client-side correction: any streaming activity (assistant text,
+  /// stream/thinking deltas) for a session means the agent is actively working.
+  /// The bridge normally sends an explicit `status: running`, but if a stale or
+  /// early `idle` was applied — Codex deltas don't carry status, and a session
+  /// snapshot can race the status event — the card would wrongly read "Idle"
+  /// mid-response. Nudge it back to running unless it is awaiting the user
+  /// (pending permission) or already shown as busy (running/compacting).
+  void _markSessionActive(String sessionId) {
+    final idx = _sessions.indexWhere((s) => s.id == sessionId);
+    if (idx < 0) return;
+    final current = _sessions[idx];
+    if (current.pendingPermission != null) return;
+    final status = current.status;
+    if (status == 'running' ||
+        status == 'waiting_approval' ||
+        status == 'compacting') {
+      return;
+    }
+    _sessions = List.of(_sessions)..[idx] = current.copyWith(status: 'running');
+    _sessionListController.add(_sessions);
+  }
+
   void _patchSessionStatus(String sessionId, ProcessStatus status) {
     final statusStr = switch (status) {
       ProcessStatus.starting => 'starting',

@@ -2102,19 +2102,23 @@ class _SessionListScreenState extends State<SessionListScreen>
         slot: WorkspacePaneSlot.center,
       );
 
-      return NestedScrollView(
-        headerSliverBuilder: (context, innerBoxIsScrolled) => [
-          if (chrome.topInset > 0)
-            SliverToBoxAdapter(child: SizedBox(height: chrome.topInset)),
-          SessionListSliverAppBar(
-            onTitleTap: _onTitleTap,
-            onDisconnect: _disconnect,
-            forceElevated: innerBoxIsScrolled,
-            toolbarHeight: chrome.toolbarHeight,
-            bridgeLabel: connectedBridgeLabel,
-          ),
-        ],
-        body: content,
+      return SafeArea(
+        top: false,
+        bottom: false,
+        child: NestedScrollView(
+          headerSliverBuilder: (context, innerBoxIsScrolled) => [
+            if (chrome.topInset > 0)
+              SliverToBoxAdapter(child: SizedBox(height: chrome.topInset)),
+            SessionListSliverAppBar(
+              onTitleTap: _onTitleTap,
+              onDisconnect: _disconnect,
+              forceElevated: innerBoxIsScrolled,
+              toolbarHeight: chrome.toolbarHeight,
+              bridgeLabel: connectedBridgeLabel,
+            ),
+          ],
+          body: content,
+        ),
       );
     }
 
@@ -2579,10 +2583,9 @@ class _SetupStep extends StatelessWidget {
                   ),
                   child: Text(
                     command,
-                    style: codeTextSettingsOf(context).style(
-                      fontSize: 11,
-                      color: cs.onSurfaceVariant,
-                    ),
+                    style: codeTextSettingsOf(
+                      context,
+                    ).style(fontSize: 11, color: cs.onSurfaceVariant),
                   ),
                 ),
               ],

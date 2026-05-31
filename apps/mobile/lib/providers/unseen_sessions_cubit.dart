@@ -51,6 +51,7 @@ class UnseenSessionsCubit extends Cubit<Set<String>> {
   /// timestamp to determine unseen state.
   void updateSessions(List<SessionInfo> sessions) {
     final unseen = <String>{};
+    var seenAtChanged = false;
 
     for (final session in sessions) {
       if (session.lastActivityAt.isNotEmpty) {
@@ -66,10 +67,20 @@ class UnseenSessionsCubit extends Cubit<Set<String>> {
 
       if (_pendingInitialSeen.remove(session.id)) {
         _seenAt[session.id] = _bufferedTimestamp(lastActivity);
+        seenAtChanged = true;
       }
 
       final seenAt = _seenAt[session.id];
-      if (seenAt == null || lastActivity.compareTo(seenAt) > 0) {
+      if (seenAt == null) {
+        // First time we observe this session — e.g. it already existed before
+        // this app launch / before we started tracking. Baseline its current
+        // activity as "seen" instead of flagging it unseen; otherwise EVERY
+        // pre-existing idle session lights up as "Done" on a cold start. It
+        // only becomes unseen if a NEWER lastActivityAt arrives later (genuine
+        // new completion while the list is being tracked).
+        _seenAt[session.id] = lastActivity;
+        seenAtChanged = true;
+      } else if (lastActivity.compareTo(seenAt) > 0) {
         unseen.add(session.id);
       }
     }
@@ -80,6 +91,7 @@ class UnseenSessionsCubit extends Cubit<Set<String>> {
     _lastActivityAt.removeWhere((id, _) => !currentIds.contains(id));
     _pendingInitialSeen.removeWhere((id) => !currentIds.contains(id));
 
+    if (seenAtChanged) _saveSeenAt();
     emit(unseen);
   }
 

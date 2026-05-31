@@ -258,15 +258,20 @@ class _RunningSessionCardState extends State<RunningSessionCard> {
                         _QueuedInputBadge(item: queuedInput),
                         const SizedBox(width: AppSpacing.sm),
                       ],
-                      // Flexible so the timestamp ellipsizes (rather than
-                      // overflowing) if the eyebrow + badge crowd a narrow card.
-                      Flexible(
+                      // Fixed-width trailing slot keeps timestamps aligned
+                      // across cards while still ellipsizing on narrow layouts.
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(
+                          minWidth: 64,
+                          maxWidth: 88,
+                        ),
                         child: Text(
                           elapsed,
                           style: Theme.of(context).textTheme.labelSmall
                               ?.copyWith(color: appColors.subtleText),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.end,
                         ),
                       ),
                     ],
