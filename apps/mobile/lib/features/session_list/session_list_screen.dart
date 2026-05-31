@@ -1977,10 +1977,6 @@ class _SessionListScreenState extends State<SessionListScreen>
     required MachineManagerCubit? machineManagerCubit,
     required String? connectedBridgeLabel,
   }) {
-    if (_isAutoConnecting) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
     if (showConnectedUI) {
       final bridge = context.read<BridgeService>();
       final content = StreamBuilder<List<OfflinePendingAction>>(
@@ -2237,6 +2233,9 @@ class _SessionListScreenState extends State<SessionListScreen>
   }
 
   Future<void> _connectToMachineConfig(Machine machine) async {
+    if (_isAutoConnecting && mounted) {
+      setState(() => _isAutoConnecting = false);
+    }
     final cubit = context.read<MachineManagerCubit>();
     unawaited(cubit.refreshLatestBridgeVersionIfStale());
     late final String wsUrl;

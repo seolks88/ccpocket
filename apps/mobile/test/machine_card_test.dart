@@ -133,6 +133,18 @@ void main() {
       expect(find.text('Connect'), findsOneWidget);
     });
 
+    testWidgets('allows connecting while status is still checking', (
+      tester,
+    ) async {
+      await _pumpCard(tester, status: MachineStatus.unknown);
+
+      expect(
+        find.byKey(const ValueKey('machine_connect_button')),
+        findsOneWidget,
+      );
+      expect(find.text('Connect'), findsOneWidget);
+    });
+
     testWidgets(
       'hides update button for recommended, offline, missing SSH, or unknown version',
       (tester) async {

@@ -63,7 +63,10 @@ class MachineCard extends StatelessWidget {
           ? colorScheme.primaryContainer.withValues(alpha: 0.15)
           : null,
       child: InkWell(
-        onTap: status == MachineStatus.online ? onConnect : null,
+        onTap:
+            (status == MachineStatus.online || status == MachineStatus.unknown)
+            ? onConnect
+            : null,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -426,7 +429,7 @@ class _ActionButton extends StatelessWidget {
     final colorScheme = theme.colorScheme;
     final appColors = theme.extension<AppColors>()!;
 
-    if (status == MachineStatus.online) {
+    if (status == MachineStatus.online || status == MachineStatus.unknown) {
       return FilledButton(
         key: const ValueKey('machine_connect_button'),
         onPressed: onConnect,

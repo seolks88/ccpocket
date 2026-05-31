@@ -375,7 +375,7 @@ class BridgeService implements BridgeServiceBase {
   static const _prefKeyOfflinePendingMessages =
       'bridge_offline_pending_messages_v1';
   static const _inFlightPendingVisibilityDelay = Duration(milliseconds: 600);
-  static const _connectReadyTimeout = Duration(seconds: 10);
+  static const _connectReadyTimeout = Duration(seconds: 4);
 
   Future<void>? _offlineQueueRestore;
   int _offlineQueueGeneration = 0;
