@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:marionette_flutter/marionette_flutter.dart';
 
+import '../features/chat_session/state/streaming_state_cubit.dart';
 import '../theme/markdown_style.dart';
 
 final _probe = _FrameTimingProbe();
@@ -18,6 +19,7 @@ void registerPerformanceProbeExtensions() {
     callback: (params) async {
       _probe.reset();
       markdownPerformanceProbe.reset();
+      streamingPerformanceProbe.reset();
       return MarionetteExtensionResult.success({'status': 'reset'});
     },
   );
@@ -31,6 +33,7 @@ void registerPerformanceProbeExtensions() {
       return MarionetteExtensionResult.success({
         ..._probe.summary(threshold: Duration(milliseconds: thresholdMs)),
         'markdown': markdownPerformanceProbe.summary(),
+        'streaming': streamingPerformanceProbe.summary(),
       });
     },
   );

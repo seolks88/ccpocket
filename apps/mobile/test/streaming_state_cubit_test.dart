@@ -8,6 +8,7 @@ void main() {
     late StreamingStateCubit cubit;
 
     setUp(() {
+      streamingPerformanceProbe.reset();
       cubit = StreamingStateCubit();
     });
 
@@ -95,6 +96,43 @@ void main() {
         expect(cubit.state.isStreaming, true);
         expect(cubit.hasVisibleContent, true);
       });
+
+      test(
+        'records coalesced streaming metrics for performance probes',
+        () async {
+          final cubit = StreamingStateCubit(
+            coalesceDelay: const Duration(milliseconds: 16),
+          );
+          addTearDown(cubit.close);
+
+          cubit.appendText('a');
+          cubit.appendText('b');
+          cubit.appendThinking('c');
+
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+
+          expect(
+            streamingPerformanceProbe.summary(),
+            containsPair('appendTextCalls', 2),
+          );
+          expect(
+            streamingPerformanceProbe.summary(),
+            containsPair('appendThinkingCalls', 1),
+          );
+          expect(
+            streamingPerformanceProbe.summary(),
+            containsPair('scheduledFlushes', 1),
+          );
+          expect(
+            streamingPerformanceProbe.summary(),
+            containsPair('flushes', 1),
+          );
+          expect(
+            streamingPerformanceProbe.summary(),
+            containsPair('emittedStates', 2),
+          );
+        },
+      );
     });
 
     group('appendThinking', () {

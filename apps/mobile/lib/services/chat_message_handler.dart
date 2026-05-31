@@ -188,8 +188,32 @@ ReasoningEffort? _reasoningEffortFromRaw(String? raw) {
 /// Pure logic — no Flutter dependencies. Tracks streaming and thinking state
 /// internally so the widget only needs to apply the returned updates.
 class ChatMessageHandler {
-  String currentThinkingText = '';
-  StreamingChatEntry? currentStreaming;
+  final StringBuffer _currentThinkingText = StringBuffer();
+  StringBuffer? _currentStreamingText;
+  StreamingChatEntry? _currentStreaming;
+
+  String get currentThinkingText => _currentThinkingText.toString();
+
+  set currentThinkingText(String value) {
+    _currentThinkingText.clear();
+    if (value.isNotEmpty) _currentThinkingText.write(value);
+  }
+
+  StreamingChatEntry? get currentStreaming => _currentStreaming;
+
+  set currentStreaming(StreamingChatEntry? value) {
+    if (value == null) {
+      _currentStreaming = null;
+      _currentStreamingText = null;
+      return;
+    }
+    final textBuffer = StringBuffer(value.text);
+    _currentStreamingText = textBuffer;
+    _currentStreaming = StreamingChatEntry.fromBuffer(
+      textBuffer,
+      timestamp: value.timestamp,
+    );
+  }
 
   /// Whether a git_not_available tip has been shown in this session.
   /// Used to suppress duplicate git errors in the chat stream.
@@ -204,7 +228,7 @@ class ChatMessageHandler {
       case StatusMessage(:final status):
         return _handleStatus(status, isBackground: isBackground);
       case ThinkingDeltaMessage(:final text):
-        currentThinkingText += text;
+        _currentThinkingText.write(text);
         return const ChatStateUpdate();
       case StreamDeltaMessage(:final text):
         return _handleStreamDelta(text);
@@ -431,11 +455,13 @@ class ChatMessageHandler {
   }
 
   ChatStateUpdate _handleStreamDelta(String text) {
-    if (currentStreaming == null) {
-      currentStreaming = StreamingChatEntry(text: text);
-      return ChatStateUpdate(entriesToAdd: [currentStreaming!]);
+    if (_currentStreaming == null) {
+      final textBuffer = StringBuffer(text);
+      _currentStreamingText = textBuffer;
+      _currentStreaming = StreamingChatEntry.fromBuffer(textBuffer);
+      return ChatStateUpdate(entriesToAdd: [_currentStreaming!]);
     }
-    currentStreaming!.text += text;
+    _currentStreamingText?.write(text);
     return const ChatStateUpdate();
   }
 
@@ -449,7 +475,8 @@ class ChatMessageHandler {
 
     // Inject accumulated thinking text
     ServerMessage displayMsg = msg;
-    if (currentThinkingText.isNotEmpty) {
+    final thinkingText = currentThinkingText;
+    if (thinkingText.isNotEmpty) {
       final hasThinking = message.content.any((c) => c is ThinkingContent);
       if (!hasThinking) {
         displayMsg = AssistantServerMessage(
@@ -457,7 +484,7 @@ class ChatMessageHandler {
             id: message.id,
             role: message.role,
             content: [
-              ThinkingContent(thinking: currentThinkingText),
+              ThinkingContent(thinking: thinkingText),
               ...message.content,
             ],
             model: message.model,

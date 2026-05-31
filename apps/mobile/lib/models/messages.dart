@@ -4513,9 +4513,24 @@ class UserChatEntry implements ChatEntry {
 }
 
 class StreamingChatEntry implements ChatEntry {
-  String text;
+  String _text;
+  StringBuffer? _textBuffer;
   @override
   final DateTime timestamp;
-  StreamingChatEntry({this.text = '', DateTime? timestamp})
-    : timestamp = timestamp ?? DateTime.now();
+  StreamingChatEntry({String text = '', DateTime? timestamp})
+    : _text = text,
+      _textBuffer = null,
+      timestamp = timestamp ?? DateTime.now();
+
+  StreamingChatEntry.fromBuffer(StringBuffer textBuffer, {DateTime? timestamp})
+    : _text = '',
+      _textBuffer = textBuffer,
+      timestamp = timestamp ?? DateTime.now();
+
+  String get text => _textBuffer?.toString() ?? _text;
+
+  set text(String value) {
+    _textBuffer = null;
+    _text = value;
+  }
 }
