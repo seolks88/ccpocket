@@ -61,6 +61,8 @@ const _fileListRefreshToolNames = {
   'Bash',
 };
 
+const _streamingCoalesceDelay = Duration(milliseconds: 16);
+
 class _NoopListenable implements Listenable {
   const _NoopListenable();
 
@@ -512,7 +514,9 @@ class _ChatScreenProviders extends StatelessWidget {
         break;
       }
     }
-    final streamingCubit = StreamingStateCubit();
+    final streamingCubit = StreamingStateCubit(
+      coalesceDelay: _streamingCoalesceDelay,
+    );
     return MultiBlocProvider(
       providers: [
         BlocProvider(
@@ -645,11 +649,31 @@ class _ChatScreenBody extends HookWidget {
 
     // --- Bloc state ---
     final chatSessionCubit = context.read<ChatSessionCubit>();
-    final sessionState = context.watch<ChatSessionCubit>().state;
-    final bridgeState = context.watch<ConnectionCubit>().state;
+    final sessionProjectPath = context.select<ChatSessionCubit, String?>(
+      (cubit) => cubit.state.projectPath,
+    );
+    final explorerCurrentPath = context.select<ChatSessionCubit, String>(
+      (cubit) => cubit.state.explorerCurrentPath,
+    );
+    final recentPeekedFilesState = context
+        .select<ChatSessionCubit, List<String>>(
+          (cubit) => cubit.state.recentPeekedFiles,
+        );
+    final status = context.select<ChatSessionCubit, ProcessStatus>(
+      (cubit) => cubit.state.status,
+    );
+    final approval = context.select<ChatSessionCubit, ApprovalState>(
+      (cubit) => cubit.state.approval,
+    );
+    final inPlanMode = context.select<ChatSessionCubit, bool>(
+      (cubit) => cubit.state.inPlanMode,
+    );
+    final bridgeState = context.select<ConnectionCubit, BridgeConnectionState>(
+      (cubit) => cubit.state,
+    );
     final effectiveProjectPath = _firstNonEmptyProjectPath(
       projectPath,
-      sessionState.projectPath,
+      sessionProjectPath,
     );
     final gitProjectPath = worktreePath ?? effectiveProjectPath;
     final gitBadgeTone = _gitBadgeToneOf(
@@ -674,16 +698,18 @@ class _ChatScreenBody extends HookWidget {
     void handleFilePeekOpened(String filePath) {
       if (!context.mounted) return;
       final currentPath =
-          parentState?._explorerCurrentPath ?? sessionState.explorerCurrentPath;
-      final recentPeekedFiles = updateRecentPeekedFiles(
-        parentState?._recentPeekedFiles ?? sessionState.recentPeekedFiles,
+          parentState?._explorerCurrentPath ?? explorerCurrentPath;
+      final nextRecentPeekedFiles = updateRecentPeekedFiles(
+        parentState?._recentPeekedFiles ?? recentPeekedFilesState,
         filePath,
       );
       parentState?.updateExplorerState(
         currentPath: currentPath,
-        recentPeekedFiles: recentPeekedFiles,
+        recentPeekedFiles: nextRecentPeekedFiles,
       );
-      context.read<ChatSessionCubit>().setRecentPeekedFiles(recentPeekedFiles);
+      context.read<ChatSessionCubit>().setRecentPeekedFiles(
+        nextRecentPeekedFiles,
+      );
     }
 
     useEffect(() {
@@ -696,9 +722,6 @@ class _ChatScreenBody extends HookWidget {
       );
       return () => shell?.unregisterSessionToolPaneBindings(sessionId);
     }, [sessionId]);
-
-    final tokenUsage = _collectTokenUsage(sessionState.entries);
-    final toolUsage = _collectToolUsage(sessionState.entries);
 
     // --- Side effects subscription ---
     useEffect(() {
@@ -810,10 +833,6 @@ class _ChatScreenBody extends HookWidget {
     });
 
     // --- Destructure state ---
-    final status = sessionState.status;
-    final approval = sessionState.approval;
-    final inPlanMode = sessionState.inPlanMode;
-
     // Approval state pattern matching
     String? pendingToolUseId;
     PermissionRequestMessage? pendingPermission;
@@ -973,10 +992,10 @@ class _ChatScreenBody extends HookWidget {
                             final shell = WorkspaceShellScreen.maybeOf(context);
                             final initialPath =
                                 parentState?._explorerCurrentPath ??
-                                sessionState.explorerCurrentPath;
+                                explorerCurrentPath;
                             final recentPeekedFiles =
                                 parentState?._recentPeekedFiles ??
-                                sessionState.recentPeekedFiles;
+                                recentPeekedFilesState;
                             if (shell?.canOpenToolPane ?? false) {
                               shell!.openExplorePane(
                                 sessionId: sessionId,
@@ -1192,15 +1211,7 @@ class _ChatScreenBody extends HookWidget {
             },
             child: Column(
               children: [
-                UsageSummaryBar(
-                  totalCost: sessionState.totalCost,
-                  totalDuration: sessionState.totalDuration,
-                  inputTokens: tokenUsage.inputTokens,
-                  cachedInputTokens: tokenUsage.cachedInputTokens,
-                  outputTokens: tokenUsage.outputTokens,
-                  toolCalls: toolUsage.toolCalls,
-                  fileEdits: toolUsage.fileEdits,
-                ),
+                const _UsageSummaryFromCubit(),
                 if (bridgeState == BridgeConnectionState.reconnecting ||
                     bridgeState == BridgeConnectionState.disconnected)
                   ReconnectBanner(bridgeState: bridgeState),
@@ -1251,7 +1262,12 @@ class _ChatScreenBody extends HookWidget {
                                           ? () {
                                               final originalText =
                                                   _extractPlanText(
-                                                    sessionState.entries,
+                                                    context
+                                                        .read<
+                                                          ChatSessionCubit
+                                                        >()
+                                                        .state
+                                                        .entries,
                                                   );
                                               if (originalText == null) return;
                                               showPlanDetailSheet(
@@ -1354,6 +1370,27 @@ class _ChatScreenBody extends HookWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _UsageSummaryFromCubit extends StatelessWidget {
+  const _UsageSummaryFromCubit();
+
+  @override
+  Widget build(BuildContext context) {
+    final sessionState = context.watch<ChatSessionCubit>().state;
+    final tokenUsage = _collectTokenUsage(sessionState.entries);
+    final toolUsage = _collectToolUsage(sessionState.entries);
+
+    return UsageSummaryBar(
+      totalCost: sessionState.totalCost,
+      totalDuration: sessionState.totalDuration,
+      inputTokens: tokenUsage.inputTokens,
+      cachedInputTokens: tokenUsage.cachedInputTokens,
+      outputTokens: tokenUsage.outputTokens,
+      toolCalls: toolUsage.toolCalls,
+      fileEdits: toolUsage.fileEdits,
     );
   }
 }

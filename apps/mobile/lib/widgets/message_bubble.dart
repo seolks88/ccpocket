@@ -37,6 +37,7 @@ class ChatEntryWidget extends StatelessWidget {
 
   /// Callback for tapping file paths in assistant messages.
   final FilePathTapCallback? onFileTap;
+  final Set<String> knownPathSuffixes;
   final bool isCodex;
 
   const ChatEntryWidget({
@@ -52,6 +53,7 @@ class ChatEntryWidget extends StatelessWidget {
     this.hiddenToolUseIds = const {},
     this.onImageTap,
     this.onFileTap,
+    this.knownPathSuffixes = const {},
     this.isCodex = false,
   });
 
@@ -69,6 +71,7 @@ class ChatEntryWidget extends StatelessWidget {
             resolvedPlanText: resolvedPlanText,
             hiddenToolUseIds: hiddenToolUseIds,
             onFileTap: onFileTap,
+            knownPathSuffixes: knownPathSuffixes,
             onForkMessage: onForkMessage,
             isCodex: isCodex,
           ),
@@ -155,6 +158,7 @@ class ServerMessageWidget extends StatelessWidget {
 
   /// Callback for tapping file paths in assistant messages.
   final FilePathTapCallback? onFileTap;
+  final Set<String> knownPathSuffixes;
   final void Function(AssistantServerMessage)? onForkMessage;
   final bool isCodex;
 
@@ -166,6 +170,7 @@ class ServerMessageWidget extends StatelessWidget {
     this.resolvedPlanText,
     this.hiddenToolUseIds = const {},
     this.onFileTap,
+    this.knownPathSuffixes = const {},
     this.onForkMessage,
     this.isCodex = false,
   });
@@ -179,6 +184,7 @@ class ServerMessageWidget extends StatelessWidget {
         message: msg,
         resolvedPlanText: resolvedPlanText,
         onFileTap: onFileTap,
+        knownPathSuffixes: knownPathSuffixes,
         onFork: onForkMessage != null ? () => onForkMessage!(msg) : null,
       ),
       // Hide tool results that are summarized by a tool_use_summary

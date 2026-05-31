@@ -363,6 +363,9 @@ void main() {
       final entry = cubit.state.entries.first as UserChatEntry;
       expect(entry.text, 'Hello Claude');
       expect(entry.clientMessageId, isNotNull);
+      expect(streamingCubit.state.isStreaming, true);
+      expect(streamingCubit.state.text, isEmpty);
+      expect(streamingCubit.state.thinking, isEmpty);
 
       expect(mockBridge.sentMessages, hasLength(1));
       final payload =
@@ -1175,6 +1178,45 @@ void main() {
       expect(cubit.state.sandboxMode, SandboxMode.off);
     });
 
+    test('Claude error does not clear visible streamed content', () async {
+      final cubit = createCubit('s1');
+      addTearDown(cubit.close);
+      await Future.microtask(() {});
+
+      streamingCubit.appendText('partial response');
+
+      mockBridge.emitMessage(
+        const ErrorMessage(message: 'unrelated transient error'),
+        sessionId: 's1',
+      );
+      await Future.microtask(() {});
+
+      expect(streamingCubit.state.text, 'partial response');
+      expect(streamingCubit.state.isStreaming, true);
+      expect(cubit.state.entries.last, isA<ServerChatEntry>());
+    });
+
+    test(
+      'Claude error clears empty waiting placeholder without pending input',
+      () async {
+        final cubit = createCubit('s1');
+        addTearDown(cubit.close);
+        await Future.microtask(() {});
+
+        streamingCubit.markWaitingForResponse();
+
+        mockBridge.emitMessage(
+          const ErrorMessage(message: 'startup failed'),
+          sessionId: 's1',
+        );
+        await Future.microtask(() {});
+
+        expect(streamingCubit.state.isStreaming, false);
+        expect(streamingCubit.state.text, isEmpty);
+        expect(cubit.state.entries.last, isA<ServerChatEntry>());
+      },
+    );
+
     test('history message adds entries', () async {
       final cubit = createCubit('s1');
       addTearDown(cubit.close);
@@ -1524,6 +1566,35 @@ void main() {
           MessageStatus.failed,
           MessageStatus.sending,
         ]);
+        expect(streamingCubit.state.isStreaming, true);
+      },
+    );
+
+    test(
+      'input_rejected clears Claude waiting placeholder when no input remains',
+      () async {
+        final cubit = createCubit('s1');
+        addTearDown(cubit.close);
+        await Future.microtask(() {});
+
+        cubit.sendMessage('Message A');
+        final user = cubit.state.entries.whereType<UserChatEntry>().single;
+
+        mockBridge.emitMessage(
+          InputRejectedMessage(
+            sessionId: 's1',
+            clientMessageId: user.clientMessageId,
+            reason: 'conflict',
+          ),
+          sessionId: 's1',
+        );
+        await Future.microtask(() {});
+
+        expect(
+          (cubit.state.entries.single as UserChatEntry).status,
+          MessageStatus.failed,
+        );
+        expect(streamingCubit.state.isStreaming, false);
       },
     );
 
@@ -1664,6 +1735,14 @@ void main() {
       streamingCubit.appendThinking(' more');
 
       expect(streamingCubit.state.thinking, 'Thinking... more');
+      expect(streamingCubit.state.isStreaming, true);
+    });
+
+    test('markWaitingForResponse starts placeholder without text', () {
+      streamingCubit.markWaitingForResponse();
+
+      expect(streamingCubit.state.text, isEmpty);
+      expect(streamingCubit.state.thinking, isEmpty);
       expect(streamingCubit.state.isStreaming, true);
     });
 

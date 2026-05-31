@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 
@@ -32,10 +34,12 @@ class StreamingBubble extends StatefulWidget {
 class _StreamingBubbleState extends State<StreamingBubble>
     with SingleTickerProviderStateMixin {
   late final AnimationController _cursorController;
+  late final DateTime _startedAt;
 
   @override
   void initState() {
     super.initState();
+    _startedAt = DateTime.now();
     _cursorController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
@@ -108,6 +112,7 @@ class _StreamingBubbleState extends State<StreamingBubble>
               controller: _cursorController,
               color: appColors.statusRunning,
               label: liveLabel,
+              startedAt: _startedAt,
               labelStyle: textTheme.labelMedium?.copyWith(
                 color: appColors.statusRunning,
                 fontWeight: FontWeight.w600,
@@ -165,12 +170,14 @@ class _LiveHeader extends StatelessWidget {
   final AnimationController controller;
   final Color color;
   final String label;
+  final DateTime startedAt;
   final TextStyle? labelStyle;
 
   const _LiveHeader({
     required this.controller,
     required this.color,
     required this.label,
+    required this.startedAt,
     required this.labelStyle,
   });
 
@@ -200,8 +207,68 @@ class _LiveHeader extends StatelessWidget {
             child: dot,
           ),
         const SizedBox(width: AppSpacing.sm),
-        Text(label, style: labelStyle),
+        _ElapsedLabel(label: label, startedAt: startedAt, style: labelStyle),
       ],
     );
+  }
+}
+
+class _ElapsedLabel extends StatefulWidget {
+  final String label;
+  final DateTime startedAt;
+  final TextStyle? style;
+
+  const _ElapsedLabel({
+    required this.label,
+    required this.startedAt,
+    required this.style,
+  });
+
+  @override
+  State<_ElapsedLabel> createState() => _ElapsedLabelState();
+}
+
+class _ElapsedLabelState extends State<_ElapsedLabel> {
+  Timer? _timer;
+  Duration _elapsed = Duration.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() {
+        _elapsed = DateTime.now().difference(widget.startedAt);
+      });
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant _ElapsedLabel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.startedAt != widget.startedAt) {
+      _elapsed = DateTime.now().difference(widget.startedAt);
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final labelWithElapsed = _elapsed.inSeconds > 0
+        ? '${widget.label} ${_formatElapsed(_elapsed)}'
+        : widget.label;
+    return Text(labelWithElapsed, style: widget.style);
+  }
+
+  String _formatElapsed(Duration duration) {
+    if (duration.inMinutes >= 1) {
+      return '${duration.inMinutes}:${(duration.inSeconds % 60).toString().padLeft(2, '0')}';
+    }
+    return '${duration.inSeconds}s';
   }
 }

@@ -98,7 +98,9 @@ class ChatInputWithOverlays extends HookWidget {
     final voice = useVoiceInput(inputController);
 
     // Indent settings
-    final indentSize = context.watch<SettingsCubit>().state.indentSize;
+    final indentSize = context.select<SettingsCubit, int>(
+      (cubit) => cubit.state.indentSize,
+    );
     final canDedent = useState(false);
 
     // OverlayPortal controllers
@@ -151,9 +153,9 @@ class ChatInputWithOverlays extends HookWidget {
     final chatCubit = context.read<ChatSessionCubit>();
     final isCodex = chatCubit.isCodex;
     final completionItems = context
-        .watch<ChatSessionCubit>()
-        .state
-        .slashCommands;
+        .select<ChatSessionCubit, List<SlashCommand>>(
+          (cubit) => cubit.state.slashCommands,
+        );
     final sessionSlashCommands = completionItems
         .where((c) => c.command.startsWith('/'))
         .toList();

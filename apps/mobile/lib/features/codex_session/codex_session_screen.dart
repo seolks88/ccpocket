@@ -62,6 +62,8 @@ const _fileListRefreshToolNames = {
   'Bash',
 };
 
+const _streamingCoalesceDelay = Duration(milliseconds: 16);
+
 class _NoopListenable implements Listenable {
   const _NoopListenable();
 
@@ -531,7 +533,9 @@ class _CodexProviders extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bridge = context.read<BridgeService>();
-    final streamingCubit = StreamingStateCubit();
+    final streamingCubit = StreamingStateCubit(
+      coalesceDelay: _streamingCoalesceDelay,
+    );
     return MultiBlocProvider(
       providers: [
         // Register as ChatSessionCubit so shared widgets can find it.
@@ -657,11 +661,34 @@ class _CodexChatBody extends HookWidget {
 
     // --- Bloc state ---
     final chatSessionCubit = context.read<ChatSessionCubit>();
-    final sessionState = context.watch<ChatSessionCubit>().state;
-    final bridgeState = context.watch<ConnectionCubit>().state;
+    final sessionProjectPath = context.select<ChatSessionCubit, String?>(
+      (cubit) => cubit.state.projectPath,
+    );
+    final explorerCurrentPath = context.select<ChatSessionCubit, String>(
+      (cubit) => cubit.state.explorerCurrentPath,
+    );
+    final recentPeekedFilesState = context
+        .select<ChatSessionCubit, List<String>>(
+          (cubit) => cubit.state.recentPeekedFiles,
+        );
+    final status = context.select<ChatSessionCubit, ProcessStatus>(
+      (cubit) => cubit.state.status,
+    );
+    final approval = context.select<ChatSessionCubit, ApprovalState>(
+      (cubit) => cubit.state.approval,
+    );
+    final inPlanMode = context.select<ChatSessionCubit, bool>(
+      (cubit) => cubit.state.inPlanMode,
+    );
+    final queuedInput = context.select<ChatSessionCubit, QueuedInputItem?>(
+      (cubit) => cubit.state.queuedInput,
+    );
+    final bridgeState = context.select<ConnectionCubit, BridgeConnectionState>(
+      (cubit) => cubit.state,
+    );
     final effectiveProjectPath = _firstNonEmptyProjectPath(
       projectPath,
-      sessionState.projectPath,
+      sessionProjectPath,
     );
     final gitProjectPath = worktreePath ?? effectiveProjectPath;
     final gitBadgeTone = _gitBadgeToneOf(
@@ -672,9 +699,20 @@ class _CodexChatBody extends HookWidget {
     );
     final parentState = context
         .findAncestorStateOfType<_CodexSessionScreenState>();
+    final hasSentUserMessage = useState(false);
+    useEffect(() {
+      hasSentUserMessage.value = _hasSentUserMessage(
+        chatSessionCubit.state.entries,
+      );
+      final sub = chatSessionCubit.stream.listen((state) {
+        if (!hasSentUserMessage.value && _hasSentUserMessage(state.entries)) {
+          hasSentUserMessage.value = true;
+        }
+      });
+      return sub.cancel;
+    }, [sessionId, chatSessionCubit]);
     final canCopyCodexCliJoinCommand =
-        codexCliJoinCommand.value != null &&
-        _hasSentUserMessage(sessionState.entries);
+        codexCliJoinCommand.value != null && hasSentUserMessage.value;
     void handleExploreResult(ExploreScreenResult result) {
       if (!context.mounted) return;
       parentState?.updateExplorerState(
@@ -689,16 +727,18 @@ class _CodexChatBody extends HookWidget {
     void handleFilePeekOpened(String filePath) {
       if (!context.mounted) return;
       final currentPath =
-          parentState?._explorerCurrentPath ?? sessionState.explorerCurrentPath;
-      final recentPeekedFiles = updateRecentPeekedFiles(
-        parentState?._recentPeekedFiles ?? sessionState.recentPeekedFiles,
+          parentState?._explorerCurrentPath ?? explorerCurrentPath;
+      final nextRecentPeekedFiles = updateRecentPeekedFiles(
+        parentState?._recentPeekedFiles ?? recentPeekedFilesState,
         filePath,
       );
       parentState?.updateExplorerState(
         currentPath: currentPath,
-        recentPeekedFiles: recentPeekedFiles,
+        recentPeekedFiles: nextRecentPeekedFiles,
       );
-      context.read<ChatSessionCubit>().setRecentPeekedFiles(recentPeekedFiles);
+      context.read<ChatSessionCubit>().setRecentPeekedFiles(
+        nextRecentPeekedFiles,
+      );
     }
 
     useEffect(() {
@@ -834,12 +874,6 @@ class _CodexChatBody extends HookWidget {
         context.read<ChatSessionCubit>().refreshHistory();
       }
     });
-
-    // --- Destructure state ---
-    final status = sessionState.status;
-    final approval = sessionState.approval;
-    final inPlanMode = sessionState.inPlanMode;
-    final queuedInput = sessionState.queuedInput;
 
     // Approval state pattern matching (Codex: permission + ask-user only)
     String? pendingToolUseId;
@@ -998,10 +1032,10 @@ class _CodexChatBody extends HookWidget {
                             final shell = WorkspaceShellScreen.maybeOf(context);
                             final initialPath =
                                 parentState?._explorerCurrentPath ??
-                                sessionState.explorerCurrentPath;
+                                explorerCurrentPath;
                             final recentPeekedFiles =
                                 parentState?._recentPeekedFiles ??
-                                sessionState.recentPeekedFiles;
+                                recentPeekedFilesState;
                             if (shell?.canOpenToolPane ?? false) {
                               shell!.openExplorePane(
                                 sessionId: sessionId,
@@ -1287,7 +1321,12 @@ class _CodexChatBody extends HookWidget {
                                               final originalText =
                                                   _extractPlanText(
                                                     pendingPermission,
-                                                    sessionState.entries,
+                                                    context
+                                                        .read<
+                                                          ChatSessionCubit
+                                                        >()
+                                                        .state
+                                                        .entries,
                                                   );
                                               if (originalText == null) return;
                                               showPlanDetailSheet(

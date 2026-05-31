@@ -22,6 +22,25 @@ void main() {
       expect(cubit.state.isStreaming, false);
     });
 
+    group('markWaitingForResponse', () {
+      blocTest<StreamingStateCubit, StreamingState>(
+        'shows an empty live state while waiting for first output',
+        build: () => StreamingStateCubit(),
+        act: (cubit) => cubit.markWaitingForResponse(),
+        expect: () => [const StreamingState(isStreaming: true)],
+      );
+
+      test('does not clear visible streamed content', () {
+        cubit.appendText('partial response');
+
+        cubit.markWaitingForResponse();
+
+        expect(cubit.state.text, 'partial response');
+        expect(cubit.state.isStreaming, true);
+        expect(cubit.hasVisibleContent, true);
+      });
+    });
+
     group('appendText', () {
       blocTest<StreamingStateCubit, StreamingState>(
         'emits accumulated text with isStreaming true',
@@ -56,6 +75,25 @@ void main() {
         cubit.appendText('line2\n');
 
         expect(cubit.state.text, 'line1\nline2\n');
+      });
+
+      test('coalesces rapid deltas when configured', () async {
+        final cubit = StreamingStateCubit(
+          coalesceDelay: const Duration(milliseconds: 16),
+        );
+        addTearDown(cubit.close);
+
+        cubit.appendText('Hello ');
+        cubit.appendText('world');
+
+        expect(cubit.state.text, isEmpty);
+        expect(cubit.state.isStreaming, true);
+
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+
+        expect(cubit.state.text, 'Hello world');
+        expect(cubit.state.isStreaming, true);
+        expect(cubit.hasVisibleContent, true);
       });
     });
 

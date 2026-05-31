@@ -8,6 +8,7 @@ import '../../../providers/bridge_cubits.dart';
 import '../../../services/bridge_service.dart';
 import '../../../widgets/bubbles/streaming_bubble.dart';
 import '../../../widgets/message_bubble.dart';
+import '../../file_peek/file_path_syntax.dart';
 import '../../file_peek/file_peek_sheet.dart';
 import '../../message_images/message_images_screen.dart';
 import '../state/chat_session_cubit.dart';
@@ -17,22 +18,46 @@ import 'session_mode_bar.dart' show kSessionModeBarHeight;
 
 @visibleForTesting
 bool shouldShowForkForAssistant(List<ChatEntry> entries, int entryIndex) {
-  if (entryIndex < 0 || entryIndex >= entries.length) return false;
-  final entry = entries[entryIndex];
-  if (entry is! ServerChatEntry || entry.message is! AssistantServerMessage) {
-    return false;
-  }
+  return _forkableAssistantIndexesFor(entries).contains(entryIndex);
+}
 
-  for (var i = entryIndex + 1; i < entries.length; i++) {
-    final next = entries[i];
-    if (next is UserChatEntry) return false;
-    if (next is ServerChatEntry) {
-      final message = next.message;
-      if (message is AssistantServerMessage) return false;
-      if (message is ResultMessage) return true;
+Set<int> _forkableAssistantIndexesFor(List<ChatEntry> entries) {
+  final indexes = <int>{};
+  var hasResultBeforeNextTurnBoundary = false;
+  for (var i = entries.length - 1; i >= 0; i--) {
+    final entry = entries[i];
+    if (entry is UserChatEntry) {
+      hasResultBeforeNextTurnBoundary = false;
+      continue;
+    }
+    if (entry is! ServerChatEntry) continue;
+
+    final message = entry.message;
+    if (message is ResultMessage) {
+      hasResultBeforeNextTurnBoundary = true;
+    } else if (message is AssistantServerMessage) {
+      if (hasResultBeforeNextTurnBoundary) indexes.add(i);
+      hasResultBeforeNextTurnBoundary = false;
     }
   }
-  return false;
+  return indexes;
+}
+
+String? _latestPlanWriteText(List<ChatEntry> entries) {
+  for (var i = entries.length - 1; i >= 0; i--) {
+    final entry = entries[i];
+    if (entry is! ServerChatEntry) continue;
+    final msg = entry.message;
+    if (msg is! AssistantServerMessage) continue;
+    for (final c in msg.message.content) {
+      if (c is! ToolUseContent || c.name != 'Write') continue;
+      final filePath = c.input['file_path']?.toString() ?? '';
+      if (!filePath.contains('.claude/plans/')) continue;
+      final content = c.input['content']?.toString();
+      if (content != null && content.isNotEmpty) return content;
+    }
+  }
+  return null;
 }
 
 bool _isActiveClaudeStatus(ProcessStatus status) =>
@@ -94,6 +119,10 @@ class ChatMessageList extends StatefulWidget {
 }
 
 class _ChatMessageListState extends State<ChatMessageList> {
+  List<ChatEntry>? _derivedEntries;
+  String? _latestPlanText;
+  Set<int> _forkableAssistantIndexes = const {};
+
   @override
   void initState() {
     super.initState();
@@ -156,26 +185,14 @@ class _ChatMessageListState extends State<ChatMessageList> {
       (c) => c is ToolUseContent && c.name == 'ExitPlanMode',
     );
     if (!hasExitPlan) return null;
-    return _findPlanFromWriteTool();
+    return _latestPlanText;
   }
 
-  /// Search all entries in reverse for a Write tool targeting `.claude/plans/`.
-  String? _findPlanFromWriteTool() {
-    final entries = context.read<ChatSessionCubit>().state.entries;
-    for (var i = entries.length - 1; i >= 0; i--) {
-      final entry = entries[i];
-      if (entry is! ServerChatEntry) continue;
-      final msg = entry.message;
-      if (msg is! AssistantServerMessage) continue;
-      for (final c in msg.message.content) {
-        if (c is! ToolUseContent || c.name != 'Write') continue;
-        final filePath = c.input['file_path']?.toString() ?? '';
-        if (!filePath.contains('.claude/plans/')) continue;
-        final content = c.input['content']?.toString();
-        if (content != null && content.isNotEmpty) return content;
-      }
-    }
-    return null;
+  void _updateDerivedEntryData(List<ChatEntry> entries) {
+    if (identical(_derivedEntries, entries)) return;
+    _derivedEntries = entries;
+    _latestPlanText = _latestPlanWriteText(entries);
+    _forkableAssistantIndexes = _forkableAssistantIndexesFor(entries);
   }
 
   // ---------------------------------------------------------------------------
@@ -190,6 +207,7 @@ class _ChatMessageListState extends State<ChatMessageList> {
     final allEntries = context.select<ChatSessionCubit, List<ChatEntry>>(
       (cubit) => cubit.state.entries,
     );
+    _updateDerivedEntryData(allEntries);
 
     // Watch only the isStreaming flag (not the full streaming text) so the
     // list rebuilds when streaming starts/stops (to adjust itemCount) but NOT
@@ -201,6 +219,12 @@ class _ChatMessageListState extends State<ChatMessageList> {
     final sessionStatus = context.select<ChatSessionCubit, ProcessStatus>(
       (cubit) => cubit.state.status,
     );
+    final knownPathSuffixes =
+        widget.projectPath == null || widget.projectPath!.isEmpty
+        ? const <String>{}
+        : context.select<FileListCubit, Set<String>>(
+            (cubit) => FilePathSyntax.buildSuffixSet(cubit.state),
+          );
     final showClaudeActivity =
         !widget.isCodex && _isActiveClaudeStatus(sessionStatus);
     final showLiveActivity = hasStreaming || showClaudeActivity;
@@ -257,11 +281,9 @@ class _ChatMessageListState extends State<ChatMessageList> {
 
           final entry = allEntries[entryIndex];
           final previous = entryIndex > 0 ? allEntries[entryIndex - 1] : null;
-          final onForkMessage =
-              widget.isCodex &&
-                  shouldShowForkForAssistant(allEntries, entryIndex)
-              ? widget.onForkMessage
-              : null;
+          final canForkAssistant =
+              widget.isCodex && _forkableAssistantIndexes.contains(entryIndex);
+          final onForkMessage = canForkAssistant ? widget.onForkMessage : null;
 
           Widget child = ChatEntryWidget(
             entry: entry,
@@ -273,6 +295,7 @@ class _ChatMessageListState extends State<ChatMessageList> {
             collapseToolResults: widget.collapseToolResults,
             resolvedPlanText: _resolvePlanText(entry),
             hiddenToolUseIds: hiddenToolUseIds,
+            knownPathSuffixes: knownPathSuffixes,
             onFileTap: (filePath) {
               final projectPath = widget.projectPath;
               if (projectPath == null || projectPath.isEmpty) return;

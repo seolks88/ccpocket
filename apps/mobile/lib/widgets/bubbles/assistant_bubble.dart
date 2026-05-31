@@ -3,11 +3,9 @@ import 'dart:convert';
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 
 import '../../l10n/app_localizations.dart';
-import '../../providers/bridge_cubits.dart';
 import '../../models/messages.dart';
 import '../../router/app_router.dart';
 import '../../theme/app_spacing.dart';
@@ -42,6 +40,7 @@ class AssistantBubble extends StatefulWidget {
 
   /// Callback for tapping file paths in markdown content.
   final FilePathTapCallback? onFileTap;
+  final Set<String> knownPathSuffixes;
   final VoidCallback? onFork;
 
   const AssistantBubble({
@@ -49,6 +48,7 @@ class AssistantBubble extends StatefulWidget {
     required this.message,
     this.resolvedPlanText,
     this.onFileTap,
+    this.knownPathSuffixes = const {},
     this.onFork,
   });
 
@@ -112,6 +112,7 @@ class _AssistantBubbleState extends State<AssistantBubble> {
       plainTextMode: _plainTextMode,
       allText: _allText(),
       onFileTap: widget.onFileTap,
+      knownPathSuffixes: widget.knownPathSuffixes,
       onFork: widget.onFork,
       onTogglePlainText: () {
         setState(() => _plainTextMode = !_plainTextMode);
@@ -190,6 +191,7 @@ class _DefaultLayout extends StatelessWidget {
   final bool plainTextMode;
   final String allText;
   final FilePathTapCallback? onFileTap;
+  final Set<String> knownPathSuffixes;
   final VoidCallback? onFork;
   final VoidCallback onTogglePlainText;
 
@@ -199,6 +201,7 @@ class _DefaultLayout extends StatelessWidget {
     required this.plainTextMode,
     required this.allText,
     this.onFileTap,
+    this.knownPathSuffixes = const {},
     this.onFork,
     required this.onTogglePlainText,
   });
@@ -206,7 +209,7 @@ class _DefaultLayout extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final fileSuffixes = onFileTap != null
-        ? FilePathSyntax.buildSuffixSet(context.watch<FileListCubit>().state)
+        ? knownPathSuffixes
         : const <String>{};
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -536,9 +539,7 @@ class _ToolUseCollapsed extends StatelessWidget {
     final appColors = Theme.of(context).extension<AppColors>()!;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.bubbleMarginH,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.bubbleMarginH),
       child: InkWell(
         onTap: onTap,
         onLongPress: onLongPress,

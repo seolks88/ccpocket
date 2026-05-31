@@ -354,6 +354,13 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
       _handler.currentStreaming = null;
       _streamingCubit.reset();
     }
+    if (!isCodex &&
+        originalMsg is ErrorMessage &&
+        !_streamingCubit.hasVisibleContent &&
+        !current.entries.any(_isPendingUserEntry)) {
+      _handler.currentStreaming = null;
+      _streamingCubit.reset();
+    }
 
     // Handle stream delta → streaming cubit
     if (originalMsg is StreamDeltaMessage) {
@@ -458,6 +465,12 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
       if (changed) {
         entries = updated;
         didModifyEntries = true;
+      }
+      if (!isCodex &&
+          originalMsg is InputRejectedMessage &&
+          !entries.any(_isPendingUserEntry)) {
+        _handler.currentStreaming = null;
+        _streamingCubit.reset();
       }
     }
 
@@ -1058,6 +1071,12 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
     return entry is UserChatEntry && entry.status != MessageStatus.sent;
   }
 
+  bool _isPendingUserEntry(ChatEntry entry) {
+    return entry is UserChatEntry &&
+        (entry.status == MessageStatus.sending ||
+            entry.status == MessageStatus.queued);
+  }
+
   bool _shouldPreserveEntryAcrossHistoryReplace(ChatEntry entry) {
     if (entry is UserChatEntry) return true;
     if (entry is ServerChatEntry) {
@@ -1202,6 +1221,9 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
         messageUuid: isCodex ? _nextOptimisticCodexUserTurnUuid() : null,
       );
       emit(state.copyWith(entries: [...state.entries, entry]));
+      if (!isCodex) {
+        _streamingCubit.markWaitingForResponse();
+      }
     } else if (shouldUseOfflineQueuePanel) {
       emit(
         state.copyWith(
