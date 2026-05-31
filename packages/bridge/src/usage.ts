@@ -16,6 +16,12 @@ export interface UsageInfo {
   error?: string;
 }
 
+const DEFAULT_USAGE_CACHE_TTL_MS = 60_000;
+
+let usageCacheTtlMs = DEFAULT_USAGE_CACHE_TTL_MS;
+let usageCache: { at: number; value: UsageInfo[] } | null = null;
+let usageInFlight: Promise<UsageInfo[]> | null = null;
+
 // ── Codex ──
 
 interface CodexRateLimitWindow {
@@ -206,10 +212,44 @@ async function findLatestTokenCount(filePath: string): Promise<CodexTokenCountEv
 
 // ── Combined ──
 
-export async function fetchAllUsage(): Promise<UsageInfo[]> {
+async function fetchAllUsageUncached(): Promise<UsageInfo[]> {
   // Claude usage previously depended on an undocumented internal endpoint.
   // Keep this API limited to Codex so the app can link users to Claude's
   // official billing pages instead of querying that endpoint.
   const codex = await fetchCodexUsage();
   return [codex];
+}
+
+export function fetchAllUsage(): Promise<UsageInfo[]> {
+  const now = Date.now();
+  if (
+    usageCache &&
+    usageCacheTtlMs > 0 &&
+    now - usageCache.at < usageCacheTtlMs
+  ) {
+    return Promise.resolve(usageCache.value);
+  }
+  if (usageInFlight) return usageInFlight;
+
+  usageInFlight = fetchAllUsageUncached()
+    .then((value) => {
+      usageCache = { at: Date.now(), value };
+      return value;
+    })
+    .finally(() => {
+      usageInFlight = null;
+    });
+  return usageInFlight;
+}
+
+export function clearUsageCacheForTest(): void {
+  usageCache = null;
+  usageInFlight = null;
+  usageCacheTtlMs = DEFAULT_USAGE_CACHE_TTL_MS;
+}
+
+export function setUsageCacheTtlMsForTest(ttlMs: number): void {
+  usageCacheTtlMs = ttlMs;
+  usageCache = null;
+  usageInFlight = null;
 }

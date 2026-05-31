@@ -163,7 +163,7 @@ class _LiveTextContent extends StatelessWidget {
         styleSheet: buildMarkdownStyle(context),
         onTapLink: handleMarkdownLink,
         inlineSyntaxes: colorCodeInlineSyntaxes,
-        builders: markdownBuilders,
+        builders: streamingMarkdownBuilders,
       ),
     );
   }

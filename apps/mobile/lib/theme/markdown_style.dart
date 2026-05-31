@@ -393,6 +393,90 @@ class FencedCodeBlockBuilder extends MarkdownElementBuilder {
   }
 }
 
+/// Lighter fenced-code renderer for live streaming Markdown.
+///
+/// Finished assistant messages use [FencedCodeBlockBuilder] with syntax
+/// highlighting, selection, and copy affordances. The streaming surface is
+/// rebuilt frequently, so it keeps the block styling but avoids highlighting
+/// and selectable text until the final message arrives.
+class LightweightFencedCodeBlockBuilder extends MarkdownElementBuilder {
+  @override
+  bool isBlockElement() => true;
+
+  @override
+  Widget? visitText(md.Text text, TextStyle? preferredStyle) {
+    return const SizedBox.shrink();
+  }
+
+  @override
+  Widget? visitElementAfterWithContext(
+    BuildContext context,
+    md.Element element,
+    TextStyle? preferredStyle,
+    TextStyle? parentStyle,
+  ) {
+    final codeElement = element.children
+        ?.whereType<md.Element>()
+        .cast<md.Element?>()
+        .firstWhere((child) => child?.tag == 'code', orElse: () => null);
+
+    final source = (codeElement?.textContent ?? element.textContent)
+        .trimRight();
+    if (source.isEmpty) return const SizedBox.shrink();
+
+    final className = codeElement?.attributes['class'] ?? '';
+    final language = _normalizeLanguage(_extractFenceLanguage(className));
+    final displayLanguage = language ?? 'text';
+    final hasExplicitLanguage = language != null;
+    final appColors = Theme.of(context).extension<AppColors>()!;
+    final baseStyle = codeTextSettingsOf(
+      context,
+    ).style(height: 1.45, color: Theme.of(context).colorScheme.onSurface);
+
+    return Container(
+      key: ValueKey(
+        'streaming_code_block_${displayLanguage}_${source.length}_${source.hashCode}',
+      ),
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: appColors.codeBackground,
+        borderRadius: BorderRadius.circular(AppSpacing.codeRadius),
+        border: Border.all(color: appColors.codeBorder),
+      ),
+      child: Stack(
+        children: [
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: EdgeInsets.fromLTRB(
+              AppSpacing.md,
+              hasExplicitLanguage ? AppSpacing.xl : AppSpacing.md,
+              AppSpacing.md,
+              AppSpacing.md,
+            ),
+            child: Text(source, style: baseStyle),
+          ),
+          if (hasExplicitLanguage)
+            Positioned(
+              top: 6,
+              right: 8,
+              child: Text(
+                displayLanguage,
+                key: ValueKey('streaming_code_block_language_$displayLanguage'),
+                style: baseStyle.copyWith(
+                  fontSize: 10,
+                  letterSpacing: 0.2,
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: 0.52),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 void _copyCodeBlock(BuildContext context, String source) {
   Clipboard.setData(ClipboardData(text: source));
   HapticFeedback.lightImpact();
@@ -769,4 +853,9 @@ List<md.InlineSyntax> get colorCodeInlineSyntaxes => [ColorCodeSyntax()];
 Map<String, MarkdownElementBuilder> get markdownBuilders => {
   'colorCode': ColorCodeBuilder(),
   'pre': FencedCodeBlockBuilder(),
+};
+
+Map<String, MarkdownElementBuilder> get streamingMarkdownBuilders => {
+  'colorCode': ColorCodeBuilder(),
+  'pre': LightweightFencedCodeBlockBuilder(),
 };
