@@ -538,6 +538,7 @@ class _CodexProviders extends StatelessWidget {
     );
     return MultiBlocProvider(
       providers: [
+        BlocProvider<StreamingStateCubit>(create: (_) => streamingCubit),
         // Register as ChatSessionCubit so shared widgets can find it.
         BlocProvider<ChatSessionCubit>(
           create: (_) => CodexSessionCubit(
@@ -556,7 +557,6 @@ class _CodexProviders extends StatelessWidget {
             initialProjectPath: projectPath,
           ),
         ),
-        BlocProvider.value(value: streamingCubit),
       ],
       child: _CodexChatBody(
         sessionId: sessionId,

@@ -519,6 +519,7 @@ class _ChatScreenProviders extends StatelessWidget {
     );
     return MultiBlocProvider(
       providers: [
+        BlocProvider<StreamingStateCubit>(create: (_) => streamingCubit),
         BlocProvider(
           create: (_) => ChatSessionCubit(
             sessionId: sessionId,
@@ -548,7 +549,6 @@ class _ChatScreenProviders extends StatelessWidget {
             initialProjectPath: projectPath,
           ),
         ),
-        BlocProvider.value(value: streamingCubit),
       ],
       child: _ChatScreenBody(
         sessionId: sessionId,
