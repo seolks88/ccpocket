@@ -122,6 +122,7 @@ class _ChatMessageListState extends State<ChatMessageList> {
   List<ChatEntry>? _derivedEntries;
   String? _latestPlanText;
   Set<int> _forkableAssistantIndexes = const {};
+  final _fileSuffixCache = _FileSuffixSetCache();
 
   @override
   void initState() {
@@ -135,6 +136,9 @@ class _ChatMessageListState extends State<ChatMessageList> {
     if (oldWidget.scrollToUserEntry != widget.scrollToUserEntry) {
       oldWidget.scrollToUserEntry?.removeListener(_onScrollToUserEntry);
       widget.scrollToUserEntry?.addListener(_onScrollToUserEntry);
+    }
+    if (oldWidget.isCodex != widget.isCodex) {
+      _derivedEntries = null;
     }
   }
 
@@ -185,14 +189,18 @@ class _ChatMessageListState extends State<ChatMessageList> {
       (c) => c is ToolUseContent && c.name == 'ExitPlanMode',
     );
     if (!hasExitPlan) return null;
-    return _latestPlanText;
+    return _latestPlanText ??= _latestPlanWriteText(
+      _derivedEntries ?? const [],
+    );
   }
 
   void _updateDerivedEntryData(List<ChatEntry> entries) {
     if (identical(_derivedEntries, entries)) return;
     _derivedEntries = entries;
-    _latestPlanText = _latestPlanWriteText(entries);
-    _forkableAssistantIndexes = _forkableAssistantIndexesFor(entries);
+    _latestPlanText = null;
+    _forkableAssistantIndexes = widget.isCodex
+        ? _forkableAssistantIndexesFor(entries)
+        : const {};
   }
 
   // ---------------------------------------------------------------------------
@@ -219,12 +227,11 @@ class _ChatMessageListState extends State<ChatMessageList> {
     final sessionStatus = context.select<ChatSessionCubit, ProcessStatus>(
       (cubit) => cubit.state.status,
     );
-    final knownPathSuffixes =
+    final projectFiles =
         widget.projectPath == null || widget.projectPath!.isEmpty
-        ? const <String>{}
-        : context.select<FileListCubit, Set<String>>(
-            (cubit) => FilePathSyntax.buildSuffixSet(cubit.state),
-          );
+        ? const <String>[]
+        : context.select<FileListCubit, List<String>>((cubit) => cubit.state);
+    final knownPathSuffixes = _fileSuffixCache.forFiles(projectFiles);
     final showClaudeActivity =
         !widget.isCodex && _isActiveClaudeStatus(sessionStatus);
     final showLiveActivity = hasStreaming || showClaudeActivity;
@@ -371,5 +378,19 @@ class _ChatMessageListState extends State<ChatMessageList> {
             : 'user_ts:${entry.timestamp.microsecondsSinceEpoch}:${text.hashCode}:$index',
       StreamingChatEntry() => 'streaming',
     };
+  }
+}
+
+class _FileSuffixSetCache {
+  List<String>? _lastFiles;
+  Set<String> _lastSuffixes = const {};
+
+  Set<String> forFiles(List<String> files) {
+    if (identical(files, _lastFiles)) return _lastSuffixes;
+    _lastFiles = files;
+    _lastSuffixes = files.isEmpty
+        ? const {}
+        : FilePathSyntax.buildSuffixSet(files);
+    return _lastSuffixes;
   }
 }

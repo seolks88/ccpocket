@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 
@@ -8,6 +9,15 @@ import '../../theme/app_motion.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/markdown_style.dart';
+
+const _liveMarkdownMaxChars = 2400;
+final _markdownFencePattern = RegExp(r'```');
+
+@visibleForTesting
+bool shouldRenderStreamingMarkdown(String text) {
+  if (text.length > _liveMarkdownMaxChars) return false;
+  return !_markdownFencePattern.allMatches(text).length.isOdd;
+}
 
 /// Renders an in-progress assistant turn.
 ///
@@ -120,22 +130,40 @@ class _StreamingBubbleState extends State<StreamingBubble>
             ),
             if (hasText) ...[
               const SizedBox(height: AppSpacing.sm),
-              suppressMarkdownScrollbarIndicators(
-                context,
-                child: MarkdownBody(
-                  data: widget.text,
-                  styleSheet: buildMarkdownStyle(context),
-                  onTapLink: handleMarkdownLink,
-                  inlineSyntaxes: colorCodeInlineSyntaxes,
-                  builders: markdownBuilders,
-                ),
-              ),
+              _LiveTextContent(text: widget.text),
             ] else if (hasThinking) ...[
               const SizedBox(height: AppSpacing.sm),
               _ThinkingPreview(text: trimmedThinking),
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _LiveTextContent extends StatelessWidget {
+  final String text;
+
+  const _LiveTextContent({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    if (!shouldRenderStreamingMarkdown(text)) {
+      return Text(
+        text,
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.45),
+      );
+    }
+
+    return suppressMarkdownScrollbarIndicators(
+      context,
+      child: MarkdownBody(
+        data: text,
+        styleSheet: buildMarkdownStyle(context),
+        onTapLink: handleMarkdownLink,
+        inlineSyntaxes: colorCodeInlineSyntaxes,
+        builders: markdownBuilders,
       ),
     );
   }
