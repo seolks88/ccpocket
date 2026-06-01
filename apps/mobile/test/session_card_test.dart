@@ -421,16 +421,10 @@ void main() {
         final theme = Theme.of(tester.element(find.byType(Card).first));
         final appColors = theme.extension<AppColors>()!;
 
-        // Selection adds NO fill: the card color is just the faint working
-        // status wash (same as an unselected working card), not a selection
-        // highlight. Emphasis comes from the 2.2px status-colored border only.
-        expect(
-          card.color,
-          Color.alphaBlend(
-            appColors.statusRunning.withValues(alpha: 0.035),
-            theme.colorScheme.surfaceContainerHigh,
-          ),
-        );
+        // Selection adds NO fill: the card uses the same flat, uniform surface
+        // as every other state (no status wash anymore). Emphasis comes from
+        // the 2.2px status-colored border only.
+        expect(card.color, theme.colorScheme.surfaceContainerHigh);
         expect(shape.side.width, 2.2);
         expect(
           shape.side.color,

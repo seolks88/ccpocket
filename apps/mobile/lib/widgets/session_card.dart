@@ -124,27 +124,6 @@ class _RunningSessionCardState extends State<RunningSessionCard> {
             SessionPrimaryStatus.needsYou => visualStatus.label,
             SessionPrimaryStatus.ready => 'Idle',
           };
-    // Leading rail: bolder + glowing for the states that should shout (Needs
-    // You first, then Done); Idle is deliberately thinner + fainter so it reads
-    // as "dead". An approval thus visually shouts over a busy-but-fine session.
-    final railAlpha = switch (visualStatus.primary) {
-      SessionPrimaryStatus.needsYou => 1.0,
-      SessionPrimaryStatus.working => 0.92,
-      SessionPrimaryStatus.ready => isReadyUnseen ? 1.0 : 0.4,
-    };
-    final railWidth = switch (visualStatus.primary) {
-      SessionPrimaryStatus.needsYou => 5.0,
-      SessionPrimaryStatus.ready => isReadyUnseen ? 4.0 : 3.0,
-      SessionPrimaryStatus.working => 4.0,
-    };
-    final railGlow = isNeedsYou || isReadyUnseen;
-    // Faint status wash so active cards aren't flat grey; Idle stays plain
-    // surface. Kept very low-alpha (no gradient/shadow) — hierarchy, not noise.
-    final tintAlpha = switch (visualStatus.primary) {
-      SessionPrimaryStatus.needsYou => 0.06,
-      SessionPrimaryStatus.working => 0.035,
-      SessionPrimaryStatus.ready => isReadyUnseen ? 0.04 : 0.0,
-    };
 
     final permission = session.pendingPermission;
     final hasPermission = permission != null;
@@ -169,14 +148,10 @@ class _RunningSessionCardState extends State<RunningSessionCard> {
       session.lastMessage.replaceAll(RegExp(r'\s+'), ' ').trim(),
     );
     final colorScheme = Theme.of(context).colorScheme;
-    // Opaque solid card with the faint status wash blended in (alphaBlend keeps
-    // it fully opaque so the rounded-corner clip / 1px border stay crisp).
-    final cardColor = tintAlpha > 0
-        ? Color.alphaBlend(
-            statusColor.withValues(alpha: tintAlpha),
-            colorScheme.surfaceContainerHigh,
-          )
-        : colorScheme.surfaceContainerHigh;
+    // Flat, uniform surface for every state — status is carried by the dot +
+    // word (and the approval area when present), not by a tinted wash. Keeps
+    // cards calm and consistent with the surrounding surfaces.
+    final cardColor = colorScheme.surfaceContainerHigh;
     final card = Card(
       margin: const EdgeInsets.symmetric(
         vertical: AppSpacing.xs,
@@ -197,209 +172,137 @@ class _RunningSessionCardState extends State<RunningSessionCard> {
       child: InkWell(
         onTap: widget.onTap,
         onLongPress: widget.onShowActions == null ? widget.onLongPress : null,
-        child: Stack(
-          children: [
-            // Full-height status rail on the leading edge. A Positioned strip
-            // (left, full height) so it spans the real card height (no
-            // IntrinsicHeight) and follows the Card's rounded corners (it sits
-            // inside the clipped child).
-            Positioned(
-              left: 0,
-              top: 0,
-              bottom: 0,
-              width: railWidth,
-              child: _StatusRail(
-                color: statusColor,
-                alpha: railAlpha,
-                glow: railGlow,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Line 1 — status eyebrow + time: a slim meta strip so the
+              // title on Line 2 below gets the full card width.
+              Row(
+                children: [
+                  _StatusDot(
+                    color: statusColor,
+                    animate: visualStatus.animate,
+                    glow: isReadyUnseen,
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Text(
+                    statusWord.toUpperCase(),
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      fontWeight: isReadyUnseen || isNeedsYou
+                          ? FontWeight.w800
+                          : FontWeight.w700,
+                      letterSpacing: 0.5,
+                      color: statusColor,
+                    ),
+                  ),
+                  // Plan-mode signal: a calm, static (motion-safe) marker.
+                  // Keeps the primary status color on the dot/label; adds a
+                  // plan-tinted glyph.
+                  if (visualStatus.showPlanBadge) ...[
+                    const SizedBox(width: AppSpacing.xs),
+                    Icon(
+                      Icons.assignment_outlined,
+                      size: AppIconSize.chip,
+                      color: appColors.statusPlan,
+                    ),
+                  ],
+                  const Spacer(),
+                  // Meta trailing: queued-input badge + the small elapsed
+                  // timestamp, pushed to the right by the Spacer.
+                  if (queuedInput != null) ...[
+                    _QueuedInputBadge(item: queuedInput),
+                    const SizedBox(width: AppSpacing.sm),
+                  ],
+                  // Fixed-width trailing slot keeps timestamps aligned
+                  // across cards while still ellipsizing on narrow layouts.
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      minWidth: 64,
+                      maxWidth: 88,
+                    ),
+                    child: Text(
+                      elapsed,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: appColors.subtleText,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.end,
+                    ),
+                  ),
+                ],
               ),
-            ),
-            Padding(
-              // Left inset clears the 4px rail; values from AppSpacing.
-              padding: const EdgeInsets.fromLTRB(16, 10, AppSpacing.md, 10),
-              child: Column(
+              const SizedBox(height: 6),
+              // Line 2 — identity: provider glyph + the full-width title.
+              // Provider is carried ONCE here as a bare tinted glyph (no
+              // word pill), so the title stays neutral text. The inline Stop
+              // control stays on the right when shown (shell/desktop only).
+              Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Line 1 — status eyebrow + time: a slim meta strip so the
-                  // title on Line 2 below gets the full card width.
-                  Row(
-                    children: [
-                      _StatusDot(
-                        color: statusColor,
-                        animate: visualStatus.animate,
-                        glow: isReadyUnseen,
-                      ),
-                      const SizedBox(width: AppSpacing.xs),
-                      Text(
-                        statusWord.toUpperCase(),
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          fontWeight: isReadyUnseen || isNeedsYou
-                              ? FontWeight.w800
-                              : FontWeight.w700,
-                          letterSpacing: 0.5,
-                          color: statusColor,
-                        ),
-                      ),
-                      // Plan-mode signal: a calm, static (motion-safe) marker.
-                      // Keeps the primary status color on the dot/label; adds a
-                      // plan-tinted glyph.
-                      if (visualStatus.showPlanBadge) ...[
-                        const SizedBox(width: AppSpacing.xs),
-                        Icon(
-                          Icons.assignment_outlined,
-                          size: AppIconSize.chip,
-                          color: appColors.statusPlan,
-                        ),
-                      ],
-                      const Spacer(),
-                      // Meta trailing: queued-input badge + the small elapsed
-                      // timestamp, pushed to the right by the Spacer.
-                      if (queuedInput != null) ...[
-                        _QueuedInputBadge(item: queuedInput),
-                        const SizedBox(width: AppSpacing.sm),
-                      ],
-                      // Fixed-width trailing slot keeps timestamps aligned
-                      // across cards while still ellipsizing on narrow layouts.
-                      ConstrainedBox(
-                        constraints: const BoxConstraints(
-                          minWidth: 64,
-                          maxWidth: 88,
-                        ),
-                        child: Text(
-                          elapsed,
-                          style: Theme.of(context).textTheme.labelSmall
-                              ?.copyWith(color: appColors.subtleText),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.end,
-                        ),
-                      ),
-                    ],
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: _ProviderGlyph(provider: provider),
                   ),
-                  const SizedBox(height: 6),
-                  // Line 2 — identity: provider glyph + the full-width title.
-                  // Provider is carried ONCE here as a bare tinted glyph (no
-                  // word pill), so the title stays neutral text. The inline Stop
-                  // control stays on the right when shown (shell/desktop only).
-                  Row(
-                    children: [
-                      _ProviderGlyph(provider: provider),
-                      const SizedBox(width: AppSpacing.sm),
-                      Expanded(
-                        child: Hero(
-                          tag: 'project_name_${session.id}',
-                          child: Material(
-                            type: MaterialType.transparency,
-                            child: _SessionTitle(
-                              title:
-                                  session.name != null &&
-                                      session.name!.isNotEmpty
-                                  ? session.name!
-                                  : projectName,
-                              projectSuffix:
-                                  session.name != null &&
-                                      session.name!.isNotEmpty &&
-                                      session.name! != projectName
-                                  ? projectName
-                                  : null,
-                              agentLabel: agentLabel,
-                            ),
-                          ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Hero(
+                      tag: 'project_name_${session.id}',
+                      child: Material(
+                        type: MaterialType.transparency,
+                        child: _SessionTitle(
+                          title:
+                              session.name != null && session.name!.isNotEmpty
+                              ? session.name!
+                              : projectName,
+                          projectSuffix:
+                              session.name != null &&
+                                  session.name!.isNotEmpty &&
+                                  session.name! != projectName
+                              ? projectName
+                              : null,
+                          agentLabel: agentLabel,
                         ),
                       ),
-                      if (widget.onStop != null) ...[
-                        const SizedBox(width: AppSpacing.sm),
-                        _RunningSessionStopButton(onPressed: widget.onStop!),
-                      ],
-                    ],
+                    ),
                   ),
-                  // Approval area (shown when waiting for permission). The
-                  // entire provider x toolName switch below is lifted verbatim;
-                  // only its position moved to inside this Column.
-                  if (hasPermission) ...[
-                    const SizedBox(height: AppSpacing.sm),
-                    isCodexSession
-                        ? (isPlanApproval
-                              ? _CodexPlanApprovalArea(
-                                  statusColor: statusColor,
-                                  canOpenPlan:
-                                      _extractPlanText(permission) != null,
-                                  onOpenPlan: () => _openPlanSheet(permission),
-                                  onApprove: () => widget.onApprove?.call(
-                                    permission.toolUseId,
-                                    clearContext: false,
-                                  ),
-                                  onReject: () => widget.onReject?.call(
-                                    permission.toolUseId,
-                                  ),
-                                )
-                              : hasQuestionPrompt
-                              ? _AskUserArea(
-                                  permission: permission,
-                                  statusColor: statusColor,
-                                  onAnswer: (result) => widget.onAnswer?.call(
-                                    permission.toolUseId,
-                                    result,
-                                  ),
-                                  onTap: widget.onTap,
-                                )
-                              : _ToolApprovalArea(
-                                  permission: permission,
-                                  statusColor: statusColor,
-                                  isCodex: isCodexSession,
-                                  onApprove: () => widget.onApprove?.call(
-                                    permission.toolUseId,
-                                    clearContext: false,
-                                  ),
-                                  onApproveAlways:
-                                      widget.onApproveAlways == null
-                                      ? null
-                                      : () => widget.onApproveAlways!(
-                                          permission.toolUseId,
-                                        ),
-                                  onReject: () => widget.onReject?.call(
-                                    permission.toolUseId,
-                                  ),
-                                ))
-                        : switch (permission.toolName) {
-                            'AskUserQuestion' || 'McpElicitation'
-                                when hasQuestionPrompt =>
-                              _AskUserArea(
-                                permission: permission,
-                                statusColor: statusColor,
-                                onAnswer: (result) => widget.onAnswer?.call(
-                                  permission.toolUseId,
-                                  result,
-                                ),
-                                onTap: widget.onTap,
-                              ),
-                            'ExitPlanMode' => _PlanApprovalArea(
+                  if (widget.onStop != null) ...[
+                    const SizedBox(width: AppSpacing.sm),
+                    _RunningSessionStopButton(onPressed: widget.onStop!),
+                  ],
+                ],
+              ),
+              // Approval area (shown when waiting for permission). The
+              // entire provider x toolName switch below is lifted verbatim;
+              // only its position moved to inside this Column.
+              if (hasPermission) ...[
+                const SizedBox(height: AppSpacing.sm),
+                isCodexSession
+                    ? (isPlanApproval
+                          ? _CodexPlanApprovalArea(
                               statusColor: statusColor,
-                              planFeedbackController: _planFeedbackController,
                               canOpenPlan: _extractPlanText(permission) != null,
                               onOpenPlan: () => _openPlanSheet(permission),
                               onApprove: () => widget.onApprove?.call(
                                 permission.toolUseId,
                                 clearContext: false,
                               ),
-                              onApproveClearContext: () =>
-                                  widget.onApprove?.call(
-                                    permission.toolUseId,
-                                    clearContext: true,
-                                  ),
-                              onKeepPlanning: () {
-                                final feedback = _planFeedbackController.text
-                                    .trim();
-                                widget.onReject?.call(
-                                  permission.toolUseId,
-                                  message: feedback.isNotEmpty
-                                      ? feedback
-                                      : null,
-                                );
-                                _planFeedbackController.clear();
-                              },
-                            ),
-                            _ => _ToolApprovalArea(
+                              onReject: () =>
+                                  widget.onReject?.call(permission.toolUseId),
+                            )
+                          : hasQuestionPrompt
+                          ? _AskUserArea(
+                              permission: permission,
+                              statusColor: statusColor,
+                              onAnswer: (result) => widget.onAnswer?.call(
+                                permission.toolUseId,
+                                result,
+                              ),
+                              onTap: widget.onTap,
+                            )
+                          : _ToolApprovalArea(
                               permission: permission,
                               statusColor: statusColor,
                               isCodex: isCodexSession,
@@ -407,25 +310,74 @@ class _RunningSessionCardState extends State<RunningSessionCard> {
                                 permission.toolUseId,
                                 clearContext: false,
                               ),
-                              onApproveAlways: () => widget.onApproveAlways
-                                  ?.call(permission.toolUseId),
+                              onApproveAlways: widget.onApproveAlways == null
+                                  ? null
+                                  : () => widget.onApproveAlways!(
+                                      permission.toolUseId,
+                                    ),
                               onReject: () =>
                                   widget.onReject?.call(permission.toolUseId),
-                            ),
+                            ))
+                    : switch (permission.toolName) {
+                        'AskUserQuestion' ||
+                        'McpElicitation' when hasQuestionPrompt => _AskUserArea(
+                          permission: permission,
+                          statusColor: statusColor,
+                          onAnswer: (result) => widget.onAnswer?.call(
+                            permission.toolUseId,
+                            result,
+                          ),
+                          onTap: widget.onTap,
+                        ),
+                        'ExitPlanMode' => _PlanApprovalArea(
+                          statusColor: statusColor,
+                          planFeedbackController: _planFeedbackController,
+                          canOpenPlan: _extractPlanText(permission) != null,
+                          onOpenPlan: () => _openPlanSheet(permission),
+                          onApprove: () => widget.onApprove?.call(
+                            permission.toolUseId,
+                            clearContext: false,
+                          ),
+                          onApproveClearContext: () => widget.onApprove?.call(
+                            permission.toolUseId,
+                            clearContext: true,
+                          ),
+                          onKeepPlanning: () {
+                            final feedback = _planFeedbackController.text
+                                .trim();
+                            widget.onReject?.call(
+                              permission.toolUseId,
+                              message: feedback.isNotEmpty ? feedback : null,
+                            );
+                            _planFeedbackController.clear();
                           },
-                  ],
-                  // Row 2 — preview (the anchor). Clamps to 1 line only while
-                  // an approval area is open so an actionable card stays
-                  // compact; otherwise the medium 2-line preview.
-                  const SizedBox(height: 6),
-                  _SessionMessage(
-                    text: displayMessage,
-                    maxLines: hasPermission ? 1 : 2,
-                  ),
-                ],
+                        ),
+                        _ => _ToolApprovalArea(
+                          permission: permission,
+                          statusColor: statusColor,
+                          isCodex: isCodexSession,
+                          onApprove: () => widget.onApprove?.call(
+                            permission.toolUseId,
+                            clearContext: false,
+                          ),
+                          onApproveAlways: () => widget.onApproveAlways?.call(
+                            permission.toolUseId,
+                          ),
+                          onReject: () =>
+                              widget.onReject?.call(permission.toolUseId),
+                        ),
+                      },
+              ],
+              // Row 2 — preview (the anchor). Clamps to 1 line only while
+              // an approval area is open so an actionable card stays
+              // compact; otherwise the medium 2-line preview.
+              const SizedBox(height: 6),
+              _SessionMessage(
+                text: displayMessage,
+                maxLines: hasPermission ? 1 : 2,
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -2259,65 +2211,6 @@ class _StatusDotPainter extends CustomPainter {
       oldDelegate.animate != animate;
 }
 
-/// Full-height 4px status spine on a card's leading edge. Painted via a
-/// [CustomPaint] so the optional [glow] can use the same soft [MaskFilter.blur]
-/// the status dot uses. Placed in a leading [Positioned] (left/top/bottom,
-/// width 4) so it fills the real card height with no IntrinsicHeight pass; it
-/// sits inside the Card's clipped child, so it follows the rounded corners.
-class _StatusRail extends StatelessWidget {
-  final Color color;
-  final double alpha;
-  final bool glow;
-
-  const _StatusRail({
-    required this.color,
-    required this.alpha,
-    this.glow = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    // Sized by the parent (a Positioned(left/top/bottom, width: 4)); Size.infinite
-    // resolves to those tight constraints so the spine spans the full card
-    // height without an IntrinsicHeight pass.
-    return CustomPaint(
-      size: Size.infinite,
-      painter: _StatusRailPainter(color: color, alpha: alpha, glow: glow),
-    );
-  }
-}
-
-class _StatusRailPainter extends CustomPainter {
-  final Color color;
-  final double alpha;
-  final bool glow;
-
-  _StatusRailPainter({
-    required this.color,
-    required this.alpha,
-    required this.glow,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final rect = Offset.zero & size;
-    if (glow) {
-      final glowPaint = Paint()
-        ..color = color.withValues(alpha: 0.4)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5);
-      canvas.drawRect(rect, glowPaint);
-    }
-    final paint = Paint()..color = color.withValues(alpha: alpha);
-    canvas.drawRect(rect, paint);
-  }
-
-  @override
-  bool shouldRepaint(_StatusRailPainter oldDelegate) =>
-      oldDelegate.color != color ||
-      oldDelegate.alpha != alpha ||
-      oldDelegate.glow != glow;
-}
-
 /// Provider identity as a single bare tinted icon glyph (no word pill),
 /// exposing the provider's full label via Semantics/Tooltip.
 class _ProviderGlyph extends StatelessWidget {
@@ -2343,10 +2236,12 @@ class _ProviderGlyph extends StatelessWidget {
   }
 }
 
-/// The single inline identity title: the bold session [title] (name when
-/// present, else project name) with an optional dimmed `· <projectSuffix>`
-/// (shown when a name is present and differs from the project) and an optional
-/// dimmed `· <agentLabel>` (multi-agent only), all on one ellipsizing line.
+/// The session identity block: the bold session [title] (name when present,
+/// else project name) on top, with the project (and optional agent) carried on
+/// a dedicated second line so a long name never squeezes the project out of
+/// view. Both lines stay individually readable instead of competing on one
+/// ellipsizing row. When no project suffix is present (title *is* the project),
+/// the title is allowed two lines.
 class _SessionTitle extends StatelessWidget {
   final String title;
   final String? projectSuffix;
@@ -2362,32 +2257,71 @@ class _SessionTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final appColors = theme.extension<AppColors>()!;
+    final colorScheme = theme.colorScheme;
+    final hasProject = projectSuffix != null;
     // Slightly under titleMedium(16) so the title leads without feeling heavy;
-    // weight + the muted preview below carry the hierarchy, not raw size.
+    // weight + the muted project line below carry the hierarchy, not raw size.
     final titleStyle = theme.textTheme.titleMedium?.copyWith(
       fontSize: 15,
       fontWeight: FontWeight.w600,
-      color: theme.colorScheme.onSurface,
+      height: 1.25,
+      color: colorScheme.onSurface,
     );
-    final suffixStyle = theme.textTheme.labelMedium?.copyWith(
-      color: appColors.subtleText,
+    // Project line: more legible than the old faint suffix — onSurfaceVariant +
+    // medium weight so it reads as real, second-tier identity, not throwaway.
+    final projectStyle = theme.textTheme.labelMedium?.copyWith(
+      color: colorScheme.onSurfaceVariant,
+      fontWeight: FontWeight.w500,
     );
     final agentStyle = theme.textTheme.labelSmall?.copyWith(
       color: appColors.subtleText,
     );
-    return Text.rich(
-      TextSpan(
-        text: title,
-        style: titleStyle,
-        children: [
-          if (projectSuffix != null)
-            TextSpan(text: '  ·  $projectSuffix', style: suffixStyle),
-          if (agentLabel != null)
-            TextSpan(text: '  ·  $agentLabel', style: agentStyle),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          title,
+          style: titleStyle,
+          maxLines: hasProject ? 1 : 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+        if (hasProject) ...[
+          const SizedBox(height: 3),
+          Row(
+            children: [
+              Icon(
+                Icons.folder_outlined,
+                size: AppIconSize.chip,
+                color: colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              Flexible(
+                child: Text.rich(
+                  TextSpan(
+                    text: projectSuffix,
+                    style: projectStyle,
+                    children: [
+                      if (agentLabel != null)
+                        TextSpan(text: '  ·  $agentLabel', style: agentStyle),
+                    ],
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ] else if (agentLabel != null) ...[
+          const SizedBox(height: 3),
+          Text(
+            agentLabel!,
+            style: agentStyle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
         ],
-      ),
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
+      ],
     );
   }
 }
@@ -2501,27 +2435,20 @@ class RecentSessionCard extends StatelessWidget {
         onLongPress: isProcessing || onShowActions != null ? null : onLongPress,
         child: Stack(
           children: [
-            // Neutral hairline rail: keeps the leading spine continuous with
-            // the live Running cards but is clearly NOT a live status color
-            // (history, not live). A Positioned strip (left, full height) ->
-            // follows the clipped rounded corners, no IntrinsicHeight.
-            Positioned(
-              left: 0,
-              top: 0,
-              bottom: 0,
-              width: 4,
-              child: _StatusRail(color: colorScheme.outlineVariant, alpha: 0.6),
-            ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, AppSpacing.md, 10),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Row 1 — identity (single line). No live status dot/word;
-                  // provider as a bare tinted glyph, then the title, then time.
+                  // Row 1 — identity: provider glyph + the title block, then
+                  // time. No live status dot/word (history, not live).
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _ProviderGlyph(provider: provider),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: _ProviderGlyph(provider: provider),
+                      ),
                       const SizedBox(width: AppSpacing.sm),
                       Expanded(
                         child: _SessionTitle(
