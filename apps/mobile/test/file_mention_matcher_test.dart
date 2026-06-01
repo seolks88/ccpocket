@@ -31,4 +31,47 @@ void main() {
       expect(scoreFileMentionPath('docs/design/', 'x'), -1);
     });
   });
+
+  group('rankFileMentionPaths', () {
+    test('matches full score sort while returning only top results', () {
+      final files = [
+        'apps/mobile/lib/domain.dart',
+        'apps/mobile/lib/main.dart',
+        'apps/mobile/test/main_widget_test.dart',
+        'docs/design/api.md',
+        'packages/bridge/src/index.ts',
+      ];
+      final expected =
+          files
+              .map(
+                (file) =>
+                    (file: file, score: scoreFileMentionPath(file, 'mai')),
+              )
+              .where((item) => item.score >= 0)
+              .toList()
+            ..sort((a, b) {
+              final cmp = a.score.compareTo(b.score);
+              return cmp != 0 ? cmp : a.file.length.compareTo(b.file.length);
+            });
+
+      expect(
+        rankFileMentionPaths(files, 'mai', limit: 2),
+        expected.take(2).map((item) => item.file).toList(),
+      );
+    });
+
+    test('caps large result sets without dropping better short matches', () {
+      final files = [
+        'lib/a.dart',
+        'lib/b.dart',
+        for (var i = 0; i < 100; i++) 'lib/generated/path_$i.dart',
+      ];
+
+      final ranked = rankFileMentionPaths(files, '', limit: 15);
+
+      expect(ranked, hasLength(15));
+      expect(ranked.first, 'lib/a.dart');
+      expect(ranked, contains('lib/b.dart'));
+    });
+  });
 }

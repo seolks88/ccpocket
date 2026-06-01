@@ -557,6 +557,8 @@ class ChatMessageHandler {
                       .join('\n'),
               toolName: m.toolName,
               images: m.images,
+              isTruncated: m.isTruncated,
+              truncation: m.truncation,
             ),
             timestamp: ts,
           ),

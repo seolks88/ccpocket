@@ -35,6 +35,12 @@ import {
   type ServerMessage,
 } from "./parser.js";
 import {
+  compactHistoryEntryForClient,
+  compactPastHistoryMessageForClient,
+  compactServerMessageForClient,
+  type ToolResultFullContent,
+} from "./history-compaction.js";
+import {
   getAllRecentSessions,
   getCodexSessionHistory,
   getSessionHistory,
@@ -674,6 +680,7 @@ export class BridgeWebSocketServer {
   private static readonly RECENT_SESSIONS_PREWARM_DELAY_MS = 100;
   private static readonly WS_HEARTBEAT_INTERVAL_MS = 25_000;
   private static readonly CODEX_METADATA_REFRESH_TTL_MS = 5 * 60_000;
+  private static readonly MAX_TOOL_RESULT_CONTENT_STORE_ENTRIES = 200;
 
   private wss: WebSocketServer;
   private sessionManager: SessionManager;
@@ -726,7 +733,9 @@ export class BridgeWebSocketServer {
   private failSetSandboxMode = envFlagEnabled("BRIDGE_FAIL_SET_SANDBOX_MODE");
   private platform: NodeJS.Platform;
   private clientSupportedServerMessages = new WeakMap<WebSocket, Set<string>>();
+  private clientHistoryContentModes = new WeakMap<WebSocket, Set<string>>();
   private clientHeartbeatAlive = new WeakMap<WebSocket, boolean>();
+  private toolResultContentStore = new Map<string, ToolResultFullContent>();
   private heartbeatTimer: NodeJS.Timeout | null = null;
 
   constructor(options: BridgeServerOptions) {
@@ -1367,10 +1376,13 @@ export class BridgeWebSocketServer {
   private async splitPastHistoryMessages(
     session: SessionInfo,
     options: { limit?: number } = {},
-  ): Promise<{ pastMessages: unknown[]; historyMessages: ServerMessage[] }> {
+  ): Promise<{
+    pastMessages: SessionHistoryMessage[];
+    historyMessages: ServerMessage[];
+  }> {
     const allMessages = session.pastMessages ?? [];
     const messages = this.selectPastHistoryWindow(allMessages, options.limit);
-    const pastMessages: unknown[] = [];
+    const pastMessages: SessionHistoryMessage[] = [];
     const historyMessages: ServerMessage[] = [];
 
     for (const raw of messages) {
@@ -1378,7 +1390,7 @@ export class BridgeWebSocketServer {
       if (msg.role === "user") {
         const images = await this.registerPastUserMessageImages(session, msg);
         pastMessages.push(
-          images.length > 0
+          (images.length > 0
             ? {
                 ...msg,
                 images,
@@ -1387,13 +1399,13 @@ export class BridgeWebSocketServer {
                     ? Math.max(msg.imageCount, images.length)
                     : images.length,
               }
-            : raw,
+            : raw) as SessionHistoryMessage,
         );
         continue;
       }
 
       if (msg.role !== "tool_result") {
-        pastMessages.push(raw);
+        pastMessages.push(raw as SessionHistoryMessage);
         continue;
       }
 
@@ -1449,7 +1461,7 @@ export class BridgeWebSocketServer {
         ...(existingImages.length > 0 || images.length > 0
           ? { images: [...existingImages, ...images] }
           : {}),
-      });
+      } as SessionHistoryMessage);
     }
 
     return { pastMessages, historyMessages };
@@ -1707,6 +1719,7 @@ export class BridgeWebSocketServer {
 
     ws.on("close", () => {
       this.clientSupportedServerMessages.delete(ws);
+      this.clientHistoryContentModes.delete(ws);
       this.clientHeartbeatAlive.delete(ws);
       console.log("[ws] Client disconnected");
     });
@@ -1756,6 +1769,10 @@ export class BridgeWebSocketServer {
       this.clientSupportedServerMessages.set(
         ws,
         new Set(msg.supportedServerMessages ?? []),
+      );
+      this.clientHistoryContentModes.set(
+        ws,
+        new Set(msg.historyContentModes ?? []),
       );
       this.sendPromptHistoryStatus(ws);
       return;
@@ -3669,12 +3686,19 @@ export class BridgeWebSocketServer {
               type: "past_history",
               claudeSessionId: session.claudeSessionId ?? msg.sessionId,
               sessionId: msg.sessionId,
-              messages: splitPastHistory.pastMessages,
+              messages: this.compactPastHistoryMessagesForClient(
+                ws,
+                msg.sessionId,
+                splitPastHistory.pastMessages,
+              ),
             } as Record<string, unknown>);
           }
           this.send(ws, {
             type: "history",
-            messages: [...splitPastHistory.historyMessages, ...session.history],
+            messages: this.compactServerMessagesForClient(ws, msg.sessionId, [
+              ...splitPastHistory.historyMessages,
+              ...session.history,
+            ]),
             sessionId: msg.sessionId,
           } as Record<string, unknown>);
           this.send(ws, {
@@ -3773,7 +3797,11 @@ export class BridgeWebSocketServer {
                 type: "past_history",
                 claudeSessionId: session.claudeSessionId ?? msg.sessionId,
                 sessionId: msg.sessionId,
-                messages: splitPastHistory.pastMessages,
+                messages: this.compactPastHistoryMessagesForClient(
+                  ws,
+                  msg.sessionId,
+                  splitPastHistory.pastMessages,
+                ),
               } as Record<string, unknown>);
             }
           }
@@ -3783,7 +3811,11 @@ export class BridgeWebSocketServer {
             sessionId: msg.sessionId,
             fromSeq: result.fromSeq,
             toSeq: result.toSeq,
-            messages: result.entries,
+            messages: this.compactHistoryEntriesForClient(
+              ws,
+              msg.sessionId,
+              result.entries,
+            ),
             status: session.status,
             ...(result.kind === "snapshot" ? { reason: result.reason } : {}),
           } as ServerMessage);
@@ -3817,6 +3849,29 @@ export class BridgeWebSocketServer {
             type: "error",
             message: `Session ${msg.sessionId} not found`,
             errorCode: "session_not_found",
+          });
+        }
+        break;
+      }
+
+      case "get_tool_result_content": {
+        const stored = this.toolResultContentStore.get(msg.contentRef);
+        if (stored && stored.sessionId === msg.sessionId) {
+          this.send(ws, {
+            type: "tool_result_content",
+            requestId: msg.requestId,
+            sessionId: msg.sessionId,
+            contentRef: msg.contentRef,
+            content: stored.content,
+            contentBytes: stored.contentBytes,
+          });
+        } else {
+          this.send(ws, {
+            type: "tool_result_content_error",
+            requestId: msg.requestId,
+            sessionId: msg.sessionId,
+            contentRef: msg.contentRef,
+            message: "Full tool result is no longer available.",
           });
         }
         break;
@@ -5967,15 +6022,20 @@ export class BridgeWebSocketServer {
       msg.sessionId !== sessionId
         ? msg.sessionId
         : undefined;
-    const data = JSON.stringify({
-      ...msg,
-      ...(providerSessionId ? { claudeSessionId: providerSessionId } : {}),
-      sessionId,
-    });
     for (const client of this.wss.clients) {
       if (client === exclude) continue;
       if (client.readyState === WebSocket.OPEN) {
         if (!this.shouldSendToClient(client, msg)) continue;
+        const clientMsg = this.compactServerMessageForClient(
+          client,
+          sessionId,
+          msg,
+        );
+        const data = JSON.stringify({
+          ...clientMsg,
+          ...(providerSessionId ? { claudeSessionId: providerSessionId } : {}),
+          sessionId,
+        });
         client.send(data);
       }
     }
@@ -6643,6 +6703,84 @@ export class BridgeWebSocketServer {
   ): void {
     if (!this.shouldSendToClient(ws, msg)) return;
     this.send(ws, msg);
+  }
+
+  private compactServerMessagesForClient(
+    ws: WebSocket,
+    sessionId: string,
+    messages: ServerMessage[],
+  ): ServerMessage[] {
+    if (!this.shouldCompactToolResultsForClient(ws)) return messages;
+    return messages.map((message) =>
+      this.compactServerMessageForClient(ws, sessionId, message),
+    );
+  }
+
+  private compactHistoryEntriesForClient(
+    ws: WebSocket,
+    sessionId: string,
+    entries: Array<{ seq: number; message: ServerMessage }>,
+  ): Array<{ seq: number; message: ServerMessage }> {
+    if (!this.shouldCompactToolResultsForClient(ws)) return entries;
+    return entries.map((entry) =>
+      compactHistoryEntryForClient(entry, {
+        sessionId,
+        registerFullContent: (content) =>
+          this.registerToolResultFullContent(content),
+      }),
+    );
+  }
+
+  private compactPastHistoryMessagesForClient(
+    ws: WebSocket,
+    sessionId: string,
+    messages: SessionHistoryMessage[],
+  ): SessionHistoryMessage[] {
+    if (!this.shouldCompactToolResultsForClient(ws)) return messages;
+    return messages.map((message) =>
+      compactPastHistoryMessageForClient(message, {
+        sessionId,
+        registerFullContent: (content) =>
+          this.registerToolResultFullContent(content),
+      }),
+    );
+  }
+
+  private compactServerMessageForClient(
+    ws: WebSocket,
+    sessionId: string,
+    message: ServerMessage,
+  ): ServerMessage {
+    if (!this.shouldCompactToolResultsForClient(ws)) return message;
+    return compactServerMessageForClient(message, {
+      sessionId,
+      registerFullContent: (content) =>
+        this.registerToolResultFullContent(content),
+    });
+  }
+
+  private shouldCompactToolResultsForClient(ws: WebSocket): boolean {
+    if (envFlagEnabled("CC_POCKET_COMPACT_HISTORY")) return true;
+    return (
+      this.clientHistoryContentModes.get(ws)?.has("compact_tool_results") ??
+      false
+    );
+  }
+
+  private registerToolResultFullContent(content: ToolResultFullContent): void {
+    if (!this.toolResultContentStore.has(content.contentRef)) {
+      this.toolResultContentStore.set(content.contentRef, content);
+    }
+    while (
+      this.toolResultContentStore.size >
+      BridgeWebSocketServer.MAX_TOOL_RESULT_CONTENT_STORE_ENTRIES
+    ) {
+      const oldest = this.toolResultContentStore.keys().next().value as
+        | string
+        | undefined;
+      if (!oldest) break;
+      this.toolResultContentStore.delete(oldest);
+    }
   }
 
   private send(

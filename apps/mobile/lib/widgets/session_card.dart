@@ -16,6 +16,7 @@ import 'session_visual_status.dart';
 
 /// Shared layout constant for AskUserArea buttons.
 const _buttonHeight = 44.0;
+const _sessionCardTextRailIndent = AppIconSize.chip + AppSpacing.sm;
 
 /// Card for a currently running session
 class RunningSessionCard extends StatefulWidget {
@@ -372,9 +373,14 @@ class _RunningSessionCardState extends State<RunningSessionCard> {
               // an approval area is open so an actionable card stays
               // compact; otherwise the medium 2-line preview.
               const SizedBox(height: 6),
-              _SessionMessage(
-                text: displayMessage,
-                maxLines: hasPermission ? 1 : 2,
+              Padding(
+                padding: const EdgeInsets.only(
+                  left: _sessionCardTextRailIndent,
+                ),
+                child: _SessionMessage(
+                  text: displayMessage,
+                  maxLines: hasPermission ? 1 : 2,
+                ),
               ),
             ],
           ),
@@ -2239,11 +2245,11 @@ class _ProviderGlyph extends StatelessWidget {
 /// The session identity block: the bold session [title] (name when present,
 /// else project name) on top, allowed two lines so a long name wraps instead
 /// of being amputated. The project ([projectSuffix]) rides its own dedicated
-/// rail-line below, with an independent ellipsis budget, so a long name can
-/// never squeeze the project out of view and the two never compete on one
-/// row. The optional [agentLabel] sits on its own muted micro-line so it can
-/// never starve the project. Flat text only — no rail, no chip fill, no wash;
-/// hierarchy is carried by weight, color, and a leading glyph.
+/// line below, with an independent ellipsis budget, so a long name can never
+/// squeeze the project out of view and the two never compete on one row. The
+/// optional [agentLabel] sits on its own muted micro-line so it can never
+/// starve the project. Flat text only — no nested glyph, chip fill, or wash;
+/// hierarchy is carried by weight and color.
 class _SessionTitle extends StatelessWidget {
   final String title;
   final String? projectSuffix;
@@ -2271,7 +2277,7 @@ class _SessionTitle extends StatelessWidget {
       height: 1.25,
       color: colorScheme.onSurface,
     );
-    // Project rail-line: onSurfaceVariant + medium weight so it reads as real,
+    // Project line: onSurfaceVariant + medium weight so it reads as real,
     // second-tier identity, fully legible — not a throwaway suffix.
     final projectStyle = theme.textTheme.labelMedium?.copyWith(
       color: colorScheme.onSurfaceVariant,
@@ -2296,29 +2302,11 @@ class _SessionTitle extends StatelessWidget {
         ),
         if (hasProject) ...[
           const SizedBox(height: 3),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // top:1 nudges the glyph onto the label x-height so the glyph +
-              // project read as one unit, even when the project wraps the row.
-              Padding(
-                padding: const EdgeInsets.only(top: 1),
-                child: Icon(
-                  Icons.folder_outlined,
-                  size: AppIconSize.chip,
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(width: AppSpacing.xs),
-              Flexible(
-                child: Text(
-                  projectSuffix!,
-                  style: projectStyle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
+          Text(
+            projectSuffix!,
+            style: projectStyle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
         if (agentLabel != null) ...[
@@ -2498,39 +2486,49 @@ class RecentSessionCard extends StatelessWidget {
                   // override branch; both obey the medium 2-line cap.
                   const SizedBox(height: 6),
                   if (draftText != null && draftText!.isNotEmpty)
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.only(
-                            top: 2,
-                            right: AppSpacing.xs + 2,
-                          ),
-                          child: Icon(
-                            Icons.edit_note,
-                            size: AppIconSize.inline,
-                            color: appColors.subtleText,
-                          ),
-                        ),
-                        Expanded(
-                          child: Text(
-                            draftText!,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              fontSize: 13,
-                              fontStyle: FontStyle.italic,
-                              color: appColors.subtleText,
-                              height: 1.35,
+                    Padding(
+                      padding: const EdgeInsets.only(
+                        left: _sessionCardTextRailIndent,
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(
+                              top: 2,
+                              right: AppSpacing.xs + 2,
                             ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
+                            child: Icon(
+                              Icons.edit_note,
+                              size: AppIconSize.inline,
+                              color: appColors.subtleText,
+                            ),
                           ),
-                        ),
-                      ],
+                          Expanded(
+                            child: Text(
+                              draftText!,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                fontSize: 13,
+                                fontStyle: FontStyle.italic,
+                                color: appColors.subtleText,
+                                height: 1.35,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
                     )
                   else
-                    _SessionMessage(
-                      text: _displayTextForMode(session, displayMode),
-                      maxLines: 2,
+                    Padding(
+                      padding: const EdgeInsets.only(
+                        left: _sessionCardTextRailIndent,
+                      ),
+                      child: _SessionMessage(
+                        text: _displayTextForMode(session, displayMode),
+                        maxLines: 2,
+                      ),
                     ),
                 ],
               ),

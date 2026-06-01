@@ -408,6 +408,14 @@ class MockBridgeService extends BridgeService {
   }
 
   @override
+  Future<String> fetchToolResultContent({
+    required String sessionId,
+    required String contentRef,
+  }) {
+    return Future.error(StateError('Mock full tool output is unavailable'));
+  }
+
+  @override
   PastHistoryMessage? cachedPastHistory(String sessionId) => null;
 
   @override

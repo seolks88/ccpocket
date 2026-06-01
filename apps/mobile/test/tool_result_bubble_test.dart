@@ -22,12 +22,16 @@ ToolResultMessage _msg({
   String content = 'line1\nline2\nline3',
   String? toolName = 'Read',
   List<ImageRef> images = const [],
+  bool isTruncated = false,
+  ToolResultTruncation? truncation,
 }) {
   return ToolResultMessage(
     toolUseId: 'test-tool-1',
     content: content,
     toolName: toolName,
     images: images,
+    isTruncated: isTruncated,
+    truncation: truncation,
   );
 }
 
@@ -309,6 +313,87 @@ void main() {
       );
 
       expect(find.text('OK'), findsOneWidget);
+    });
+
+    testWidgets('large collapsed output stays summarized', (tester) async {
+      final largeOutput = List.generate(1700, (i) => 'line $i').join('\n');
+
+      await tester.pumpWidget(
+        _wrap(
+          ToolResultBubble(
+            message: _msg(toolName: 'Bash', content: largeOutput),
+          ),
+        ),
+      );
+
+      expect(find.text('1700 lines'), findsOneWidget);
+      expect(find.textContaining('line 1699'), findsNothing);
+    });
+
+    testWidgets('truncated result shows preview summary and notice', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(
+          ToolResultBubble(
+            message: _msg(
+              toolName: 'Bash',
+              content: 'preview output',
+              isTruncated: true,
+              truncation: const ToolResultTruncation(
+                contentRef: 'tr_abc',
+                originalBytes: 521320,
+                originalLines: 1696,
+                previewBytes: 24576,
+                fullContentAvailable: true,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Preview of 1696 lines'), findsOneWidget);
+      expect(find.textContaining('Output truncated'), findsNothing);
+
+      await tester.tap(find.byType(InkWell).first);
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Output truncated'), findsOneWidget);
+      expect(find.textContaining('24.0 KB shown of 509.1 KB'), findsOneWidget);
+    });
+
+    testWidgets('load full output keeps full text local to the bubble', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(
+          ToolResultBubble(
+            message: _msg(
+              toolName: 'Bash',
+              content: 'preview output',
+              isTruncated: true,
+              truncation: const ToolResultTruncation(
+                contentRef: 'tr_abc',
+                originalBytes: 64000,
+                previewBytes: 24000,
+                fullContentAvailable: true,
+              ),
+            ),
+            onLoadFullContent: (_) async => 'full output\nlast line',
+          ),
+        ),
+      );
+
+      await tester.tap(find.byType(InkWell).first);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Load full output'), findsOneWidget);
+      await tester.tap(find.text('Load full output'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Full output loaded'), findsOneWidget);
+      expect(find.textContaining('full output'), findsOneWidget);
+      expect(find.textContaining('Output truncated'), findsNothing);
     });
   });
 }

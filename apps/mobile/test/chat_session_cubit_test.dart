@@ -163,6 +163,8 @@ void main() {
       expect(cubit.state.entries, isEmpty);
       expect(cubit.state.approval, isA<ApprovalNone>());
       expect(cubit.state.totalCost, 0.0);
+      expect(cubit.state.totalInputTokens, 0);
+      expect(cubit.state.totalToolCalls, 0);
     });
 
     test('status message updates state.status', () async {
@@ -1351,11 +1353,31 @@ void main() {
         cost: 0.05,
         duration: 2.5,
         sessionId: 'claude-session-1',
+        inputTokens: 10,
+        cachedInputTokens: 3,
+        outputTokens: 7,
+        toolCalls: 2,
+        fileEdits: 1,
       );
       mockBridge.emitMessage(resultMsg, sessionId: 's1');
       await Future.microtask(() {});
 
       expect(cubit.state.totalCost, 0.05);
+      expect(cubit.state.totalDuration, const Duration(milliseconds: 3));
+      expect(cubit.state.totalInputTokens, 10);
+      expect(cubit.state.totalCachedInputTokens, 3);
+      expect(cubit.state.totalOutputTokens, 7);
+      expect(cubit.state.totalToolCalls, 2);
+      expect(cubit.state.totalFileEdits, 1);
+
+      mockBridge.emitMessage(
+        const StatusMessage(status: ProcessStatus.running),
+        sessionId: 's1',
+      );
+      await Future.microtask(() {});
+
+      expect(cubit.state.totalInputTokens, 10);
+      expect(cubit.state.totalToolCalls, 2);
     });
 
     test('retryMessage changes status to sending and resends', () async {

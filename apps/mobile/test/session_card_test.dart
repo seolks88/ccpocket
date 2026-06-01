@@ -1143,10 +1143,42 @@ void main() {
         // text data is the full string even though it ellipsizes at paint.
         expect(find.text(longName), findsOneWidget);
         expect(find.text(longProjectSegment), findsOneWidget);
-        // The project rail-line carries its leading folder glyph.
-        expect(find.byIcon(Icons.folder_outlined), findsOneWidget);
+        // The project line is plain text aligned to the title rail, not a
+        // second nested icon row.
+        expect(find.byIcon(Icons.folder_outlined), findsNothing);
       },
     );
+
+    testWidgets('aligns title, project, and preview to one text rail', (
+      tester,
+    ) async {
+      const name = '검토 후 iPhone 설치';
+      const project = 'ccpocket-src';
+      const prompt = '이거 수정했는데 잘 됐는지 검토해줘';
+      final session = RecentSession(
+        sessionId: 'recent-alignment',
+        provider: 'codex',
+        name: name,
+        summary: 'summary',
+        firstPrompt: prompt,
+        created: DateTime.now().toIso8601String(),
+        modified: DateTime.now().toIso8601String(),
+        gitBranch: 'main',
+        projectPath: '/Users/hon/dev/$project',
+        isSidechain: false,
+      );
+
+      await tester.pumpWidget(
+        _wrap(RecentSessionCard(session: session, onTap: () {})),
+      );
+
+      final titleLeft = tester.getTopLeft(find.text(name)).dx;
+      final projectLeft = tester.getTopLeft(find.text(project)).dx;
+      final promptLeft = tester.getTopLeft(find.text(prompt)).dx;
+
+      expect(projectLeft, closeTo(titleLeft, 0.1));
+      expect(promptLeft, closeTo(titleLeft, 0.1));
+    });
 
     testWidgets('omits codex settings meta from the recent card', (
       tester,

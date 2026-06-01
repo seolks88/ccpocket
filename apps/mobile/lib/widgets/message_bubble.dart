@@ -28,6 +28,7 @@ class ChatEntryWidget extends StatelessWidget {
   final void Function(AssistantServerMessage)? onForkMessage;
   final ValueNotifier<int>? collapseToolResults;
   final String? resolvedPlanText;
+  final Future<String> Function(String contentRef)? onLoadFullToolResult;
 
   /// Tool use IDs that should be hidden (replaced by a tool_use_summary).
   final Set<String> hiddenToolUseIds;
@@ -50,6 +51,7 @@ class ChatEntryWidget extends StatelessWidget {
     this.onForkMessage,
     this.collapseToolResults,
     this.resolvedPlanText,
+    this.onLoadFullToolResult,
     this.hiddenToolUseIds = const {},
     this.onImageTap,
     this.onFileTap,
@@ -73,6 +75,7 @@ class ChatEntryWidget extends StatelessWidget {
             onFileTap: onFileTap,
             knownPathSuffixes: knownPathSuffixes,
             onForkMessage: onForkMessage,
+            onLoadFullToolResult: onLoadFullToolResult,
             isCodex: isCodex,
           ),
           final UserChatEntry user => UserBubble(
@@ -160,6 +163,7 @@ class ServerMessageWidget extends StatelessWidget {
   final FilePathTapCallback? onFileTap;
   final Set<String> knownPathSuffixes;
   final void Function(AssistantServerMessage)? onForkMessage;
+  final Future<String> Function(String contentRef)? onLoadFullToolResult;
   final bool isCodex;
 
   const ServerMessageWidget({
@@ -172,6 +176,7 @@ class ServerMessageWidget extends StatelessWidget {
     this.onFileTap,
     this.knownPathSuffixes = const {},
     this.onForkMessage,
+    this.onLoadFullToolResult,
     this.isCodex = false,
   });
 
@@ -195,6 +200,7 @@ class ServerMessageWidget extends StatelessWidget {
                 message: msg,
                 httpBaseUrl: httpBaseUrl,
                 collapseNotifier: collapseToolResults,
+                onLoadFullContent: onLoadFullToolResult,
               ),
       final ResultMessage msg => ResultChip(message: msg),
       final ErrorMessage msg => ErrorBubble(message: msg),
@@ -202,6 +208,8 @@ class ServerMessageWidget extends StatelessWidget {
       HistoryMessage() => const SizedBox.shrink(),
       HistoryDeltaMessage() => const SizedBox.shrink(),
       HistorySnapshotMessage() => const SizedBox.shrink(),
+      ToolResultContentMessage() => const SizedBox.shrink(),
+      ToolResultContentErrorMessage() => const SizedBox.shrink(),
       final PermissionRequestMessage msg =>
         msg.toolName == 'ExitPlanMode' ||
                 msg.toolName == 'AskUserQuestion' ||

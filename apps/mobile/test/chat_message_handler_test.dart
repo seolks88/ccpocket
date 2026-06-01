@@ -410,6 +410,13 @@ void main() {
               toolUseId: 'ig-1',
               toolName: 'ImageGeneration',
               toolResultContent: 'status: completed',
+              isTruncated: true,
+              truncation: ToolResultTruncation(
+                contentRef: 'tr_ig_1',
+                originalBytes: 64000,
+                previewBytes: 24000,
+                fullContentAvailable: true,
+              ),
               images: [
                 ImageRef(
                   id: 'img-1',
@@ -430,6 +437,9 @@ void main() {
       expect(message.toolUseId, 'ig-1');
       expect(message.toolName, 'ImageGeneration');
       expect(message.images.single.id, 'img-1');
+      expect(message.isTruncated, isTrue);
+      expect(message.truncation?.contentRef, 'tr_ig_1');
+      expect(message.truncation?.fullContentAvailable, isTrue);
     });
   });
 

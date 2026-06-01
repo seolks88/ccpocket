@@ -38,6 +38,67 @@ import '../state/chat_session_cubit.dart';
 
 enum _CompletionOverlay { slash, dollar, file }
 
+class _CompletionSources {
+  final List<SlashCommand> commands;
+  final List<SlashCommand> dollarEntities;
+  final List<SlashCommand> pluginEntities;
+  final Set<String> slashCommandTokens;
+  final Set<String> skillTokens;
+  final Set<String> appTokens;
+  final Set<String> pluginTokens;
+
+  const _CompletionSources({
+    required this.commands,
+    required this.dollarEntities,
+    required this.pluginEntities,
+    required this.slashCommandTokens,
+    required this.skillTokens,
+    required this.appTokens,
+    required this.pluginTokens,
+  });
+
+  factory _CompletionSources.build(
+    List<SlashCommand> completionItems, {
+    required bool isCodex,
+  }) {
+    final sessionSlashCommands = completionItems
+        .where((c) => c.command.startsWith('/'))
+        .toList(growable: false);
+    final fallbackCommands = isCodex
+        ? fallbackCodexSlashCommands
+        : fallbackSlashCommands;
+    final commands = [
+      ...fallbackCommands,
+      ...sessionSlashCommands.where(
+        (item) => !fallbackCommands.any(
+          (fallback) => fallback.command == item.command,
+        ),
+      ),
+    ];
+    final dollarEntities = completionItems
+        .where((c) => c.command.startsWith(r'$'))
+        .toList(growable: false);
+    final pluginEntities = completionItems
+        .where((c) => c.category == SlashCommandCategory.plugin)
+        .toList(growable: false);
+    return _CompletionSources(
+      commands: commands,
+      dollarEntities: dollarEntities,
+      pluginEntities: pluginEntities,
+      slashCommandTokens: commands.map((c) => c.command).toSet(),
+      skillTokens: dollarEntities
+          .where((c) => c.category == SlashCommandCategory.skill)
+          .map((c) => c.command)
+          .toSet(),
+      appTokens: dollarEntities
+          .where((c) => c.category == SlashCommandCategory.app)
+          .map((c) => c.command)
+          .toSet(),
+      pluginTokens: pluginEntities.map((c) => c.command).toSet(),
+    );
+  }
+}
+
 /// Manages the chat input bar together with slash-command and @-mention
 /// overlays using [OverlayPortal].
 ///
@@ -156,43 +217,27 @@ class ChatInputWithOverlays extends HookWidget {
         .select<ChatSessionCubit, List<SlashCommand>>(
           (cubit) => cubit.state.slashCommands,
         );
-    final sessionSlashCommands = completionItems
-        .where((c) => c.command.startsWith('/'))
-        .toList();
-    final fallbackCommands = isCodex
-        ? fallbackCodexSlashCommands
-        : fallbackSlashCommands;
-    final commands = [
-      ...fallbackCommands,
-      ...sessionSlashCommands.where(
-        (item) => !fallbackCommands.any(
-          (fallback) => fallback.command == item.command,
-        ),
-      ),
-    ];
-    final dollarEntities = completionItems
-        .where((c) => c.command.startsWith(r'$'))
-        .toList();
-    final skillTokens = dollarEntities
-        .where((c) => c.category == SlashCommandCategory.skill)
-        .map((c) => c.command)
-        .toSet();
-    final appTokens = dollarEntities
-        .where((c) => c.category == SlashCommandCategory.app)
-        .map((c) => c.command)
-        .toSet();
-    final pluginEntities = completionItems
-        .where((c) => c.category == SlashCommandCategory.plugin)
-        .toList();
-    final pluginTokens = pluginEntities.map((c) => c.command).toSet();
-    final composerTokenConfig = ComposerTokenConfig(
-      provider: isCodex ? Provider.codex : Provider.claude,
-      slashCommands: commands.map((c) => c.command).toSet(),
-      skillTokens: skillTokens,
-      appTokens: appTokens,
-      pluginTokens: pluginTokens,
-      fileMentions: projectFiles.toSet(),
+    final completionSources = useMemoized(
+      () => _CompletionSources.build(completionItems, isCodex: isCodex),
+      [completionItems, isCodex],
     );
+    final fileMentionTokens = useMemoized(() => projectFiles.toSet(), [
+      projectFiles,
+    ]);
+    final composerTokenConfig = useMemoized(
+      () => ComposerTokenConfig(
+        provider: isCodex ? Provider.codex : Provider.claude,
+        slashCommands: completionSources.slashCommandTokens,
+        skillTokens: completionSources.skillTokens,
+        appTokens: completionSources.appTokens,
+        pluginTokens: completionSources.pluginTokens,
+        fileMentions: fileMentionTokens,
+      ),
+      [isCodex, completionSources, fileMentionTokens],
+    );
+    final fileMentionIndex = useMemoized(() => FileMentionIndex(projectFiles), [
+      projectFiles,
+    ]);
     final composerTokenPalette = ComposerTokenPalette.fromTheme(
       Theme.of(context),
     );
@@ -257,7 +302,7 @@ class ChatInputWithOverlays extends HookWidget {
           }
           final query = '/${slashQuery.toLowerCase()}';
           final filtered = rankCommandCompletions(
-            commands,
+            completionSources.commands,
             query,
             (command) => command.command,
           );
@@ -288,7 +333,7 @@ class ChatInputWithOverlays extends HookWidget {
             }
             final q = '${r'$'}${dollarQuery.toLowerCase()}';
             final filtered = rankCommandCompletions(
-              dollarEntities,
+              completionSources.dollarEntities,
               q,
               (command) => command.command,
             );
@@ -317,25 +362,15 @@ class ChatInputWithOverlays extends HookWidget {
             isInMentionContext.value = inMention;
           }
           if (mentionQuery != null &&
-              (projectFiles.isNotEmpty || pluginEntities.isNotEmpty)) {
+              (fileMentionIndex.isNotEmpty ||
+                  completionSources.pluginEntities.isNotEmpty)) {
             final q = mentionQuery.toLowerCase();
             final filteredPluginItems = rankCommandCompletions(
-              pluginEntities,
+              completionSources.pluginEntities,
               '@$q',
               (command) => command.command,
             );
-            final scored =
-                projectFiles
-                    .map((f) => (file: f, score: scoreFileMentionPath(f, q)))
-                    .where((e) => e.score >= 0)
-                    .toList()
-                  ..sort((a, b) {
-                    final cmp = a.score.compareTo(b.score);
-                    return cmp != 0
-                        ? cmp
-                        : a.file.length.compareTo(b.file.length);
-                  });
-            final filtered = scored.take(15).map((e) => e.file).toList();
+            final filtered = fileMentionIndex.rank(q);
             if (filteredPluginItems.isNotEmpty || filtered.isNotEmpty) {
               filteredPlugins.value = filteredPluginItems;
               filteredFiles.value = filtered;
@@ -357,7 +392,7 @@ class ChatInputWithOverlays extends HookWidget {
 
       inputController.addListener(onChange);
       return () => inputController.removeListener(onChange);
-    }, [commands, dollarEntities, pluginEntities, isCodex, projectFiles]);
+    }, [completionSources, isCodex, fileMentionIndex]);
 
     // Update canDedent on cursor/text changes
     useEffect(() {

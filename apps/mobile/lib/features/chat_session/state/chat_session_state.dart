@@ -56,6 +56,11 @@ abstract class ChatSessionState with _$ChatSessionState {
     // Cost tracking
     @Default(0.0) double totalCost,
     Duration? totalDuration,
+    @Default(0) int totalInputTokens,
+    @Default(0) int totalCachedInputTokens,
+    @Default(0) int totalOutputTokens,
+    @Default(0) int totalToolCalls,
+    @Default(0) int totalFileEdits,
 
     // Slash commands available in this session
     @Default([]) List<SlashCommand> slashCommands,

@@ -87,12 +87,26 @@ export interface QueuedInputItem {
   mentions?: Array<{ name: string; path: string }>;
 }
 
+export interface ToolResultTruncation {
+  version: 1;
+  kind: "tool_result_content";
+  strategy: "head_tail";
+  originalBytes: number;
+  originalChars: number;
+  originalLines: number;
+  previewBytes: number;
+  omittedBytes: number;
+  contentRef?: string;
+  fullContentAvailable: boolean;
+}
+
 export type ClientMessage =
   | {
       type: "client_capabilities";
       appVersion?: string;
       protocolVersion?: number;
       supportedServerMessages?: string[];
+      historyContentModes?: string[];
     }
   | { type: "health_check"; requestId?: string }
   | {
@@ -214,6 +228,12 @@ export type ClientMessage =
       sinceSeq: number;
       includePast?: boolean;
       historyLimit?: number;
+    }
+  | {
+      type: "get_tool_result_content";
+      requestId: string;
+      sessionId: string;
+      contentRef: string;
     }
   | {
       type: "list_recent_sessions";
@@ -514,6 +534,8 @@ export type ServerMessage =
       images?: ImageRef[];
       userMessageUuid?: string;
       rawContentBlocks?: unknown[];
+      isTruncated?: boolean;
+      truncation?: ToolResultTruncation;
     }
   | {
       type: "result";
@@ -556,6 +578,21 @@ export type ServerMessage =
       sessionId?: string;
       limit: number;
       items: QueuedInputItem[];
+    }
+  | {
+      type: "tool_result_content";
+      requestId: string;
+      sessionId: string;
+      contentRef: string;
+      content: string;
+      contentBytes: number;
+    }
+  | {
+      type: "tool_result_content_error";
+      requestId: string;
+      sessionId: string;
+      contentRef: string;
+      message: string;
     }
   | {
       type: "permission_request";
@@ -879,6 +916,11 @@ export function parseClientMessage(data: string): ClientMessage | null {
           if (
             msg.supportedServerMessages.some((type) => typeof type !== "string")
           )
+            return null;
+        }
+        if (msg.historyContentModes !== undefined) {
+          if (!Array.isArray(msg.historyContentModes)) return null;
+          if (msg.historyContentModes.some((mode) => typeof mode !== "string"))
             return null;
         }
         break;
@@ -1234,6 +1276,14 @@ export function parseClientMessage(data: string): ClientMessage | null {
             !Number.isInteger(msg.historyLimit) ||
             msg.historyLimit <= 0 ||
             msg.historyLimit > 1000)
+        )
+          return null;
+        break;
+      case "get_tool_result_content":
+        if (
+          typeof msg.requestId !== "string" ||
+          typeof msg.sessionId !== "string" ||
+          typeof msg.contentRef !== "string"
         )
           return null;
         break;

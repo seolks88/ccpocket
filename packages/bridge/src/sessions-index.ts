@@ -6,6 +6,7 @@ import { homedir } from "node:os";
 import { renameSession as renameClaudeSdkSession } from "@anthropic-ai/claude-agent-sdk";
 import { isAutoRenamePromptText } from "./auto-rename.js";
 import { CODEX_ASSIST_MODEL } from "./codex-assist.js";
+import type { ToolResultTruncation } from "./parser.js";
 
 export interface SessionIndexEntry {
   sessionId: string;
@@ -1981,6 +1982,8 @@ export interface SessionHistoryMessage {
   imagePaths?: string[];
   imageBase64?: Array<{ data: string; mimeType: string }>;
   content: string | SessionHistoryContentItem[];
+  isTruncated?: boolean;
+  truncation?: ToolResultTruncation;
 }
 
 export function codexUserTurnUuid(ordinal: number): string {

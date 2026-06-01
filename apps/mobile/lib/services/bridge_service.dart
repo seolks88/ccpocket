@@ -160,6 +160,7 @@ class BridgeService implements BridgeServiceBase {
   final Map<String, int> _pendingHistoryDeltaSinceSeq = {};
   final Map<String, ClientMessage> _inFlightPendingMessages = {};
   final Map<String, ClientMessage> _inFlightInputMessages = {};
+  final Map<String, Completer<String>> _pendingToolResultContentRequests = {};
   final Map<String, Timer> _inFlightPendingVisibilityTimers = {};
   final Set<String> _visibleInFlightPendingKeys = {};
   final Map<String, _DeliveryPendingInputState> _deliveryPendingInputs = {};
@@ -187,7 +188,9 @@ class BridgeService implements BridgeServiceBase {
   bool _intentionalDisconnect = false;
   Timer? _healthCheckTimer;
   int _healthCheckSeq = 0;
+  int _toolResultContentRequestSeq = 0;
   static const _healthCheckTimeout = Duration(seconds: 3);
+  static const _toolResultContentTimeout = Duration(seconds: 10);
 
   @override
   Stream<ServerMessage> get messages => _messageController.stream;
@@ -419,6 +422,14 @@ class BridgeService implements BridgeServiceBase {
             final json = jsonDecode(data as String) as Map<String, dynamic>;
             final sessionId = json['sessionId'] as String?;
             final msg = ServerMessage.fromJson(json);
+            if (msg is ToolResultContentMessage) {
+              _completeToolResultContentRequest(msg);
+              return;
+            }
+            if (msg is ToolResultContentErrorMessage) {
+              _failToolResultContentRequest(msg);
+              return;
+            }
             if (sessionId != null && msg is HistoryDeltaMessage) {
               _handleHistoryDelta(sessionId, msg);
               return;
@@ -670,6 +681,9 @@ class BridgeService implements BridgeServiceBase {
             _channel = null;
           }
           _setBridgeConnectionState(BridgeConnectionState.disconnected);
+          _failPendingToolResultContentRequests(
+            StateError('Bridge connection lost'),
+          );
           _requeueInFlightInputMessages();
           _requeueInFlightPendingMessages();
           _messageController.add(
@@ -685,6 +699,9 @@ class BridgeService implements BridgeServiceBase {
           _channel = null;
           if (closeCode == 4001) {
             _setBridgeConnectionState(BridgeConnectionState.disconnected);
+            _failPendingToolResultContentRequests(
+              StateError('Bridge connection closed'),
+            );
             _messageController.add(
               ErrorMessage(
                 message: closeReason?.isNotEmpty == true
@@ -697,11 +714,17 @@ class BridgeService implements BridgeServiceBase {
           }
           if (!_intentionalDisconnect) {
             _setBridgeConnectionState(BridgeConnectionState.disconnected);
+            _failPendingToolResultContentRequests(
+              StateError('Bridge connection closed'),
+            );
             _requeueInFlightInputMessages();
             _requeueInFlightPendingMessages();
             _scheduleReconnect();
           } else {
             _setBridgeConnectionState(BridgeConnectionState.disconnected);
+            _failPendingToolResultContentRequests(
+              StateError('Bridge connection closed'),
+            );
           }
         },
       );
@@ -781,6 +804,9 @@ class BridgeService implements BridgeServiceBase {
     _lastUsageResult = null;
     _pendingHistoryDeltaSinceSeq.clear();
     _pastHistoryCache.clear();
+    _failPendingToolResultContentRequests(
+      StateError('Bridge connection changed'),
+    );
     _deliveryPendingInputs.clear();
     for (final timer in _deliveryPendingVisibilityTimers.values) {
       timer.cancel();
@@ -1006,6 +1032,56 @@ class BridgeService implements BridgeServiceBase {
     } else {
       _queueOfflineMessage(message);
     }
+  }
+
+  @override
+  Future<String> fetchToolResultContent({
+    required String sessionId,
+    required String contentRef,
+  }) {
+    final channel = _channel;
+    if (channel == null || !isConnected) {
+      return Future.error(StateError('Bridge is not connected'));
+    }
+    final requestId = 'tool-result-${++_toolResultContentRequestSeq}';
+    final completer = Completer<String>();
+    final message = ClientMessage.getToolResultContent(
+      requestId: requestId,
+      sessionId: sessionId,
+      contentRef: contentRef,
+    );
+    _pendingToolResultContentRequests[requestId] = completer;
+    onOutgoingMessage?.call(message);
+    try {
+      channel.sink.add(message.toJson());
+    } catch (error, stackTrace) {
+      logger.warning('Full tool output request failed', error, stackTrace);
+      _pendingToolResultContentRequests.remove(requestId);
+      completer.completeError(error, stackTrace);
+    }
+    return completer.future.timeout(
+      _toolResultContentTimeout,
+      onTimeout: () {
+        _pendingToolResultContentRequests.remove(requestId);
+        throw TimeoutException('Timed out loading full tool output');
+      },
+    );
+  }
+
+  void _completeToolResultContentRequest(ToolResultContentMessage message) {
+    final completer = _pendingToolResultContentRequests.remove(
+      message.requestId,
+    );
+    if (completer == null || completer.isCompleted) return;
+    completer.complete(message.content);
+  }
+
+  void _failToolResultContentRequest(ToolResultContentErrorMessage message) {
+    final completer = _pendingToolResultContentRequests.remove(
+      message.requestId,
+    );
+    if (completer == null || completer.isCompleted) return;
+    completer.completeError(StateError(message.message));
   }
 
   void _queueOfflineMessage(ClientMessage message) {
@@ -2786,6 +2862,7 @@ class BridgeService implements BridgeServiceBase {
     _deliveryPendingVisibilityTimers.clear();
     _deliveryPendingInputs.clear();
     _inFlightInputMessages.clear();
+    _failPendingToolResultContentRequests(StateError('Bridge disposed'));
     _channelSub?.cancel();
     _channelSub = null;
     _channel?.sink.close();
@@ -2829,6 +2906,16 @@ class BridgeService implements BridgeServiceBase {
     _gitStatusResultController.close();
     _gitRemoteStatusResultController.close();
     clearDiffImageCache();
+  }
+
+  void _failPendingToolResultContentRequests(Object error) {
+    final pending = Map<String, Completer<String>>.from(
+      _pendingToolResultContentRequests,
+    );
+    _pendingToolResultContentRequests.clear();
+    for (final completer in pending.values) {
+      if (!completer.isCompleted) completer.completeError(error);
+    }
   }
 }
 

@@ -303,6 +303,11 @@ class _ChatMessageListState extends State<ChatMessageList> {
             resolvedPlanText: _resolvePlanText(entry),
             hiddenToolUseIds: hiddenToolUseIds,
             knownPathSuffixes: knownPathSuffixes,
+            onLoadFullToolResult: (contentRef) =>
+                context.read<BridgeService>().fetchToolResultContent(
+                  sessionId: widget.sessionId,
+                  contentRef: contentRef,
+                ),
             onFileTap: (filePath) {
               final projectPath = widget.projectPath;
               if (projectPath == null || projectPath.isEmpty) return;

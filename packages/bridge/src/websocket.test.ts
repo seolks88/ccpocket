@@ -989,6 +989,191 @@ describe("BridgeWebSocketServer resume/get_history flow", () => {
     bridge.close();
   });
 
+  it("compacts large tool results in get_history for opted-in clients and serves full content", async () => {
+    const bridge = new BridgeWebSocketServer({ server: httpServer });
+    const ws = {
+      readyState: OPEN_STATE,
+      send: vi.fn(),
+    } as any;
+
+    await (bridge as any).handleClientMessage(
+      {
+        type: "client_capabilities",
+        historyContentModes: ["compact_tool_results"],
+      },
+      ws,
+    );
+    await (bridge as any).handleClientMessage(
+      {
+        type: "start",
+        projectPath: "/tmp/project-a",
+        provider: "claude",
+      },
+      ws,
+    );
+    await Promise.resolve();
+
+    const created = ws.send.mock.calls
+      .map((c: unknown[]) => JSON.parse(c[0] as string))
+      .find((m: any) => m.type === "system" && m.subtype === "session_created");
+    const sessionId = created.sessionId as string;
+    const content = `head\n${"x".repeat(40 * 1024)}\ntail`;
+    (bridge as any).sessionManager.appendHistory(sessionId, {
+      type: "tool_result",
+      toolUseId: "tool-large",
+      toolName: "Bash",
+      content,
+    });
+
+    ws.send.mockClear();
+    await (bridge as any).handleClientMessage(
+      { type: "get_history", sessionId },
+      ws,
+    );
+
+    const history = ws.send.mock.calls
+      .map((c: unknown[]) => JSON.parse(c[0] as string))
+      .find((m: any) => m.type === "history");
+    const toolResult = history.messages.find(
+      (m: any) => m.type === "tool_result",
+    );
+    expect(toolResult.content.length).toBeLessThan(content.length);
+    expect(toolResult.content).toContain("Output truncated by Bridge");
+    expect(toolResult.isTruncated).toBe(true);
+    expect(toolResult.truncation.contentRef).toMatch(/^tr_[a-f0-9]{24}$/);
+
+    ws.send.mockClear();
+    await (bridge as any).handleClientMessage(
+      {
+        type: "get_tool_result_content",
+        requestId: "req-1",
+        sessionId,
+        contentRef: toolResult.truncation.contentRef,
+      },
+      ws,
+    );
+
+    expect(JSON.parse(ws.send.mock.calls[0][0] as string)).toMatchObject({
+      type: "tool_result_content",
+      requestId: "req-1",
+      sessionId,
+      contentRef: toolResult.truncation.contentRef,
+      content,
+      contentBytes: Buffer.byteLength(content, "utf8"),
+    });
+
+    bridge.close();
+  });
+
+  it("keeps full tool results for clients without compact history capability", async () => {
+    const bridge = new BridgeWebSocketServer({ server: httpServer });
+    const ws = {
+      readyState: OPEN_STATE,
+      send: vi.fn(),
+    } as any;
+
+    await (bridge as any).handleClientMessage(
+      {
+        type: "start",
+        projectPath: "/tmp/project-a",
+        provider: "claude",
+      },
+      ws,
+    );
+    await Promise.resolve();
+    const created = ws.send.mock.calls
+      .map((c: unknown[]) => JSON.parse(c[0] as string))
+      .find((m: any) => m.type === "system" && m.subtype === "session_created");
+    const sessionId = created.sessionId as string;
+    const content = "x".repeat(40 * 1024);
+    (bridge as any).sessionManager.appendHistory(sessionId, {
+      type: "tool_result",
+      toolUseId: "tool-large",
+      content,
+    });
+
+    ws.send.mockClear();
+    await (bridge as any).handleClientMessage(
+      { type: "get_history", sessionId },
+      ws,
+    );
+
+    const history = ws.send.mock.calls
+      .map((c: unknown[]) => JSON.parse(c[0] as string))
+      .find((m: any) => m.type === "history");
+    const toolResult = history.messages.find(
+      (m: any) => m.type === "tool_result",
+    );
+    expect(toolResult.content).toBe(content);
+    expect(toolResult.isTruncated).toBeUndefined();
+
+    bridge.close();
+  });
+
+  it("compacts large tool results in history_delta and live broadcasts", async () => {
+    const bridge = new BridgeWebSocketServer({ server: httpServer });
+    const ws = {
+      readyState: OPEN_STATE,
+      send: vi.fn(),
+    } as any;
+
+    await (bridge as any).handleClientMessage(
+      {
+        type: "client_capabilities",
+        historyContentModes: ["compact_tool_results"],
+      },
+      ws,
+    );
+    await (bridge as any).handleClientMessage(
+      {
+        type: "start",
+        projectPath: "/tmp/project-a",
+        provider: "claude",
+      },
+      ws,
+    );
+    await Promise.resolve();
+    const created = ws.send.mock.calls
+      .map((c: unknown[]) => JSON.parse(c[0] as string))
+      .find((m: any) => m.type === "system" && m.subtype === "session_created");
+    const sessionId = created.sessionId as string;
+    const content = "x".repeat(40 * 1024);
+    const entry = (bridge as any).sessionManager.appendHistory(sessionId, {
+      type: "tool_result",
+      toolUseId: "tool-large",
+      content,
+    });
+
+    ws.send.mockClear();
+    await (bridge as any).handleClientMessage(
+      { type: "get_history_delta", sessionId, sinceSeq: entry.seq - 1 },
+      ws,
+    );
+
+    const delta = ws.send.mock.calls
+      .map((c: unknown[]) => JSON.parse(c[0] as string))
+      .find((m: any) => m.type === "history_delta");
+    expect(delta.messages[0].message.content).toContain(
+      "Output truncated by Bridge",
+    );
+    expect(delta.messages[0].message.isTruncated).toBe(true);
+
+    ws.send.mockClear();
+    (bridge as any).wss.clients.add(ws);
+    (bridge as any).broadcastSessionMessage(sessionId, {
+      type: "tool_result",
+      toolUseId: "tool-live",
+      content,
+    });
+
+    const live = JSON.parse(ws.send.mock.calls[0][0] as string);
+    expect(live.content).toContain("Output truncated by Bridge");
+    expect(live.isTruncated).toBe(true);
+    expect(live.sessionId).toBe(sessionId);
+
+    bridge.close();
+  });
+
   it("includes resume past_history before get_history_delta", async () => {
     getSessionHistoryMock.mockResolvedValue([
       {

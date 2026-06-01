@@ -206,6 +206,69 @@ void main() {
       bridge.dispose();
     });
 
+    test('fetchToolResultContent resolves full output response', () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      final socketReady = Completer<WebSocket>();
+      final requestSeen = Completer<Map<String, dynamic>>();
+
+      server.transform(WebSocketTransformer()).listen((socket) {
+        socketReady.complete(socket);
+        socket.listen((data) {
+          final request = jsonDecode(data as String) as Map<String, dynamic>;
+          if (request['type'] != 'get_tool_result_content') return;
+          requestSeen.complete(request);
+          socket.add(
+            jsonEncode({
+              'type': 'tool_result_content',
+              'requestId': request['requestId'],
+              'sessionId': 's1',
+              'contentRef': 'tr_abc',
+              'content': 'full output',
+              'contentBytes': 11,
+            }),
+          );
+        });
+      });
+
+      final bridge = BridgeService();
+      bridge.connect('ws://127.0.0.1:${server.port}');
+      final socket = await socketReady.future;
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      final content = await bridge.fetchToolResultContent(
+        sessionId: 's1',
+        contentRef: 'tr_abc',
+      );
+
+      expect(content, 'full output');
+      expect(await requestSeen.future, {
+        'type': 'get_tool_result_content',
+        'requestId': 'tool-result-1',
+        'sessionId': 's1',
+        'contentRef': 'tr_abc',
+      });
+
+      bridge.disconnect();
+      await socket.close();
+      await server.close(force: true);
+      bridge.dispose();
+    });
+
+    test('fetchToolResultContent does not queue while disconnected', () async {
+      final outgoing = <ClientMessage>[];
+      final bridge = BridgeService()..onOutgoingMessage = outgoing.add;
+
+      await expectLater(
+        bridge.fetchToolResultContent(sessionId: 's1', contentRef: 'tr_abc'),
+        throwsA(isA<StateError>()),
+      );
+
+      expect(outgoing, isEmpty);
+      expect(bridge.offlinePendingActions, isEmpty);
+
+      bridge.dispose();
+    });
+
     test(
       'requestSessionHistory uses delta when cached sequence exists',
       () async {

@@ -22,9 +22,7 @@ import '../state/chat_session_cubit.dart';
 /// padding ([_kBarContainerPaddingV] * 2) + outer vertical padding
 /// ([_kBarOuterPaddingV] * 2).
 const double kSessionModeBarHeight =
-    _kModeChipHeight +
-    (_kBarContainerPaddingV * 2) +
-    (_kBarOuterPaddingV * 2);
+    _kModeChipHeight + (_kBarContainerPaddingV * 2) + (_kBarOuterPaddingV * 2);
 
 /// Mode-chip tap height. Deliberately slimmer than the global 44px touch target
 /// so the always-visible top control bar reads thin and elegant. Tap targets
@@ -40,17 +38,45 @@ class SessionModeBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final chatCubit = context.watch<ChatSessionCubit>();
-    final executionMode = chatCubit.state.executionMode;
-    final planMode = chatCubit.state.planMode;
-    final inPlanMode = chatCubit.state.inPlanMode;
-    final status = chatCubit.state.status;
+    final chatCubit = context.read<ChatSessionCubit>();
+    final sessionMode = context
+        .select<
+          ChatSessionCubit,
+          ({
+            ExecutionMode executionMode,
+            bool planMode,
+            bool inPlanMode,
+            ProcessStatus status,
+            SandboxMode sandboxMode,
+            PermissionMode permissionMode,
+            CodexApprovalPolicy codexApprovalPolicy,
+            String codexApprovalsReviewer,
+            CodexPermissionsMode codexPermissionsMode,
+          })
+        >((cubit) {
+          final state = cubit.state;
+          return (
+            executionMode: state.executionMode,
+            planMode: state.planMode,
+            inPlanMode: state.inPlanMode,
+            status: state.status,
+            sandboxMode: state.sandboxMode,
+            permissionMode: state.permissionMode,
+            codexApprovalPolicy: state.codexApprovalPolicy,
+            codexApprovalsReviewer: state.codexApprovalsReviewer,
+            codexPermissionsMode: state.codexPermissionsMode,
+          );
+        });
+    final executionMode = sessionMode.executionMode;
+    final planMode = sessionMode.planMode;
+    final inPlanMode = sessionMode.inPlanMode;
+    final status = sessionMode.status;
     final isActive =
         status == ProcessStatus.running ||
         status == ProcessStatus.waitingApproval ||
         status == ProcessStatus.compacting;
-    final sandboxMode = chatCubit.state.sandboxMode;
-    final permissionMode = chatCubit.state.permissionMode;
+    final sandboxMode = sessionMode.sandboxMode;
+    final permissionMode = sessionMode.permissionMode;
     final isCodex = chatCubit.provider == Provider.codex;
 
     final cs = Theme.of(context).colorScheme;
@@ -106,10 +132,9 @@ class SessionModeBar extends StatelessWidget {
                   ),
                   ExecutionModeChip(
                     currentMode: executionMode,
-                    codexApprovalPolicy: chatCubit.state.codexApprovalPolicy,
-                    codexApprovalsReviewer:
-                        chatCubit.state.codexApprovalsReviewer,
-                    codexPermissionsMode: chatCubit.state.codexPermissionsMode,
+                    codexApprovalPolicy: sessionMode.codexApprovalPolicy,
+                    codexApprovalsReviewer: sessionMode.codexApprovalsReviewer,
+                    codexPermissionsMode: sessionMode.codexPermissionsMode,
                     provider: chatCubit.provider,
                     onTap: () => showCodexPermissionsMenu(
                       context,
@@ -1873,9 +1898,7 @@ class _SessionChip extends StatelessWidget {
           // Slim, elegant tap height for the always-visible top bar — thinner
           // than the global 44px target by design (see [_kModeChipHeight]).
           child: ConstrainedBox(
-            constraints: const BoxConstraints(
-              minHeight: _kModeChipHeight,
-            ),
+            constraints: const BoxConstraints(minHeight: _kModeChipHeight),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 2),
               child: Center(widthFactor: 1, child: pill),

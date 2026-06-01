@@ -122,9 +122,11 @@ void main() {
         'conversation_queue',
         'history_delta',
         'history_snapshot',
+        'tool_result_content',
         'git_status_result',
         'prompt_history_status',
       ]);
+      expect(json['historyContentModes'], ['compact_tool_results']);
     });
 
     test('ClientMessage.getHistoryDelta serializes sinceSeq', () {
@@ -171,6 +173,79 @@ void main() {
         });
       },
     );
+
+    test(
+      'ClientMessage.getToolResultContent serializes lazy fetch request',
+      () {
+        final msg = ClientMessage.getToolResultContent(
+          requestId: 'req-1',
+          sessionId: 's1',
+          contentRef: 'tr_abc',
+        );
+
+        expect(jsonDecode(msg.toJson()), {
+          'type': 'get_tool_result_content',
+          'requestId': 'req-1',
+          'sessionId': 's1',
+          'contentRef': 'tr_abc',
+        });
+      },
+    );
+
+    test('parses truncated tool result metadata', () {
+      final msg = ServerMessage.fromJson({
+        'type': 'tool_result',
+        'toolUseId': 'tool-1',
+        'toolName': 'Bash',
+        'content': 'preview',
+        'isTruncated': true,
+        'truncation': {
+          'contentRef': 'tr_abc',
+          'originalBytes': 521320,
+          'originalChars': 437482,
+          'originalLines': 1696,
+          'previewBytes': 24576,
+          'omittedBytes': 496744,
+          'fullContentAvailable': true,
+          'strategy': 'head_tail',
+        },
+      });
+
+      expect(msg, isA<ToolResultMessage>());
+      final toolResult = msg as ToolResultMessage;
+      expect(toolResult.isTruncated, isTrue);
+      expect(toolResult.truncation?.contentRef, 'tr_abc');
+      expect(toolResult.truncation?.originalBytes, 521320);
+      expect(toolResult.truncation?.originalLines, 1696);
+      expect(toolResult.truncation?.fullContentAvailable, isTrue);
+      expect(toolResult.truncation?.strategy, 'head_tail');
+    });
+
+    test('parses tool result content responses', () {
+      final content = ServerMessage.fromJson({
+        'type': 'tool_result_content',
+        'requestId': 'req-1',
+        'sessionId': 's1',
+        'contentRef': 'tr_abc',
+        'content': 'full output',
+        'contentBytes': 11,
+      });
+      expect(content, isA<ToolResultContentMessage>());
+      expect((content as ToolResultContentMessage).content, 'full output');
+
+      final error = ServerMessage.fromJson({
+        'type': 'tool_result_content_error',
+        'requestId': 'req-1',
+        'sessionId': 's1',
+        'contentRef': 'tr_abc',
+        'message': 'Full tool result is no longer available.',
+      });
+      expect(error, isA<ToolResultContentErrorMessage>());
+      expect(
+        (error as ToolResultContentErrorMessage).message,
+        'Full tool result is no longer available.',
+      );
+    });
 
     test(
       'ClientMessage.setClaudeSessionOptions serializes runtime controls',

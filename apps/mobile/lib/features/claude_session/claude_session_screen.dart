@@ -1379,20 +1379,74 @@ class _UsageSummaryFromCubit extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final sessionState = context.watch<ChatSessionCubit>().state;
-    final tokenUsage = _collectTokenUsage(sessionState.entries);
-    final toolUsage = _collectToolUsage(sessionState.entries);
+    final usage = context.select<ChatSessionCubit, _UsageSummarySelection>((
+      cubit,
+    ) {
+      final state = cubit.state;
+      return _UsageSummarySelection(
+        totalCost: state.totalCost,
+        totalDuration: state.totalDuration,
+        inputTokens: state.totalInputTokens,
+        cachedInputTokens: state.totalCachedInputTokens,
+        outputTokens: state.totalOutputTokens,
+        toolCalls: state.totalToolCalls,
+        fileEdits: state.totalFileEdits,
+      );
+    });
 
     return UsageSummaryBar(
-      totalCost: sessionState.totalCost,
-      totalDuration: sessionState.totalDuration,
-      inputTokens: tokenUsage.inputTokens,
-      cachedInputTokens: tokenUsage.cachedInputTokens,
-      outputTokens: tokenUsage.outputTokens,
-      toolCalls: toolUsage.toolCalls,
-      fileEdits: toolUsage.fileEdits,
+      totalCost: usage.totalCost,
+      totalDuration: usage.totalDuration,
+      inputTokens: usage.inputTokens,
+      cachedInputTokens: usage.cachedInputTokens,
+      outputTokens: usage.outputTokens,
+      toolCalls: usage.toolCalls,
+      fileEdits: usage.fileEdits,
     );
   }
+}
+
+class _UsageSummarySelection {
+  final double totalCost;
+  final Duration? totalDuration;
+  final int inputTokens;
+  final int cachedInputTokens;
+  final int outputTokens;
+  final int toolCalls;
+  final int fileEdits;
+
+  const _UsageSummarySelection({
+    required this.totalCost,
+    required this.totalDuration,
+    required this.inputTokens,
+    required this.cachedInputTokens,
+    required this.outputTokens,
+    required this.toolCalls,
+    required this.fileEdits,
+  });
+
+  @override
+  bool operator ==(Object other) {
+    return other is _UsageSummarySelection &&
+        other.totalCost == totalCost &&
+        other.totalDuration == totalDuration &&
+        other.inputTokens == inputTokens &&
+        other.cachedInputTokens == cachedInputTokens &&
+        other.outputTokens == outputTokens &&
+        other.toolCalls == toolCalls &&
+        other.fileEdits == fileEdits;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    totalCost,
+    totalDuration,
+    inputTokens,
+    cachedInputTokens,
+    outputTokens,
+    toolCalls,
+    fileEdits,
+  );
 }
 
 Widget? _sessionAppBarLeading(
@@ -1823,42 +1877,4 @@ void _retryFailedMessages(BuildContext context, String sessionId) {
       cubit.retryMessage(entry);
     }
   }
-}
-
-({int inputTokens, int cachedInputTokens, int outputTokens}) _collectTokenUsage(
-  List<ChatEntry> entries,
-) {
-  var inputTokens = 0;
-  var cachedInputTokens = 0;
-  var outputTokens = 0;
-
-  for (final entry in entries) {
-    if (entry is! ServerChatEntry) continue;
-    final msg = entry.message;
-    if (msg is! ResultMessage) continue;
-    inputTokens += msg.inputTokens ?? 0;
-    cachedInputTokens += msg.cachedInputTokens ?? 0;
-    outputTokens += msg.outputTokens ?? 0;
-  }
-
-  return (
-    inputTokens: inputTokens,
-    cachedInputTokens: cachedInputTokens,
-    outputTokens: outputTokens,
-  );
-}
-
-({int toolCalls, int fileEdits}) _collectToolUsage(List<ChatEntry> entries) {
-  var toolCalls = 0;
-  var fileEdits = 0;
-
-  for (final entry in entries) {
-    if (entry is! ServerChatEntry) continue;
-    final msg = entry.message;
-    if (msg is! ResultMessage) continue;
-    toolCalls += msg.toolCalls ?? 0;
-    fileEdits += msg.fileEdits ?? 0;
-  }
-
-  return (toolCalls: toolCalls, fileEdits: fileEdits);
 }

@@ -522,11 +522,15 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
       }
     }
 
+    var shouldRecalculateUsage = update.entriesToPrepend.isNotEmpty;
+    var addedResultMessages = const <ResultMessage>[];
+
     // Add new entries (skip streaming entries — those go to StreamingState)
     final nonStreamingEntries = update.entriesToAdd
         .where((e) => e is! StreamingChatEntry)
         .toList();
     if (update.replaceEntries) {
+      shouldRecalculateUsage = true;
       // History is a full snapshot — replace all non-past-history entries
       // to prevent duplicates when get_history is received multiple times.
       final pastEntries = entries.take(_pastEntryCount).toList();
@@ -589,6 +593,11 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
       final result = _appendEntriesDeduped(entries, nonStreamingEntries);
       entries = result.entries;
       didModifyEntries = result.didChange;
+      addedResultMessages = result.addedEntries
+          .whereType<ServerChatEntry>()
+          .map((entry) => entry.message)
+          .whereType<ResultMessage>()
+          .toList(growable: false);
     }
 
     // --- Cleanup responded tool use IDs ---
@@ -768,7 +777,12 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
         itemId: current.queuedInput!.itemId,
       );
     }
-    final usage = _calculateUsageTotals(nextEntries);
+    final usage = _resolveUsageTotals(
+      current,
+      nextEntries,
+      recalculate: shouldRecalculateUsage,
+      addedResultMessages: addedResultMessages,
+    );
 
     emit(
       current.copyWith(
@@ -777,6 +791,11 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
         approval: approval,
         totalCost: usage.totalCost,
         totalDuration: usage.totalDuration,
+        totalInputTokens: usage.inputTokens,
+        totalCachedInputTokens: usage.cachedInputTokens,
+        totalOutputTokens: usage.outputTokens,
+        totalToolCalls: usage.toolCalls,
+        totalFileEdits: usage.fileEdits,
         inPlanMode: update.inPlanMode ?? current.inPlanMode,
         permissionMode: update.permissionMode ?? current.permissionMode,
         executionMode: update.executionMode ?? current.executionMode,
@@ -813,10 +832,40 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
     }
   }
 
+  _UsageTotals _resolveUsageTotals(
+    ChatSessionState current,
+    List<ChatEntry> nextEntries, {
+    required bool recalculate,
+    required List<ResultMessage> addedResultMessages,
+  }) {
+    if (recalculate) {
+      return _calculateUsageTotals(nextEntries);
+    }
+
+    var usage = _UsageTotals(
+      totalCost: current.totalCost,
+      totalDuration: current.totalDuration,
+      inputTokens: current.totalInputTokens,
+      cachedInputTokens: current.totalCachedInputTokens,
+      outputTokens: current.totalOutputTokens,
+      toolCalls: current.totalToolCalls,
+      fileEdits: current.totalFileEdits,
+    );
+    for (final message in addedResultMessages) {
+      usage = usage.plus(_usageTotalsForResult(message));
+    }
+    return usage;
+  }
+
   _UsageTotals _calculateUsageTotals(List<ChatEntry> entries) {
     double totalCost = 0;
     double durationMs = 0;
     var hasDuration = false;
+    var inputTokens = 0;
+    var cachedInputTokens = 0;
+    var outputTokens = 0;
+    var toolCalls = 0;
+    var fileEdits = 0;
 
     for (final entry in entries) {
       if (entry is! ServerChatEntry) continue;
@@ -830,6 +879,11 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
         durationMs += msg.duration!;
         hasDuration = true;
       }
+      inputTokens += msg.inputTokens ?? 0;
+      cachedInputTokens += msg.cachedInputTokens ?? 0;
+      outputTokens += msg.outputTokens ?? 0;
+      toolCalls += msg.toolCalls ?? 0;
+      fileEdits += msg.fileEdits ?? 0;
     }
 
     return _UsageTotals(
@@ -837,6 +891,11 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
       totalDuration: hasDuration
           ? Duration(milliseconds: durationMs.round())
           : null,
+      inputTokens: inputTokens,
+      cachedInputTokens: cachedInputTokens,
+      outputTokens: outputTokens,
+      toolCalls: toolCalls,
+      fileEdits: fileEdits,
     );
   }
 
@@ -877,12 +936,11 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
     return preserved;
   }
 
-  ({List<ChatEntry> entries, bool didChange}) _appendEntriesDeduped(
-    List<ChatEntry> current,
-    List<ChatEntry> additions,
-  ) {
+  ({List<ChatEntry> entries, bool didChange, List<ChatEntry> addedEntries})
+  _appendEntriesDeduped(List<ChatEntry> current, List<ChatEntry> additions) {
     var next = current;
     var didChange = false;
+    final addedEntries = <ChatEntry>[];
 
     for (final addition in additions) {
       final matchIndex = _indexOfEquivalentEntry(next, addition);
@@ -897,10 +955,11 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
       }
       if (!didChange) next = [...next];
       next.add(addition);
+      addedEntries.add(addition);
       didChange = true;
     }
 
-    return (entries: next, didChange: didChange);
+    return (entries: next, didChange: didChange, addedEntries: addedEntries);
   }
 
   int _indexOfEquivalentEntry(
@@ -2173,8 +2232,55 @@ class ChatSessionCubit extends Cubit<ChatSessionState> {
 class _UsageTotals {
   final double totalCost;
   final Duration? totalDuration;
+  final int inputTokens;
+  final int cachedInputTokens;
+  final int outputTokens;
+  final int toolCalls;
+  final int fileEdits;
 
-  const _UsageTotals({required this.totalCost, required this.totalDuration});
+  const _UsageTotals({
+    required this.totalCost,
+    required this.totalDuration,
+    required this.inputTokens,
+    required this.cachedInputTokens,
+    required this.outputTokens,
+    required this.toolCalls,
+    required this.fileEdits,
+  });
+
+  _UsageTotals plus(_UsageTotals other) {
+    final nextDuration = _addDurations(totalDuration, other.totalDuration);
+    return _UsageTotals(
+      totalCost: totalCost + other.totalCost,
+      totalDuration: nextDuration,
+      inputTokens: inputTokens + other.inputTokens,
+      cachedInputTokens: cachedInputTokens + other.cachedInputTokens,
+      outputTokens: outputTokens + other.outputTokens,
+      toolCalls: toolCalls + other.toolCalls,
+      fileEdits: fileEdits + other.fileEdits,
+    );
+  }
+}
+
+_UsageTotals _usageTotalsForResult(ResultMessage message) {
+  final duration = message.duration != null && message.duration! >= 0
+      ? Duration(milliseconds: message.duration!.round())
+      : null;
+  return _UsageTotals(
+    totalCost: message.cost ?? 0,
+    totalDuration: duration,
+    inputTokens: message.inputTokens ?? 0,
+    cachedInputTokens: message.cachedInputTokens ?? 0,
+    outputTokens: message.outputTokens ?? 0,
+    toolCalls: message.toolCalls ?? 0,
+    fileEdits: message.fileEdits ?? 0,
+  );
+}
+
+Duration? _addDurations(Duration? a, Duration? b) {
+  if (a == null) return b;
+  if (b == null) return a;
+  return a + b;
 }
 
 List<String> updateRecentPeekedFiles(

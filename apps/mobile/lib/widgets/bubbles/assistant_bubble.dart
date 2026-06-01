@@ -29,6 +29,16 @@ import 'tool_row_header.dart';
 
 const _imageGenerationToolName = 'ImageGeneration';
 
+bool _hasFewerThanLines(String text, int limit) {
+  var lines = 1;
+  for (var i = 0; i < text.length; i++) {
+    if (text.codeUnitAt(i) != 0x0A) continue;
+    lines++;
+    if (lines >= limit) return false;
+  }
+  return true;
+}
+
 class AssistantBubble extends StatefulWidget {
   final AssistantServerMessage message;
 
@@ -85,10 +95,7 @@ class _AssistantBubbleState extends State<AssistantBubble> {
 
     if (hasOnlyTextContent && inferredErrorCode != null) {
       return ErrorBubble(
-        message: ErrorMessage(
-          message: _allText(),
-          errorCode: inferredErrorCode,
-        ),
+        message: ErrorMessage(message: allText, errorCode: inferredErrorCode),
       );
     }
 
@@ -97,7 +104,7 @@ class _AssistantBubbleState extends State<AssistantBubble> {
         contents: contents,
         hasTextContent: hasTextContent,
         resolvedPlanText: widget.resolvedPlanText,
-        allText: _allText(),
+        allText: allText,
         plainTextMode: _plainTextMode,
         onFork: widget.onFork,
         onTogglePlainText: () {
@@ -110,7 +117,7 @@ class _AssistantBubbleState extends State<AssistantBubble> {
       contents: contents,
       hasTextContent: hasTextContent,
       plainTextMode: _plainTextMode,
-      allText: _allText(),
+      allText: allText,
       onFileTap: widget.onFileTap,
       knownPathSuffixes: widget.knownPathSuffixes,
       onFork: widget.onFork,
@@ -150,7 +157,7 @@ class _PlanLayout extends StatelessWidget {
     // Real SDK: plan is written to a file via Write tool in a *different*
     // AssistantMessage.  Use resolvedPlanText (pre-extracted from all entries)
     // when TextContent doesn't look like an actual plan (< 10 lines).
-    if (originalPlanText.split('\n').length < 10 && resolvedPlanText != null) {
+    if (_hasFewerThanLines(originalPlanText, 10) && resolvedPlanText != null) {
       originalPlanText = resolvedPlanText!;
     }
 
@@ -328,20 +335,26 @@ enum ToolUseExpansion { collapsed, preview, expanded }
 
 class _ToolUseTileState extends State<ToolUseTile> {
   late ToolUseExpansion _expansion;
+  late ToolCategory _category;
+  late DiffFile? _editDiff;
+  late String _inputSummary;
   bool _restoredFromStorage = false;
-
-  late final ToolCategory _category = categorizeToolName(widget.name);
-  late final DiffFile? _editDiff = synthesizeEditToolDiff(
-    widget.name,
-    widget.input,
-  );
 
   bool get _isEditTool => _editDiff != null;
 
   @override
   void initState() {
     super.initState();
+    _refreshCachedToolData();
     _expansion = _defaultExpansion;
+  }
+
+  @override
+  void didUpdateWidget(covariant ToolUseTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.name != widget.name || oldWidget.input != widget.input) {
+      _refreshCachedToolData();
+    }
   }
 
   @override
@@ -372,8 +385,10 @@ class _ToolUseTileState extends State<ToolUseTile> {
     _expansion = _defaultExpansion;
   }
 
-  String _inputSummary() {
-    return getToolSummary(_category, widget.input);
+  void _refreshCachedToolData() {
+    _category = categorizeToolName(widget.name);
+    _editDiff = synthesizeEditToolDiff(widget.name, widget.input);
+    _inputSummary = getToolSummary(_category, widget.input);
   }
 
   void _copyContent() {
@@ -420,7 +435,7 @@ class _ToolUseTileState extends State<ToolUseTile> {
       return _ToolUseCollapsed(
         name: widget.name,
         category: _category,
-        inputSummary: _inputSummary(),
+        inputSummary: _inputSummary,
         onTap: _cycleExpansion,
         onLongPress: _copyContent,
       );
@@ -429,7 +444,7 @@ class _ToolUseTileState extends State<ToolUseTile> {
       name: widget.name,
       input: widget.input,
       category: _category,
-      inputSummary: _inputSummary(),
+      inputSummary: _inputSummary,
       editDiff: _editDiff,
       expansion: _expansion,
       onTap: _cycleExpansion,

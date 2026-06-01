@@ -752,6 +752,12 @@ sealed class ServerMessage {
                 .toList() ??
             const [],
         userMessageUuid: json['userMessageUuid'] as String?,
+        isTruncated: json['isTruncated'] as bool? ?? false,
+        truncation: json['truncation'] is Map<String, dynamic>
+            ? ToolResultTruncation.fromJson(
+                json['truncation'] as Map<String, dynamic>,
+              )
+            : null,
       ),
       'result' => ResultMessage(
         subtype: json['subtype'] as String? ?? '',
@@ -802,6 +808,19 @@ sealed class ServerMessage {
             ? ProcessStatus.fromString(json['status'] as String)
             : null,
         reason: json['reason'] as String? ?? 'compacted',
+      ),
+      'tool_result_content' => ToolResultContentMessage(
+        requestId: json['requestId'] as String? ?? '',
+        sessionId: json['sessionId'] as String? ?? '',
+        contentRef: json['contentRef'] as String? ?? '',
+        content: json['content'] as String? ?? '',
+        contentBytes: json['contentBytes'] as int?,
+      ),
+      'tool_result_content_error' => ToolResultContentErrorMessage(
+        requestId: json['requestId'] as String? ?? '',
+        sessionId: json['sessionId'] as String? ?? '',
+        contentRef: json['contentRef'] as String? ?? '',
+        message: json['message'] as String? ?? '',
       ),
       'conversation_queue' => ConversationQueueMessage(
         sessionId: json['sessionId'] as String?,
@@ -1483,13 +1502,52 @@ class ToolResultMessage implements ServerMessage {
   final String? toolName;
   final List<ImageRef> images;
   final String? userMessageUuid;
+  final bool isTruncated;
+  final ToolResultTruncation? truncation;
   const ToolResultMessage({
     required this.toolUseId,
     required this.content,
     this.toolName,
     this.images = const [],
     this.userMessageUuid,
+    this.isTruncated = false,
+    this.truncation,
   });
+}
+
+class ToolResultTruncation {
+  final String? contentRef;
+  final int? originalBytes;
+  final int? originalChars;
+  final int? originalLines;
+  final int? previewBytes;
+  final int? omittedBytes;
+  final bool fullContentAvailable;
+  final String? strategy;
+
+  const ToolResultTruncation({
+    this.contentRef,
+    this.originalBytes,
+    this.originalChars,
+    this.originalLines,
+    this.previewBytes,
+    this.omittedBytes,
+    this.fullContentAvailable = false,
+    this.strategy,
+  });
+
+  factory ToolResultTruncation.fromJson(Map<String, dynamic> json) {
+    return ToolResultTruncation(
+      contentRef: json['contentRef'] as String?,
+      originalBytes: json['originalBytes'] as int?,
+      originalChars: json['originalChars'] as int?,
+      originalLines: json['originalLines'] as int?,
+      previewBytes: json['previewBytes'] as int?,
+      omittedBytes: json['omittedBytes'] as int?,
+      fullContentAvailable: json['fullContentAvailable'] as bool? ?? false,
+      strategy: json['strategy'] as String?,
+    );
+  }
 }
 
 class ResultMessage implements ServerMessage {
@@ -1583,6 +1641,36 @@ class HistorySnapshotMessage implements ServerMessage {
     required this.entries,
     this.status,
     required this.reason,
+  });
+}
+
+class ToolResultContentMessage implements ServerMessage {
+  final String requestId;
+  final String sessionId;
+  final String contentRef;
+  final String content;
+  final int? contentBytes;
+
+  const ToolResultContentMessage({
+    required this.requestId,
+    required this.sessionId,
+    required this.contentRef,
+    required this.content,
+    this.contentBytes,
+  });
+}
+
+class ToolResultContentErrorMessage implements ServerMessage {
+  final String requestId;
+  final String sessionId;
+  final String contentRef;
+  final String message;
+
+  const ToolResultContentErrorMessage({
+    required this.requestId,
+    required this.sessionId,
+    required this.contentRef,
+    required this.message,
   });
 }
 
@@ -3163,6 +3251,8 @@ class PastMessage {
   final String? toolName;
   final List<ImageRef> images;
   final String? toolResultContent;
+  final bool isTruncated;
+  final ToolResultTruncation? truncation;
   final List<AssistantContent> content;
   const PastMessage({
     required this.role,
@@ -3174,6 +3264,8 @@ class PastMessage {
     this.toolName,
     this.images = const [],
     this.toolResultContent,
+    this.isTruncated = false,
+    this.truncation,
     required this.content,
   });
 
@@ -3204,6 +3296,12 @@ class PastMessage {
               .toList() ??
           const [],
       toolResultContent: rawContent is String ? rawContent : null,
+      isTruncated: json['isTruncated'] as bool? ?? false,
+      truncation: json['truncation'] is Map<String, dynamic>
+          ? ToolResultTruncation.fromJson(
+              json['truncation'] as Map<String, dynamic>,
+            )
+          : null,
       content: contentList,
     );
   }
@@ -3705,9 +3803,11 @@ class ClientMessage {
       'conversation_queue',
       'history_delta',
       'history_snapshot',
+      'tool_result_content',
       'git_status_result',
       'prompt_history_status',
     ],
+    List<String> historyContentModes = const ['compact_tool_results'],
   }) {
     return ClientMessage._(<String, dynamic>{
       'type': 'client_capabilities',
@@ -3715,6 +3815,8 @@ class ClientMessage {
       'appVersion': ?appVersion,
       if (supportedServerMessages.isNotEmpty)
         'supportedServerMessages': supportedServerMessages,
+      if (historyContentModes.isNotEmpty)
+        'historyContentModes': historyContentModes,
     });
   }
 
@@ -4028,6 +4130,17 @@ class ClientMessage {
     'sinceSeq': sinceSeq,
     'includePast': ?includePast,
     'historyLimit': ?historyLimit,
+  });
+
+  factory ClientMessage.getToolResultContent({
+    required String requestId,
+    required String sessionId,
+    required String contentRef,
+  }) => ClientMessage._({
+    'type': 'get_tool_result_content',
+    'requestId': requestId,
+    'sessionId': sessionId,
+    'contentRef': contentRef,
   });
 
   factory ClientMessage.refreshBranch(String sessionId) =>

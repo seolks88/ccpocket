@@ -48,9 +48,8 @@ const _errorContentMarkers = <String>[
 
 /// True when [content] looks like a failed tool result.
 bool _looksLikeToolError(String content) {
-  final trimmed = content.trimLeft();
-  if (trimmed.isEmpty) return false;
-  final lower = trimmed.toLowerCase();
+  final lower = _leadingLowerContent(content);
+  if (lower.isEmpty) return false;
   // Bare "Error" (whole content) or any of the leading markers.
   if (lower == 'error') return true;
   for (final marker in _errorContentMarkers) {
@@ -59,11 +58,129 @@ bool _looksLikeToolError(String content) {
   return false;
 }
 
+const _toolErrorScanLimit = 512;
 const _imageGenerationToolName = 'ImageGeneration';
+
+String _leadingLowerContent(String content) {
+  var start = 0;
+  while (start < content.length) {
+    final code = content.codeUnitAt(start);
+    if (code != 0x20 && code != 0x09 && code != 0x0A && code != 0x0D) {
+      break;
+    }
+    start++;
+  }
+  if (start >= content.length) return '';
+  final limit = start + _toolErrorScanLimit;
+  final end = limit < content.length ? limit : content.length;
+  return content.substring(start, end).toLowerCase();
+}
+
+int _lineCount(String content) {
+  var count = 1;
+  for (var i = 0; i < content.length; i++) {
+    if (content.codeUnitAt(i) == 0x0A) count++;
+  }
+  return count;
+}
+
+bool _hasNonWhitespace(String content) {
+  for (var i = 0; i < content.length; i++) {
+    final code = content.codeUnitAt(i);
+    if (code != 0x20 && code != 0x09 && code != 0x0A && code != 0x0D) {
+      return true;
+    }
+  }
+  return false;
+}
+
+({int added, int removed}) _countDiffChanges(String content) {
+  var added = 0;
+  var removed = 0;
+  var lineStart = 0;
+  for (var i = 0; i <= content.length; i++) {
+    final atLineEnd = i == content.length || content.codeUnitAt(i) == 0x0A;
+    if (!atLineEnd) continue;
+    if (content.startsWith('+', lineStart) &&
+        !content.startsWith('+++', lineStart)) {
+      added++;
+    } else if (content.startsWith('-', lineStart) &&
+        !content.startsWith('---', lineStart)) {
+      removed++;
+    }
+    lineStart = i + 1;
+  }
+  return (added: added, removed: removed);
+}
+
+class _ToolResultMetrics {
+  final ToolResultStatus status;
+  final int lineCount;
+  final int addedLines;
+  final int removedLines;
+  final bool isDiffContent;
+  final bool hasExpandableContent;
+  final String? filePath;
+
+  const _ToolResultMetrics({
+    required this.status,
+    required this.lineCount,
+    required this.addedLines,
+    required this.removedLines,
+    required this.isDiffContent,
+    required this.hasExpandableContent,
+    required this.filePath,
+  });
+
+  factory _ToolResultMetrics.fromMessage(ToolResultMessage message) {
+    final content = message.content;
+    final hasContent = _hasNonWhitespace(content);
+    final status = !hasContent && message.images.isEmpty
+        ? ToolResultStatus.empty
+        : _looksLikeToolError(content)
+        ? ToolResultStatus.error
+        : ToolResultStatus.ok;
+
+    final lineCount = _lineCount(content);
+    final toolName = message.toolName;
+    final isEditTool =
+        toolName == 'Edit' ||
+        toolName == 'FileEdit' ||
+        toolName == 'FileChange';
+    final diffStats = isEditTool
+        ? _countDiffChanges(content)
+        : (added: 0, removed: 0);
+    final isDiffContent =
+        isEditTool &&
+        ((content.contains('---') && content.contains('+++')) ||
+            diffStats.added > 0 ||
+            diffStats.removed > 0);
+    final filePath = isDiffContent
+        ? RegExp(r'\+\+\+ b/(.+)').firstMatch(content)?.group(1)
+        : null;
+    final hasExpandableContent =
+        message.isTruncated ||
+        isDiffContent ||
+        message.images.isNotEmpty ||
+        lineCount > 1 ||
+        content.length >= 40;
+
+    return _ToolResultMetrics(
+      status: status,
+      lineCount: lineCount,
+      addedLines: diffStats.added,
+      removedLines: diffStats.removed,
+      isDiffContent: isDiffContent,
+      hasExpandableContent: hasExpandableContent,
+      filePath: filePath,
+    );
+  }
+}
 
 class ToolResultBubble extends StatefulWidget {
   final ToolResultMessage message;
   final String? httpBaseUrl;
+  final Future<String> Function(String contentRef)? onLoadFullContent;
 
   /// When this notifier's value changes, the bubble auto-collapses.
   /// ClaudeSessionScreen increments it whenever a new assistant message arrives.
@@ -73,6 +190,7 @@ class ToolResultBubble extends StatefulWidget {
     super.key,
     required this.message,
     this.httpBaseUrl,
+    this.onLoadFullContent,
     this.collapseNotifier,
   });
 
@@ -82,11 +200,17 @@ class ToolResultBubble extends StatefulWidget {
 
 class ToolResultBubbleState extends State<ToolResultBubble> {
   late ToolResultExpansion _expansion;
+  late ToolCategory _category;
+  late _ToolResultMetrics _metrics;
   bool _restoredFromStorage = false;
+  String? _fullContent;
+  bool _loadingFullContent = false;
+  String? _fullContentError;
 
   @override
   void initState() {
     super.initState();
+    _refreshCachedMetrics();
     _expansion = _defaultExpansion;
     widget.collapseNotifier?.addListener(_onCollapseSignal);
   }
@@ -114,6 +238,15 @@ class ToolResultBubbleState extends State<ToolResultBubble> {
   @override
   void didUpdateWidget(ToolResultBubble oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.message != widget.message) {
+      _refreshCachedMetrics();
+      if (oldWidget.message.truncation?.contentRef !=
+          widget.message.truncation?.contentRef) {
+        _fullContent = null;
+        _loadingFullContent = false;
+        _fullContentError = null;
+      }
+    }
     if (oldWidget.collapseNotifier != widget.collapseNotifier) {
       oldWidget.collapseNotifier?.removeListener(_onCollapseSignal);
       widget.collapseNotifier?.addListener(_onCollapseSignal);
@@ -146,6 +279,13 @@ class ToolResultBubbleState extends State<ToolResultBubble> {
   }
 
   String get _storageKey => 'tool_result:${widget.message.toolUseId}';
+
+  String get _displayContent => _fullContent ?? widget.message.content;
+
+  void _refreshCachedMetrics() {
+    _category = categorizeToolName(widget.message.toolName ?? '');
+    _metrics = _ToolResultMetrics.fromMessage(widget.message);
+  }
 
   bool get _isCodeEditResult {
     final toolName = widget.message.toolName;
@@ -180,109 +320,78 @@ class ToolResultBubbleState extends State<ToolResultBubble> {
     )?.writeState(context, _expansion.name, identifier: _storageKey);
   }
 
-  late final ToolCategory _category = categorizeToolName(
-    widget.message.toolName ?? '',
-  );
-
-  /// Glanceable outcome of this result (error / empty / ok). Errors must read
-  /// differently from successes; empty output gets a calm muted placeholder.
-  ToolResultStatus get _status {
-    final hasContent = widget.message.content.trim().isNotEmpty;
-    if (!hasContent && widget.message.images.isEmpty) {
-      return ToolResultStatus.empty;
-    }
-    if (_looksLikeToolError(widget.message.content)) {
-      return ToolResultStatus.error;
-    }
-    return ToolResultStatus.ok;
-  }
-
   String _buildSummary(String content, String? toolName, AppLocalizations l) {
-    final lines = content.split('\n');
-    final lineCount = lines.length;
+    if (widget.message.isTruncated) {
+      final originalLines = widget.message.truncation?.originalLines;
+      if (originalLines != null && originalLines > 0) {
+        return 'Preview of $originalLines lines';
+      }
+      return 'Truncated output preview';
+    }
 
     if (toolName == 'Edit' ||
         toolName == 'FileEdit' ||
         toolName == 'FileChange') {
-      var added = 0;
-      var removed = 0;
-      for (final line in lines) {
-        if (line.startsWith('+') && !line.startsWith('+++')) added++;
-        if (line.startsWith('-') && !line.startsWith('---')) removed++;
-      }
-      if (added > 0 || removed > 0) {
-        return l.diffSummaryAddedRemoved(added, removed);
+      if (_metrics.addedLines > 0 || _metrics.removedLines > 0) {
+        return l.diffSummaryAddedRemoved(
+          _metrics.addedLines,
+          _metrics.removedLines,
+        );
       }
     }
 
-    if (lineCount == 1 && content.length < 40) {
+    if (_metrics.lineCount == 1 && content.length < 40) {
       return content;
     }
 
-    return l.lineCountSummary(lineCount);
-  }
-
-  /// Whether this tool result contains a viewable diff.
-  bool get _isDiffContent {
-    final toolName = widget.message.toolName;
-    if (toolName != 'Edit' &&
-        toolName != 'FileEdit' &&
-        toolName != 'FileChange') {
-      return false;
-    }
-    final content = widget.message.content;
-    // Check for unified diff markers
-    return content.contains('---') && content.contains('+++') ||
-        _hasDiffLines(content);
-  }
-
-  static bool _hasDiffLines(String content) {
-    final lines = content.split('\n');
-    for (final line in lines) {
-      if ((line.startsWith('+') && !line.startsWith('+++')) ||
-          (line.startsWith('-') && !line.startsWith('---'))) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  /// Whether tapping/expanding this result would actually reveal anything
-  /// beyond the collapsed summary. False for zero-output and single-line
-  /// results whose full text is already shown inline -- those render as a
-  /// calm static row with no chevron and no tap target.
-  bool get _hasExpandableContent {
-    if (_isDiffContent) return true; // tap opens the diff/git screen
-    if (widget.message.images.isNotEmpty) return true; // expansion shows images
-    final content = widget.message.content;
-    if (content.split('\n').length > 1) return true; // multi-line to reveal
-    // Single line: only expandable if the collapsed summary truncates it
-    // (i.e. the summary is not the full content). Mirrors _buildSummary.
-    return content.length >= 40;
-  }
-
-  String? _extractFilePath() {
-    final content = widget.message.content;
-    final match = RegExp(r'\+\+\+ b/(.+)').firstMatch(content);
-    return match?.group(1);
+    return l.lineCountSummary(_metrics.lineCount);
   }
 
   void _openGitScreen() {
     context.router.push(
-      GitRoute(initialDiff: widget.message.content, title: _extractFilePath()),
+      GitRoute(initialDiff: _displayContent, title: _metrics.filePath),
     );
   }
 
   void _onTap() {
-    if (_isDiffContent) {
+    if (_metrics.isDiffContent) {
       _openGitScreen();
     } else {
       _cycleExpansion();
     }
   }
 
+  Future<void> _loadFullContent() async {
+    final contentRef = widget.message.truncation?.contentRef;
+    final loader = widget.onLoadFullContent;
+    if (contentRef == null ||
+        contentRef.isEmpty ||
+        loader == null ||
+        _loadingFullContent) {
+      return;
+    }
+    setState(() {
+      _loadingFullContent = true;
+      _fullContentError = null;
+    });
+    try {
+      final content = await loader(contentRef);
+      if (!mounted) return;
+      setState(() {
+        _fullContent = content;
+        _loadingFullContent = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _fullContentError = 'Could not load full output';
+        _loadingFullContent = false;
+      });
+    }
+  }
+
   void _copyContent(BuildContext context) {
-    final content = widget.message.content;
+    final content = _displayContent;
     if (content.isEmpty) return;
     Clipboard.setData(ClipboardData(text: content));
     ScaffoldMessenger.of(context).showSnackBar(
@@ -310,27 +419,30 @@ class ToolResultBubbleState extends State<ToolResultBubble> {
       l,
     );
 
-    final status = _status;
+    final status = _metrics.status;
 
     if (_expansion == ToolResultExpansion.collapsed) {
-      final hasExpandableContent = _hasExpandableContent;
       return _CollapsedToolResult(
         toolName: widget.message.toolName,
         category: _category,
         summary: summary,
         status: status,
-        hasExpandableContent: hasExpandableContent,
-        onTap: hasExpandableContent ? _onTap : null,
+        hasExpandableContent: _metrics.hasExpandableContent,
+        onTap: _metrics.hasExpandableContent ? _onTap : null,
         onLongPress: () => _copyContent(context),
       );
     }
     return _ExpandedToolResult(
       message: widget.message,
+      fullContent: _fullContent,
       httpBaseUrl: widget.httpBaseUrl,
       category: _category,
       summary: summary,
       status: status,
       expansion: _expansion,
+      isLoadingFullContent: _loadingFullContent,
+      fullContentError: _fullContentError,
+      onLoadFullContent: _loadFullContent,
       onTap: _onTap,
       onLongPress: () => _copyContent(context),
     );
@@ -453,9 +565,9 @@ class _ImageGenerationResultCardState
                 const SizedBox(height: 4),
                 SelectableText(
                   widget.message.content,
-                  style: codeTextSettingsOf(context).style(
-                    color: appColors.toolResultTextExpanded,
-                  ),
+                  style: codeTextSettingsOf(
+                    context,
+                  ).style(color: appColors.toolResultTextExpanded),
                   contextMenuBuilder:
                       googleSearchSelectableTextContextMenuBuilder,
                 ),
@@ -604,9 +716,7 @@ class _CollapsedToolResult extends StatelessWidget {
     final isError = status == ToolResultStatus.error;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.bubbleMarginH,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.bubbleMarginH),
       child: InkWell(
         // Tap-to-expand only when there is genuinely more to reveal; long-press
         // (copy) stays available so static rows are still copyable.
@@ -678,11 +788,15 @@ class _CollapsedToolResult extends StatelessWidget {
 /// they honour the user's configured code font + size.
 class _ExpandedToolResult extends StatelessWidget {
   final ToolResultMessage message;
+  final String? fullContent;
   final String? httpBaseUrl;
   final ToolCategory category;
   final String summary;
   final ToolResultStatus status;
   final ToolResultExpansion expansion;
+  final bool isLoadingFullContent;
+  final String? fullContentError;
+  final VoidCallback? onLoadFullContent;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
 
@@ -690,11 +804,15 @@ class _ExpandedToolResult extends StatelessWidget {
 
   const _ExpandedToolResult({
     required this.message,
+    required this.fullContent,
     required this.httpBaseUrl,
     required this.category,
     required this.summary,
     required this.status,
     required this.expansion,
+    required this.isLoadingFullContent,
+    required this.fullContentError,
+    required this.onLoadFullContent,
     required this.onTap,
     required this.onLongPress,
   });
@@ -705,7 +823,8 @@ class _ExpandedToolResult extends StatelessWidget {
     final l = AppLocalizations.of(context);
     final visuals = _ToolStatusVisuals.resolve(status, category, appColors);
     final isError = status == ToolResultStatus.error;
-    final content = message.content;
+    final content = fullContent ?? message.content;
+    final showingFullContent = fullContent != null;
     final toolName = message.toolName;
     final lines = content.split('\n');
     final hasMore = lines.length > _previewLines;
@@ -765,6 +884,20 @@ class _ExpandedToolResult extends StatelessWidget {
                   color: appColors.subtleText,
                 ),
               ),
+              if (message.isTruncated && !showingFullContent) ...[
+                const SizedBox(height: AppSpacing.xs),
+                _TruncatedOutputNotice(
+                  truncation: message.truncation,
+                  isLoading: isLoadingFullContent,
+                  errorText: fullContentError,
+                  onLoadFullContent: _canLoadFullContent(message)
+                      ? onLoadFullContent
+                      : null,
+                ),
+              ] else if (message.isTruncated && showingFullContent) ...[
+                const SizedBox(height: AppSpacing.xs),
+                const _FullOutputLoadedNotice(),
+              ],
               // Content — settle the height when toggling preview<->expanded
               // instead of jumping. Height tween only; degrades to instant
               // under reduced motion via motionDuration.
@@ -802,8 +935,7 @@ class _ExpandedToolResult extends StatelessWidget {
                             remaining: lines.length - _previewLines,
                           ),
                         ),
-                    ] else if (expansion ==
-                        ToolResultExpansion.expanded) ...[
+                    ] else if (expansion == ToolResultExpansion.expanded) ...[
                       const SizedBox(height: AppSpacing.xs),
                       // Long lines scroll horizontally instead of wrapping, so
                       // code/log output stays readable line-for-line.
@@ -830,4 +962,146 @@ class _ExpandedToolResult extends StatelessWidget {
       ),
     );
   }
+}
+
+class _TruncatedOutputNotice extends StatelessWidget {
+  final ToolResultTruncation? truncation;
+  final bool isLoading;
+  final String? errorText;
+  final VoidCallback? onLoadFullContent;
+
+  const _TruncatedOutputNotice({
+    required this.truncation,
+    required this.isLoading,
+    required this.errorText,
+    required this.onLoadFullContent,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final appColors = Theme.of(context).extension<AppColors>()!;
+    final originalBytes = truncation?.originalBytes;
+    final previewBytes = truncation?.previewBytes;
+    final label = originalBytes != null && previewBytes != null
+        ? 'Output truncated: ${_formatBytes(previewBytes)} shown of ${_formatBytes(originalBytes)}'
+        : 'Output truncated';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.xs,
+      ),
+      decoration: BoxDecoration(
+        color: appColors.warningBubble,
+        borderRadius: BorderRadius.circular(AppSpacing.codeRadius),
+        border: Border.all(color: appColors.warningBubbleBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.compress,
+                size: AppIconSize.inline,
+                color: appColors.warningText,
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: appColors.warningText,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (errorText != null) ...[
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              errorText!,
+              style: TextStyle(fontSize: 11, color: appColors.warningText),
+            ),
+          ],
+          if (onLoadFullContent != null) ...[
+            const SizedBox(height: AppSpacing.xs),
+            TextButton.icon(
+              onPressed: isLoading ? null : onLoadFullContent,
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                foregroundColor: appColors.warningText,
+              ),
+              icon: isLoading
+                  ? SizedBox(
+                      width: AppIconSize.inline,
+                      height: AppIconSize.inline,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: appColors.warningText,
+                      ),
+                    )
+                  : const Icon(Icons.download, size: AppIconSize.inline),
+              label: Text(
+                isLoading ? 'Loading full output...' : 'Load full output',
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _FullOutputLoadedNotice extends StatelessWidget {
+  const _FullOutputLoadedNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    final appColors = Theme.of(context).extension<AppColors>()!;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.check_circle_outline,
+          size: AppIconSize.inline,
+          color: appColors.subtleText,
+        ),
+        const SizedBox(width: AppSpacing.xs),
+        Text(
+          'Full output loaded',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: appColors.subtleText,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+bool _canLoadFullContent(ToolResultMessage message) {
+  final truncation = message.truncation;
+  return truncation?.fullContentAvailable == true &&
+      (truncation?.contentRef?.isNotEmpty ?? false);
+}
+
+String _formatBytes(int bytes) {
+  if (bytes >= 1024 * 1024) {
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+  if (bytes >= 1024) {
+    return '${(bytes / 1024).toStringAsFixed(1)} KB';
+  }
+  return '$bytes B';
 }

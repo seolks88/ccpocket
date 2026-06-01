@@ -48,13 +48,14 @@ describe("normalizeToolResultContent", () => {
 describe("parseClientMessage", () => {
   it("parses client capabilities", () => {
     const msg = parseClientMessage(
-      '{"type":"client_capabilities","protocolVersion":1,"appVersion":"1.72.1","supportedServerMessages":["conversation_queue"]}',
+      '{"type":"client_capabilities","protocolVersion":1,"appVersion":"1.72.1","supportedServerMessages":["conversation_queue"],"historyContentModes":["compact_tool_results"]}',
     );
     expect(msg).toEqual({
       type: "client_capabilities",
       protocolVersion: 1,
       appVersion: "1.72.1",
       supportedServerMessages: ["conversation_queue"],
+      historyContentModes: ["compact_tool_results"],
     });
   });
 
@@ -62,6 +63,14 @@ describe("parseClientMessage", () => {
     expect(
       parseClientMessage(
         '{"type":"client_capabilities","supportedServerMessages":[123]}',
+      ),
+    ).toBeNull();
+  });
+
+  it("rejects client capabilities with invalid history content modes", () => {
+    expect(
+      parseClientMessage(
+        '{"type":"client_capabilities","historyContentModes":[123]}',
       ),
     ).toBeNull();
   });
@@ -219,6 +228,25 @@ describe("parseClientMessage", () => {
     ).toBeNull();
     expect(
       parseClientMessage('{"type":"input","text":"hello","baseSeq":-1}'),
+    ).toBeNull();
+  });
+
+  it("parses tool result content lazy fetch requests", () => {
+    expect(
+      parseClientMessage(
+        '{"type":"get_tool_result_content","requestId":"req-1","sessionId":"s1","contentRef":"tr_abc"}',
+      ),
+    ).toEqual({
+      type: "get_tool_result_content",
+      requestId: "req-1",
+      sessionId: "s1",
+      contentRef: "tr_abc",
+    });
+
+    expect(
+      parseClientMessage(
+        '{"type":"get_tool_result_content","requestId":"req-1","sessionId":"s1"}',
+      ),
     ).toBeNull();
   });
 
