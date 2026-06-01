@@ -1113,6 +1113,41 @@ void main() {
       expect(find.byTooltip('Claude Code'), findsOneWidget);
     });
 
+    testWidgets(
+      'long name and long project both stay visible (project not evicted)',
+      (tester) async {
+        const longName =
+            'Investigate the intermittent websocket disconnect on cold start';
+        const longProjectSegment =
+            'my-very-long-monorepo-package-name-frontend';
+        final session = RecentSession(
+          sessionId: 'recent-long',
+          provider: 'claude',
+          name: longName,
+          summary: 'summary',
+          firstPrompt: 'prompt',
+          created: DateTime.now().toIso8601String(),
+          modified: DateTime.now().toIso8601String(),
+          gitBranch: 'main',
+          projectPath: '/home/user/$longProjectSegment',
+          isSidechain: false,
+        );
+
+        await tester.pumpWidget(
+          _wrap(RecentSessionCard(session: session, onTap: () {})),
+        );
+
+        // Both identity tiers render as their own widgets: the name and the
+        // project each own a distinct line, so a long name can no longer
+        // swallow the project (the old single-row 'name · project' bug). The
+        // text data is the full string even though it ellipsizes at paint.
+        expect(find.text(longName), findsOneWidget);
+        expect(find.text(longProjectSegment), findsOneWidget);
+        // The project rail-line carries its leading folder glyph.
+        expect(find.byIcon(Icons.folder_outlined), findsOneWidget);
+      },
+    );
+
     testWidgets('omits codex settings meta from the recent card', (
       tester,
     ) async {

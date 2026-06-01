@@ -2237,11 +2237,13 @@ class _ProviderGlyph extends StatelessWidget {
 }
 
 /// The session identity block: the bold session [title] (name when present,
-/// else project name) on top, with the project (and optional agent) carried on
-/// a dedicated second line so a long name never squeezes the project out of
-/// view. Both lines stay individually readable instead of competing on one
-/// ellipsizing row. When no project suffix is present (title *is* the project),
-/// the title is allowed two lines.
+/// else project name) on top, allowed two lines so a long name wraps instead
+/// of being amputated. The project ([projectSuffix]) rides its own dedicated
+/// rail-line below, with an independent ellipsis budget, so a long name can
+/// never squeeze the project out of view and the two never compete on one
+/// row. The optional [agentLabel] sits on its own muted micro-line so it can
+/// never starve the project. Flat text only — no rail, no chip fill, no wash;
+/// hierarchy is carried by weight, color, and a leading glyph.
 class _SessionTitle extends StatelessWidget {
   final String title;
   final String? projectSuffix;
@@ -2259,22 +2261,28 @@ class _SessionTitle extends StatelessWidget {
     final appColors = theme.extension<AppColors>()!;
     final colorScheme = theme.colorScheme;
     final hasProject = projectSuffix != null;
-    // Slightly under titleMedium(16) so the title leads without feeling heavy;
-    // weight + the muted project line below carry the hierarchy, not raw size.
+    // Hero line. Slightly under titleMedium(16) so the name leads on weight,
+    // not raw size. Allowed TWO lines whether or not a project follows — a long
+    // name degrades to a wrap, never a hard 1-line ellipsis. The project below
+    // is on its own row, so it is never the thing dropped to fit the name.
     final titleStyle = theme.textTheme.titleMedium?.copyWith(
       fontSize: 15,
       fontWeight: FontWeight.w600,
       height: 1.25,
       color: colorScheme.onSurface,
     );
-    // Project line: more legible than the old faint suffix — onSurfaceVariant +
-    // medium weight so it reads as real, second-tier identity, not throwaway.
+    // Project rail-line: onSurfaceVariant + medium weight so it reads as real,
+    // second-tier identity, fully legible — not a throwaway suffix.
     final projectStyle = theme.textTheme.labelMedium?.copyWith(
       color: colorScheme.onSurfaceVariant,
       fontWeight: FontWeight.w500,
+      height: 1.2,
     );
+    // Agent label: lowest-priority tertiary token, on its own muted micro-line
+    // so it can never starve the project text for width.
     final agentStyle = theme.textTheme.labelSmall?.copyWith(
       color: appColors.subtleText,
+      fontWeight: FontWeight.w500,
     );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2283,37 +2291,38 @@ class _SessionTitle extends StatelessWidget {
         Text(
           title,
           style: titleStyle,
-          maxLines: hasProject ? 1 : 2,
+          maxLines: 2,
           overflow: TextOverflow.ellipsis,
         ),
         if (hasProject) ...[
           const SizedBox(height: 3),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(
-                Icons.folder_outlined,
-                size: AppIconSize.chip,
-                color: colorScheme.onSurfaceVariant,
+              // top:1 nudges the glyph onto the label x-height so the glyph +
+              // project read as one unit, even when the project wraps the row.
+              Padding(
+                padding: const EdgeInsets.only(top: 1),
+                child: Icon(
+                  Icons.folder_outlined,
+                  size: AppIconSize.chip,
+                  color: colorScheme.onSurfaceVariant,
+                ),
               ),
               const SizedBox(width: AppSpacing.xs),
               Flexible(
-                child: Text.rich(
-                  TextSpan(
-                    text: projectSuffix,
-                    style: projectStyle,
-                    children: [
-                      if (agentLabel != null)
-                        TextSpan(text: '  ·  $agentLabel', style: agentStyle),
-                    ],
-                  ),
+                child: Text(
+                  projectSuffix!,
+                  style: projectStyle,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
           ),
-        ] else if (agentLabel != null) ...[
-          const SizedBox(height: 3),
+        ],
+        if (agentLabel != null) ...[
+          const SizedBox(height: 2),
           Text(
             agentLabel!,
             style: agentStyle,
